@@ -15,6 +15,7 @@ Helper: `scripts/obelisk.sh METHOD PATH [JSON]`.
 | POST | `/api/tasks/bulk` | `{projectId?, tasks: [{key?, title, …, blockedBy?: (key \| "#12" \| uuid)[]}]}` |
 | PATCH | `/api/tasks/:id` | any task field; `null` clears dates/project |
 | DELETE | `/api/tasks/:id` | |
+| POST | `/api/tasks/reorder` | `{changes: [{taskId, position, status?}]}` — manual board order (lower first), atomic |
 | POST | `/api/tasks/:id/dependencies` | `{dependsOnId}` — `:id` is blocked by `dependsOnId` |
 | DELETE | `/api/tasks/:id/dependencies/:dependsOnId` | |
 | POST | `/api/impact/simulate` | `{taskId, days}` or `{taskId, toDate}` → `{task, days, report}` (read-only) |

@@ -1,13 +1,10 @@
 'use client';
 
 import {
-  addDays,
   changesFromReport,
   diffDays,
   formatRelativeKo,
   formatShortKo,
-  isOverdue,
-  isToday,
   PROJECT_COLORS,
   type ProjectColor,
   type Task,
@@ -19,7 +16,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from '@/components/Icon';
 import { Spinner, tip } from '@/components/primitives';
 import { Page, ViewHeader } from '@/components/View';
-import { cx, longDateKo, overdueLabel, spanLabel } from '@/lib/format';
+import { cx, longDateKo } from '@/lib/format';
 import { useTasks } from '@/lib/hooks';
 import { createProject, reschedule, selectTask, toggleDone, useApp } from '@/lib/store';
 import { toast } from '@/lib/toast';
@@ -32,33 +29,22 @@ import {
   CardProps,
   Column,
   ColumnAdd,
-  ColumnMore,
   Database,
   H2,
-  type Hue,
   ListRow,
   NewPageBox,
   Tag,
 } from './_home/blocks';
 import { stagger, useCountUp } from './_home/motion';
+import { UrgentBoard } from './_home/UrgentBoard';
 import { useHomeData, type HomeData, type ProjectRow, type RootRisk } from './_home/useHomeData';
 import s from './home.module.css';
 
-/** Cards per board column before "외 n개 더 보기". */
-const COLUMN_CAP = 6;
 /** Rows in the 다가오는 일정 list. */
 const LIST_CAP = 8;
-/** "급한 업무" = overdue, today, due within this many days, in progress, or high priority. */
-const URGENT_DAYS = 3;
 /** Overdue roots and impacts per root shown in 지연 파급. */
 const ROOT_CAP = 3;
 const IMPACT_CAP = 4;
-
-const PRIORITY_TAG: Record<number, { label: string; hue: Hue } | undefined> = {
-  3: { label: '높음', hue: 'red' },
-  2: { label: '보통', hue: 'amber' },
-  1: { label: '낮음', hue: 'slate' },
-};
 
 const isActive = (t: Task) => t.status === 'todo' || t.status === 'doing';
 
@@ -78,29 +64,6 @@ export default function HomePage() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? '좋은 아침이에요' : hour < 18 ? '좋은 오후예요' : '좋은 저녁이에요';
   const name = data.user?.name;
-
-  const urgent = useMemo(() => {
-    const soon = addDays(today, URGENT_DAYS);
-    const list = tasks
-      .filter(isActive)
-      .filter((t) => {
-        const d = t.dueDate ?? t.startDate;
-        return t.status === 'doing' || t.priority === 3 || isOverdue(t, today) || isToday(t, today) || (!!d && d <= soon);
-      })
-      .sort((a, b) => {
-        const oa = isOverdue(a, today) ? 0 : 1;
-        const ob = isOverdue(b, today) ? 0 : 1;
-        if (oa !== ob) return oa - ob;
-        const da = a.dueDate ?? a.startDate ?? '9999-12-31';
-        const db = b.dueDate ?? b.startDate ?? '9999-12-31';
-        if (da !== db) return da < db ? -1 : 1;
-        return b.priority - a.priority || a.number - b.number;
-      });
-    return {
-      doing: list.filter((t) => t.status === 'doing'),
-      todo: list.filter((t) => t.status === 'todo'),
-    };
-  }, [tasks, today]);
 
   const chronic = useMemo(
     () =>
@@ -160,47 +123,7 @@ export default function HomePage() {
         <div className={cx(s.columns, s.reveal)} style={stagger(3)}>
           <section className={s.col}>
             <H2>급한 업무</H2>
-            <Database icon="board" title="작업" href="/today" hrefLabel="오늘 보기" onNew={newTask} newLabel="새 작업">
-              <Board label="급한 업무 보드">
-                <Column
-                  hue="green"
-                  title="진행 중"
-                  count={urgent.doing.length}
-                  footer={
-                    <>
-                      {urgent.doing.length > COLUMN_CAP && <ColumnMore href="/all" n={urgent.doing.length - COLUMN_CAP} />}
-                      <ColumnAdd label="새 작업" onClick={newTask} />
-                    </>
-                  }
-                >
-                  {urgent.doing.slice(0, COLUMN_CAP).map((t, i) => (
-                    <TaskCard key={t.id} task={t} today={today} project={projectOf(t.projectId)} index={i} />
-                  ))}
-                </Column>
-                <Column
-                  hue="amber"
-                  title="시작 전"
-                  count={urgent.todo.length}
-                  footer={
-                    <>
-                      {urgent.todo.length > COLUMN_CAP && <ColumnMore href="/today" n={urgent.todo.length - COLUMN_CAP} />}
-                      <ColumnAdd label="새 작업" onClick={newTask} />
-                    </>
-                  }
-                >
-                  {urgent.todo.slice(0, COLUMN_CAP).map((t, i) => (
-                    <TaskCard key={t.id} task={t} today={today} project={projectOf(t.projectId)} index={i} />
-                  ))}
-                </Column>
-                {data.doneToday.length > 0 && (
-                  <Column hue="slate" title="오늘 완료" count={data.doneToday.length}>
-                    {data.doneToday.slice(0, COLUMN_CAP).map((t, i) => (
-                      <TaskCard key={t.id} task={t} today={today} project={projectOf(t.projectId)} index={i} />
-                    ))}
-                  </Column>
-                )}
-              </Board>
-            </Database>
+            <UrgentBoard today={today} doneToday={data.doneToday} onNew={newTask} />
           </section>
 
           <section className={s.col}>
@@ -596,60 +519,6 @@ function WatchList({ data, chronic }: { data: HomeData; chronic: Task[] }) {
         </>
       )}
     </aside>
-  );
-}
-
-/* ───────────────────────── task card */
-
-function TaskCard({
-  task,
-  today,
-  project,
-  index,
-}: {
-  task: Task;
-  today: string;
-  project?: { name: string; color: ProjectColor };
-  index: number;
-}) {
-  const done = task.status === 'done';
-  const overdue = isOverdue(task, today);
-  const date = overdue && task.dueDate ? overdueLabel(task.dueDate, today) : spanLabel(task, today);
-  const pr = PRIORITY_TAG[task.priority];
-
-  return (
-    <BoardCard
-      icon={task.fixed ? 'pin' : 'fileText'}
-      iconColor={task.fixed ? 'var(--c-red)' : undefined}
-      title={task.title}
-      done={done}
-      index={index}
-      onOpen={() => selectTask(task.id)}
-      aside={
-        <button
-          className={s.cardCheck}
-          data-done={done || undefined}
-          onClick={() => void toggleDone(task.id)}
-          aria-label={done ? '완료 취소' : '완료로 표시'}
-          {...tip(done ? '완료 취소' : '완료', { side: 'top', kbd: 'X' })}
-        >
-          <Icon name="check" size={12} strokeWidth={3} />
-        </button>
-      }
-    >
-      {(pr || project) && (
-        <CardProps>
-          {pr && <Tag hue={pr.hue}>{pr.label}</Tag>}
-          {project && <Tag hue={project.color}>{project.name}</Tag>}
-        </CardProps>
-      )}
-      {date && !done && (
-        <CardMeta icon={overdue ? 'alertCircle' : 'calendar'} tone={overdue ? 'danger' : undefined}>
-          {date}
-        </CardMeta>
-      )}
-      {task.postponedCount >= 2 && !done && <CardMeta icon="postpone">{task.postponedCount}번 미룸</CardMeta>}
-    </BoardCard>
   );
 }
 

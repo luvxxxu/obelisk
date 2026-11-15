@@ -9,6 +9,7 @@ import {
   type Dependency,
   type ISODate,
   type RescheduleInput,
+  type ReorderTasksInput,
   type Task,
   type TaskStatus,
   type UpdateTaskInput,
@@ -293,6 +294,30 @@ export class TasksService {
           .where(and(eq(tasks.id, c.taskId), eq(tasks.userId, userId)))
           .returning();
         out.push(toTask(row!));
+      }
+      return out;
+    });
+  }
+
+  /**
+   * Board moves: new manual positions (and, for a card dropped in another column, its new status),
+   * applied atomically. Position-only changes leave `updatedAt` alone — reordering isn't an edit.
+   */
+  async reorder(userId: string, input: ReorderTasksInput): Promise<Task[]> {
+    return this.db.transaction(async (tx) => {
+      const out: Task[] = [];
+      for (const c of input.changes) {
+        if (c.status) {
+          out.push(await this.update(userId, c.taskId, { status: c.status, position: c.position }, tx));
+          continue;
+        }
+        const [row] = await tx
+          .update(tasks)
+          .set({ position: c.position })
+          .where(and(eq(tasks.id, c.taskId), eq(tasks.userId, userId)))
+          .returning();
+        if (!row) throw new NotFoundException('작업을 찾을 수 없습니다');
+        out.push(toTask(row));
       }
       return out;
     });

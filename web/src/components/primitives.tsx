@@ -539,6 +539,11 @@ export function TooltipLayer() {
 
     const onMove = (e: PointerEvent) => {
       if (e.pointerType === 'touch') return;
+      // No tooltips while a board card is being dragged around (useBoardDnd).
+      if (document.documentElement.dataset.dragging !== undefined) {
+        if (current) hide();
+        return;
+      }
       const el = target(e.target);
       if (el?.dataset.tip) {
         if (el !== current) show(el, false);

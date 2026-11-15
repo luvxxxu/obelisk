@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, KeyboardEventHandler, PointerEventHandler, ReactNode, Ref } from 'react';
 import { Icon, type IconName } from '@/components/Icon';
 import { tip } from '@/components/primitives';
 import { cx } from '@/lib/format';
@@ -49,6 +49,7 @@ export function Database({
   hrefLabel,
   onNew,
   newLabel = '새로 만들기',
+  tools,
   children,
 }: {
   icon: IconName;
@@ -57,6 +58,8 @@ export function Database({
   hrefLabel?: string;
   onNew?: () => void;
   newLabel?: string;
+  /** Extra toolbar controls, left of search. */
+  tools?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -73,6 +76,7 @@ export function Database({
           )}
         </div>
         <div className={s.dbTools}>
+          {tools}
           <button className={s.dbTool} onClick={() => setUi({ palette: true })} aria-label="검색" {...tip('검색', { side: 'bottom' })}>
             <Icon name="search" size={16} />
           </button>
@@ -93,9 +97,20 @@ export function Database({
   );
 }
 
-export function Board({ children, label }: { children: ReactNode; label: string }) {
+export function Board({
+  children,
+  label,
+  ref,
+  dragging,
+}: {
+  children: ReactNode;
+  label: string;
+  ref?: Ref<HTMLDivElement>;
+  /** A card is lifted (drag in progress). */
+  dragging?: boolean;
+}) {
   return (
-    <div className={s.board} role="list" aria-label={label}>
+    <div className={s.board} role="list" aria-label={label} ref={ref} data-dragging={dragging || undefined}>
       {children}
     </div>
   );
@@ -107,23 +122,57 @@ export function Column({
   count,
   children,
   footer,
+  dropKey,
+  dropTarget,
+  ghost,
 }: {
   hue: Hue;
   title: string;
   count: number;
   children?: ReactNode;
   footer?: ReactNode;
+  /** Makes the column a drop target for useBoardDnd. */
+  dropKey?: string;
+  /** The lifted card would land here. */
+  dropTarget?: boolean;
+  /** Shown only while dragging (e.g. an empty 완료 column to drop into). */
+  ghost?: boolean;
 }) {
   return (
-    <div className={s.column} style={hueVars(hue)} role="listitem" aria-label={`${title} ${count}개`}>
+    <div
+      className={s.column}
+      style={hueVars(hue)}
+      role="listitem"
+      aria-label={`${title} ${count}개`}
+      data-col={dropKey}
+      data-drop-target={dropTarget || undefined}
+      data-ghost={ghost || undefined}
+    >
       <div className={s.columnHead}>
         <Tag hue={hue} dot>
           {title}
         </Tag>
         <span className={s.columnCount}>{count}</span>
       </div>
-      <div className={s.columnCards}>{children}</div>
+      <div className={s.columnCards} data-col-cards={dropKey ? '' : undefined}>
+        {children}
+      </div>
       {footer}
+    </div>
+  );
+}
+
+/** Where a lifted card will land. Carries the card's FLIP id so the real card takes over its box. */
+export function CardSlot({ id, height }: { id: string; height: number }) {
+  return <div className={s.cardSlot} style={{ height }} data-placeholder="" data-flip={id} data-flip-still="" aria-hidden="true" />;
+}
+
+/** Empty drop area, e.g. "여기에 놓으면 완료". */
+export function DropHint({ icon, children }: { icon: IconName; children: ReactNode }) {
+  return (
+    <div className={s.dropHint}>
+      <Icon name={icon} size={15} />
+      {children}
     </div>
   );
 }
@@ -155,6 +204,11 @@ export function BoardCard({
   onOpen,
   aside,
   index = 0,
+  dragId,
+  onPointerDown,
+  onKeyDown,
+  keyShortcuts,
+  actions,
   children,
 }: {
   icon: IconName;
@@ -165,6 +219,14 @@ export function BoardCard({
   href?: string;
   onOpen?: () => void;
   aside?: ReactNode;
+  /** Task id when the card can be dragged (useBoardDnd + FLIP). */
+  dragId?: string;
+  onPointerDown?: PointerEventHandler<HTMLDivElement>;
+  onKeyDown?: KeyboardEventHandler<HTMLButtonElement>;
+  /** aria-keyshortcuts on the card button. */
+  keyShortcuts?: string;
+  /** Number of hover buttons in `aside` (room is reserved on touch screens). */
+  actions?: number;
   children?: ReactNode;
 }) {
   const inner = (
@@ -179,17 +241,28 @@ export function BoardCard({
     </>
   );
   return (
-    <div className={s.cardWrap} style={{ '--i': index } as CSSProperties}>
+    <div
+      className={s.cardWrap}
+      style={{ '--i': index } as CSSProperties}
+      data-card={dragId}
+      data-flip={dragId}
+      data-actions={actions}
+      onPointerDown={onPointerDown}
+    >
       {href ? (
         <Link href={href} className={s.card}>
           {inner}
         </Link>
       ) : (
-        <button type="button" className={s.card} onClick={onOpen}>
+        <button type="button" className={s.card} onClick={onOpen} onKeyDown={onKeyDown} aria-keyshortcuts={keyShortcuts} data-card-main="">
           {inner}
         </button>
       )}
-      {aside && <div className={s.cardAside}>{aside}</div>}
+      {aside && (
+        <div className={s.cardAside} data-no-drag="">
+          {aside}
+        </div>
+      )}
     </div>
   );
 }

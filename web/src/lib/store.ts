@@ -9,6 +9,7 @@ import {
   type PlanItem,
   type Project,
   type Task,
+  type TaskStatus,
   type UpdateProjectInput,
   type UpdateTaskInput,
   type User,
@@ -67,7 +68,15 @@ export function useApp(): AppState {
 
 // ─────────────────────────────── helpers
 
+/**
+ * Bumped by every local task write. A background refresh that was already in flight when one
+ * happened carries a snapshot from before it — applying that would undo the optimistic change
+ * (a card dragged right after the window regained focus would jump back), so it is dropped.
+ */
+let localWrites = 0;
+
 function upsertTasks(list: Task[]) {
+  localWrites++;
   set((s) => {
     const tasks = { ...s.tasks };
     for (const t of list) tasks[t.id] = t;
@@ -104,8 +113,10 @@ export function load(silent = false): Promise<void> {
   if (inflight) return inflight;
   if (!silent) set({ status: state.status === 'ready' ? 'ready' : 'loading' });
   inflight = (async () => {
+    const writes = localWrites;
     try {
       const b = await api<Bootstrap>('GET', '/api/bootstrap');
+      if (state.status === 'ready' && localWrites !== writes) return; // stale; the next sync catches up
       const tasks: Record<string, Task> = {};
       for (const t of b.tasks) tasks[t.id] = t;
       set({
@@ -223,10 +234,45 @@ export async function reschedule(changes: DateChange[], rootId?: string): Promis
   }
 }
 
+export interface TaskMove {
+  taskId: string;
+  position: number;
+  status?: TaskStatus;
+}
+
+/** Board moves (manual order, and a new status when a card changes column), applied optimistically. */
+export async function moveTasks(changes: TaskMove[]): Promise<boolean> {
+  if (!changes.length) return true;
+  const prev = changes.map((c) => state.tasks[c.taskId]).filter((t): t is Task => !!t);
+  const now = new Date().toISOString();
+  upsertTasks(
+    changes.flatMap((c) => {
+      const t = state.tasks[c.taskId];
+      if (!t) return [];
+      const next: Task = { ...t, position: c.position };
+      if (c.status && c.status !== t.status) {
+        next.status = c.status;
+        next.completedAt = c.status === 'done' ? now : null;
+      }
+      return [next];
+    }),
+  );
+  try {
+    const { tasks } = await api<{ tasks: Task[] }>('POST', '/api/tasks/reorder', { changes });
+    upsertTasks(tasks);
+    return true;
+  } catch (e) {
+    upsertTasks(prev);
+    fail(e);
+    return false;
+  }
+}
+
 export async function deleteTask(id: string) {
   const t = state.tasks[id];
   if (!t) return;
   const prevDeps = state.deps;
+  localWrites++;
   set((s) => {
     const tasks = { ...s.tasks };
     delete tasks[id];

@@ -80,6 +80,15 @@ export const rescheduleInput = z.object({
 });
 export type RescheduleInput = z.infer<typeof rescheduleInput>;
 
+/** Move tasks on a board: new manual positions, optionally with a new status (one atomic write). */
+export const reorderTasksInput = z.object({
+  changes: z
+    .array(z.object({ taskId: uuid, position: z.number().finite(), status: taskStatus.optional() }))
+    .min(1)
+    .max(500),
+});
+export type ReorderTasksInput = z.infer<typeof reorderTasksInput>;
+
 export const delayInput = z
   .object({
     taskId: uuid,

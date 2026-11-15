@@ -6,6 +6,7 @@ import {
   delayInput,
   dependencyInput,
   postponeInput,
+  reorderTasksInput,
   rescheduleInput,
   todayIn,
   updateProjectInput,
@@ -95,6 +96,11 @@ export class PlannerController {
   @Post('tasks/reschedule')
   async reschedule(@UserId() userId: string, @Body() body: unknown) {
     return { tasks: await this.tasks.reschedule(userId, parse(rescheduleInput, body)) };
+  }
+
+  @Post('tasks/reorder')
+  async reorder(@UserId() userId: string, @Body() body: unknown) {
+    return { tasks: await this.tasks.reorder(userId, parse(reorderTasksInput, body)) };
   }
 
   @Get('tasks/:ref')

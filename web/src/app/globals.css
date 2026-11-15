@@ -372,6 +372,14 @@ kbd {
   user-select: none;
 }
 
+/* A board card is being dragged (useBoardDnd): one cursor, no selection, anywhere on the page. */
+html[data-dragging],
+html[data-dragging] * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

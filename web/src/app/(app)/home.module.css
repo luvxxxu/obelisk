@@ -924,6 +924,33 @@
   color: var(--text);
 }
 
+/* Sort toggle (급한 업무: 긴급도순 ↔ 직접 정렬). */
+.dbChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 8px;
+  margin-right: 2px;
+  border-radius: var(--radius);
+  color: var(--text-3);
+  font-size: 13px;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.dbChip:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.dbChip:focus-visible {
+  outline: 2px solid var(--ring-color);
+  outline-offset: 1px;
+}
+
 .dbNew {
   display: inline-flex;
   align-items: center;
@@ -977,6 +1004,32 @@
   border-radius: var(--radius-lg);
   background: var(--tint);
   scroll-snap-align: start;
+  transition:
+    background-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+
+/* A card from another column would land here. */
+.column[data-drop-target] {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+/* 오늘 완료 shown only as a drop zone while a card is lifted. */
+.column[data-ghost] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border);
+  animation: pop-in 0.2s var(--ease-out);
+}
+
+.column[data-ghost][data-drop-target] {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+/* While dragging, snap scrolling would fight the auto-scroll. */
+.board[data-dragging] {
+  scroll-snap-type: none;
 }
 
 .columnHead {
@@ -994,6 +1047,7 @@
 }
 
 .columnCards {
+  position: relative; /* drag hit-testing reads card offsets from here */
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1177,8 +1231,27 @@
 
 .cardAside {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 999px;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+/* Two hover buttons overlap the end of the title — mask it like Notion's hover toolbar. */
+.cardWrap[data-actions='2']:hover .cardAside,
+.cardWrap[data-actions='2']:focus-within .cardAside {
+  background: var(--card-bg);
+}
+
+/* Draggable cards: no text selection or iOS callout on long-press. */
+.cardWrap[data-card] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .cardCheck {
@@ -1202,6 +1275,7 @@
 }
 
 .cardWrap:hover .cardCheck,
+.cardWrap:focus-within .cardCheck,
 .cardCheck:focus-visible,
 .cardCheck[data-done] {
   opacity: 1;
@@ -1209,10 +1283,57 @@
 }
 
 @media (hover: none) {
-  .cardCheck {
+  .cardCheck,
+  .cardStart {
     opacity: 1;
     transform: none;
   }
+
+  .cardWrap[data-actions='2'] .cardTitle {
+    padding-right: 46px;
+  }
+}
+
+/* ▶ on 시작 전 cards: straight to 진행 중. */
+.cardStart {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding-left: 1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-4);
+  color: var(--text-3);
+  background: var(--card-bg);
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    transform var(--dur) var(--ease-spring);
+}
+
+.cardWrap:hover .cardStart,
+.cardWrap:focus-within .cardStart {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.cardStart:hover {
+  border-color: var(--c-green);
+  color: var(--c-green);
+  transform: scale(1.12);
+}
+
+.cardStart:active {
+  transform: scale(0.88);
+}
+
+.cardStart:focus-visible {
+  outline: 2px solid var(--ring-color);
+  outline-offset: 2px;
 }
 
 .cardCheck:hover {
@@ -1235,6 +1356,60 @@
 .cardCheck:focus-visible {
   outline: 2px solid var(--ring-color);
   outline-offset: 2px;
+}
+
+/* ───────── drag and drop (useBoardDnd) */
+
+/* Landing slot for the lifted card. */
+.cardSlot {
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+  animation: slot-in 0.18s var(--ease-out);
+}
+
+.dropHint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 64px;
+  border-radius: 10px;
+  border: 1.5px dashed var(--border-strong);
+  color: var(--text-3);
+  font-size: 13px;
+  animation: pop-in 0.2s var(--ease-out);
+}
+
+/* Fixed layer the clone rides on; translate3d is set per pointer move. */
+.dragLayer {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.dragLift {
+  animation: lift 0.2s var(--ease-out) forwards;
+}
+
+.dragLift .card {
+  box-shadow:
+    var(--shadow-lift),
+    0 18px 36px -14px light-dark(rgba(0, 0, 0, 0.28), rgba(0, 0, 0, 0.9));
+  transition: box-shadow 0.2s var(--ease-out);
+}
+
+.dragLift.dragSettle .card {
+  box-shadow: var(--shadow-card);
+}
+
+.dragLift .cardCheck,
+.dragLift .cardStart {
+  opacity: 0;
 }
 
 /* ───────── tags */
@@ -1401,6 +1576,18 @@
   from {
     opacity: 0;
     transform: translateY(10px);
+  }
+}
+
+@keyframes lift {
+  to {
+    transform: rotate(1.5deg) scale(1.03);
+  }
+}
+
+@keyframes slot-in {
+  from {
+    opacity: 0;
   }
 }
 
