@@ -7,7 +7,7 @@
 - **파급 예측 대시보드** — 기한이 지난 작업은 빨라도 오늘 끝난다는 현실을 일정 전체에 반영해서 "지금 이미 밀리고 있는 일정", 하루만 늦어도 전체가 흔들리는 **핵심 작업**, **자꾸 미뤄지는 작업**을 보여줍니다.
 - **자연어 빠른 입력** — `기획서 초안 다음 주 수요일까지 #업무 !높음`, `워크숍 11/20~11/22 @고정`
 - **AI 완전 지원** — 모든 기능을 MCP 도구 20개 + 프롬프트 3개로 제공하고(OAuth 2.1 내장), 언제 어떻게 쓸지 알려주는 Agent Skill을 함께 배포합니다. Claude, ChatGPT, Claude Code, Codex에서 바로 연결할 수 있습니다.
-- **Dokploy 한 번에 배포** — `docker-compose.yml` 하나로 web + backend + Postgres. 도메인은 web 하나만 연결하면 됩니다.
+- **Dokploy 한 번에 배포** — `docker-compose.yml` 하나로 web + backend + Postgres + 매일 백업. 도메인은 web 하나만 연결하면 됩니다.
 
 ## 구조
 
@@ -74,28 +74,62 @@ bun backend/scripts/smoke.ts http://localhost:3000
 
 ## Dokploy 배포
 
-1. 이 저장소를 GitHub 등에 push 합니다.
-2. Dokploy → 프로젝트 → **Create Service → Compose**, Provider로 저장소를 연결하고 Compose Path는 `./docker-compose.yml`.
-3. **Environment** 탭에 입력:
+**준비**: Dokploy 서버의 공인 IP를 가리키는 도메인 A 레코드(예: `obelisk.example.com → 서버 IP`), 그리고 서버의 80·443 포트가 외부에서 열려 있어야 Let's Encrypt 인증서가 발급됩니다. Claude·ChatGPT 커넥터는 https 주소만 받습니다.
+
+1. Dokploy → 프로젝트 → **Create Service → Compose**
+2. **General** 탭: Provider는 GitHub, 저장소 `obelisk`, 브랜치 `main`, Compose Path `./docker-compose.yml` → Save
+3. **Environment** 탭:
    ```
    PUBLIC_URL=https://obelisk.example.com
    POSTGRES_PASSWORD=영문과숫자로된긴비밀번호
    SIGNUP_MODE=first
    ```
-4. **Domains** 탭 → Add Domain → Service `web`, Port `3000`, Host `obelisk.example.com`, HTTPS 켜기(Let's Encrypt).
-5. **Deploy**. 첫 접속에서 가입한 계정이 주인이 됩니다 (`SIGNUP_MODE=first`이면 이후 가입은 막힙니다).
+   비밀번호는 `openssl rand -hex 24`로 만들면 됩니다. 한 번 정한 뒤에는 바꾸지 마세요(DB 볼륨이 첫 비밀번호로 초기화됩니다).
+4. **Domains** 탭 → Add Domain → Service `web`, Host `obelisk.example.com`, Path `/`, Container Port `3000`, HTTPS 켜기, Certificate `Let's Encrypt`
+5. **Deploy**. 끝나면 바로 접속해서 가입하세요. 첫 계정이 주인이 되고 `SIGNUP_MODE=first`이면 그 뒤 가입은 막힙니다.
+6. (선택) General 탭의 **Autodeploy**를 켜면 `main`에 push할 때마다 다시 배포됩니다.
 
-> `PUBLIC_URL`은 반드시 실제로 접속하는 https 주소와 같아야 합니다. OAuth 메타데이터와 MCP 리소스 주소가 이 값으로 만들어집니다. 다르면 설정 → AI 연결 화면에 경고가 표시됩니다.
+> `PUBLIC_URL`은 반드시 실제로 접속하는 https 주소와 같아야 합니다. OAuth 메타데이터와 MCP 리소스 주소, 세션 쿠키의 Secure 속성이 이 값으로 정해집니다. 다르면 설정 → AI 연결 화면에 경고가 표시되고, 백엔드 로그에도 `WARNING`이 찍힙니다.
 
-데이터는 `obelisk-db` 볼륨에 저장됩니다. 백업은 Dokploy의 Volume Backups 또는 `pg_dump`를 사용하세요.
+배포 구성:
+
+| 서비스 | 역할 | 외부 노출 |
+|---|---|---|
+| `web` | Next.js UI + `/api`·`/mcp`·`/.well-known` 프록시 | 도메인(Traefik)만 |
+| `backend` | NestJS API, 시작할 때 마이그레이션 자동 적용, `/api/health`가 DB까지 확인 | 없음 |
+| `db` | Postgres 17, 데이터는 `obelisk-db` 볼륨 | 없음 |
+| `backup` | 매일(그리고 배포할 때마다) `pg_dump`를 `obelisk-backups` 볼륨에 저장, 14일 보관 | 없음 |
+
+모든 컨테이너는 로그를 10MB × 3개까지만 남겨서 디스크가 차지 않습니다.
+
+### 백업과 복구
+
+백업 파일은 `obelisk-backups` 볼륨에 `obelisk-YYYYMMDD-HHMMSS.dump`(pg_dump custom 형식)로 쌓입니다. 서버 밖에도 보관하려면 Dokploy의 **Volume Backups**에서 이 볼륨을 S3 대상으로 예약하세요.
+
+목록 보기와 복구(Dokploy → 서비스 → Logs 옆 터미널, 또는 서버에서 `docker exec -it <backup 컨테이너> sh`):
+
+```bash
+ls -lh /backups
+```
+
+```bash
+pg_restore --clean --if-exists -d obelisk /backups/obelisk-20261115-030000.dump
+```
+
+복구 중에는 Dokploy에서 `web`·`backend`를 잠시 멈추는 것이 안전합니다.
+
+### 업데이트
+
+`main`에 push하고 Dokploy에서 **Deploy**(Autodeploy를 켰다면 자동). 새 마이그레이션은 백엔드가 시작할 때 적용되고, 배포 직전 상태는 `backup` 서비스가 다시 시작하면서 자동으로 덤프합니다.
 
 ### 환경 변수
 
 | 변수 | 서비스 | 설명 |
 |---|---|---|
-| `PUBLIC_URL` | backend | 외부에서 접속하는 주소 (필수) |
-| `POSTGRES_PASSWORD` | db, backend | DB 비밀번호 (필수, URL에 들어가므로 영문·숫자 권장) |
+| `PUBLIC_URL` | backend | 외부에서 접속하는 https 주소 (필수) |
+| `POSTGRES_PASSWORD` | db, backend, backup | DB 비밀번호 (필수, URL에 들어가므로 영문·숫자만) |
 | `SIGNUP_MODE` | backend | `first`(기본) · `open` · `closed` |
+| `BACKUP_KEEP_DAYS` | backup | 백업 보관 일수, 기본 `14` |
 | `BACKEND_URL` | web (빌드 인자) | web이 API를 찾는 내부 주소, 기본 `http://backend:4000` |
 
 ## AI 연결

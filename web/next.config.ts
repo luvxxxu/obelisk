@@ -9,6 +9,16 @@ import type { NextConfig } from 'next';
 const backend = (process.env.BACKEND_URL ?? 'http://localhost:4000').replace(/\/+$/, '');
 const root = path.join(__dirname, '..');
 
+/** Applied to every response (pages and proxied API). HSTS is ignored by browsers on plain http. */
+const securityHeaders = [
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Content-Security-Policy', value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'" },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
+];
+
 const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: root,
@@ -18,6 +28,9 @@ const nextConfig: NextConfig = {
   // `next dev` blocks dev assets for other origins; allow quick tunnels (cloudflared) so the
   // OAuth consent page works when Claude/ChatGPT connect to a local server. No effect in production.
   allowedDevOrigins: ['*.trycloudflare.com'],
+  async headers() {
+    return [{ source: '/:path*', headers: securityHeaders }];
+  },
   async rewrites() {
     return {
       beforeFiles: [

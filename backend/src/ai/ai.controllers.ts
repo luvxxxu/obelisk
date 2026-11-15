@@ -12,10 +12,12 @@ import {
   Query,
   Req,
   Res,
+  ServiceUnavailableException,
   UseGuards,
 } from '@nestjs/common';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createTokenInput } from '@obelisk/core';
+import { sql } from 'drizzle-orm';
 import type { Request, Response } from 'express';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
@@ -25,6 +27,7 @@ import { bearerToken } from '../common/http';
 import { rateLimiter } from '../common/rate-limit';
 import { parse } from '../common/validation';
 import { config } from '../config';
+import { InjectDb, type Db } from '../db/db.module';
 import { ImpactService } from '../planner/impact.service';
 import { ProjectsService } from '../planner/projects.service';
 import { TasksService } from '../planner/tasks.service';
@@ -226,6 +229,8 @@ async function walk(dir: string): Promise<string[]> {
 
 @Controller('api')
 export class IntegrationController {
+  constructor(@InjectDb() private readonly db: Db) {}
+
   /** The Obelisk Agent Skill (SKILL.md + references), with this server's URL baked in. */
   @Get('skill.zip')
   async skill(@Res() res: Response) {
@@ -254,8 +259,19 @@ export class IntegrationController {
     return { publicUrl: config.publicUrl, mcpUrl: config.mcpUrl, skillUrl: `${config.publicUrl}/api/skill.zip` };
   }
 
+  /** Liveness + readiness for Docker/Dokploy health checks: 503 when Postgres is unreachable. */
   @Get('health')
-  health() {
+  @Header('Cache-Control', 'no-store')
+  async health() {
+    try {
+      // Fail fast: Docker's health check times out at 5 s, Postgres connects can hang for 30 s.
+      await Promise.race([
+        this.db.execute(sql`select 1`),
+        Bun.sleep(3000).then(() => Promise.reject(new Error('timeout'))),
+      ]);
+    } catch {
+      throw new ServiceUnavailableException({ ok: false, db: 'unreachable' });
+    }
     return { ok: true };
   }
 }
