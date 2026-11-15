@@ -1,0 +1,954 @@
+/* Gantt timeline — shadcn-flavoured.
+   Geometry lives in Timeline.tsx (DAY_W 36 · ROW_H 40 · HEAD_H 52) plus the 220px task column below.
+   Colour is used only for meaning: project colour = identity, info = today,
+   warn = would slip, danger = overdue / fixed-date conflict, ok = absorbed by slack. */
+
+.wrap {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.wrap[data-dragging='true'] {
+  cursor: grabbing;
+}
+
+.viewport {
+  position: relative;
+}
+
+.scroller {
+  overflow: auto;
+  max-height: calc(100vh - 260px);
+  max-height: calc(100dvh - 260px);
+  min-height: 220px;
+  overscroll-behavior-x: contain;
+}
+
+.canvas {
+  position: relative;
+}
+
+/* ───────── header */
+
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.corner {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px 8px 14px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.cornerCount {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-bottom: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.todayBtn {
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  outline: none;
+  transition:
+    background-color 0.15s var(--ease),
+    color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease);
+}
+
+.todayBtn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.todayBtn:focus-visible {
+  border-color: var(--ring-color);
+  box-shadow: var(--ring);
+}
+
+.days {
+  position: relative;
+  height: 100%;
+}
+
+.dayHead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  padding-bottom: 6px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.weekend {
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+
+.weekStart {
+  box-shadow: inset 1px 0 0 var(--border);
+}
+
+.monthStart {
+  box-shadow: inset 1px 0 0 var(--border-strong);
+}
+
+/* month name takes the weekday slot on the 1st (absolutely placed it covered the weekday) */
+.month {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* "오늘" takes the weekday slot on today's column (it used to sit on top of it) */
+.todayTag {
+  height: 16px;
+  padding: 0 5px;
+  border-radius: var(--radius-xs);
+  background: var(--info-soft);
+  color: var(--info-text);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.wd {
+  font-size: 10.5px;
+  line-height: 1;
+}
+
+.dnum {
+  width: 24px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.weekend .dnum {
+  color: var(--text-3);
+}
+
+.month + .wd,
+.todayTag + .wd {
+  display: none;
+}
+
+.isToday .dnum {
+  background: var(--info);
+  color: var(--surface);
+  font-weight: 600;
+}
+
+/* short stub that connects the date pill to the today line in the body */
+.isToday::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 1.5px;
+  height: 5px;
+  margin-left: -0.75px;
+  background: var(--info);
+  opacity: 0.7;
+}
+
+/* ───────── body */
+
+.body {
+  position: relative;
+  display: flex;
+}
+
+.labels {
+  position: sticky;
+  left: 0;
+  z-index: 8;
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  font-size: 13px;
+  text-align: left;
+  color: var(--text);
+  outline: none;
+  transition: background-color 0.12s var(--ease);
+}
+
+.label:hover {
+  background: var(--surface-2);
+}
+
+.label:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--ring-color);
+}
+
+.labelActive {
+  background: var(--surface-2);
+  font-weight: 500;
+}
+
+.labelActive::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--primary);
+}
+
+.label[data-kind='shifted'] {
+  background: var(--warn-soft);
+}
+
+.label[data-kind='conflict'] {
+  background: var(--danger-soft);
+}
+
+.wrap[data-dragging='true'] .label:hover:not([data-kind]) {
+  background: transparent;
+}
+
+.labelDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.labelDotEmpty {
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
+}
+
+.labelText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelDone {
+  color: var(--text-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-4);
+}
+
+.labelPin {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.labelFlag {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--warn);
+}
+
+.labelFlag[data-tone='danger'] {
+  background: var(--danger);
+}
+
+.tracks {
+  position: relative;
+  /* faint day grid */
+  background-image: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--border) 45%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: var(--day-w, 36px) 100%;
+}
+
+.col {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.weekendCol {
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+
+.weekCol {
+  box-shadow: inset 1px 0 0 var(--border);
+}
+
+.monthCol {
+  box-shadow: inset 1px 0 0 var(--border-strong);
+}
+
+.rowLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+  pointer-events: none;
+}
+
+.todayCol {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--info) 5%, transparent);
+  pointer-events: none;
+}
+
+.todayLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  margin-left: -0.75px;
+  background: var(--info);
+  opacity: 0.7;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.arrows {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: visible;
+}
+
+.arrow {
+  fill: none;
+  stroke: var(--text-4);
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.arrowBad {
+  stroke: var(--danger);
+  stroke-dasharray: 4 3;
+}
+
+.arrowDone {
+  opacity: 0.35;
+}
+
+/* ───────── bars (later rules win: base → fixed/done → overdue → impact → dragging) */
+
+.bar {
+  --bar: var(--c-indigo);
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bar) 16%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bar) 36%, transparent);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  outline: 0 solid transparent;
+  outline-offset: 2px;
+  transition:
+    left 0.18s var(--ease),
+    width 0.18s var(--ease),
+    box-shadow 0.15s var(--ease),
+    background-color 0.15s var(--ease),
+    outline-color 0.15s var(--ease);
+}
+
+/* solid project-colour edge */
+.bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 6px 0 0 6px;
+  background: var(--bar);
+}
+
+.bar:hover {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--bar) 62%, transparent),
+    var(--shadow-sm);
+}
+
+.barSelected {
+  outline: 2px solid color-mix(in srgb, var(--bar) 45%, transparent);
+}
+
+.barFixed {
+  /* fine hatch = immovable commitment */
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0 5px,
+      color-mix(in srgb, var(--bar) 16%, transparent) 5px 6.5px
+    ),
+    color-mix(in srgb, var(--bar) 12%, var(--surface));
+  cursor: pointer;
+}
+
+.barDone {
+  opacity: 0.45;
+  cursor: pointer;
+}
+
+.barOverdue {
+  box-shadow: inset 0 0 0 1.5px var(--danger);
+}
+
+.barOverdue:hover {
+  box-shadow:
+    inset 0 0 0 1.5px var(--danger),
+    var(--shadow-sm);
+}
+
+.barAbsorbed,
+.barAbsorbed:hover {
+  box-shadow: inset 0 0 0 1.5px var(--ok);
+}
+
+.barShifted,
+.barShifted:hover {
+  background: color-mix(in srgb, var(--warn) 16%, var(--surface));
+  box-shadow: inset 0 0 0 1.5px var(--warn);
+}
+
+.barShifted::before {
+  background: var(--warn);
+}
+
+.barConflict,
+.barConflict:hover {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  box-shadow:
+    inset 0 0 0 1.5px var(--danger),
+    0 0 0 3px var(--danger-soft);
+  animation: shake 0.4s var(--ease);
+}
+
+.barConflict::before {
+  background: var(--danger);
+}
+
+.barDragging,
+.barDragging:hover {
+  z-index: 6;
+  cursor: grabbing;
+  transition: none;
+  box-shadow:
+    inset 0 0 0 1.5px var(--bar),
+    var(--shadow-lg);
+}
+
+@keyframes shake {
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
+}
+
+.barText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px 0 11px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.barPin {
+  flex-shrink: 0;
+  color: var(--text-2);
+}
+
+.handleL,
+.handleR {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  z-index: 1;
+}
+
+.handleL {
+  left: -2px;
+}
+
+.handleR {
+  right: -2px;
+}
+
+/* small grip that appears on hover */
+.handleR::after,
+.handleL::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  height: 12px;
+  margin-top: -6px;
+  left: 3px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--bar);
+  opacity: 0;
+  transition: opacity 0.12s var(--ease);
+}
+
+.handleL::after {
+  left: 5px;
+}
+
+.handleR::after {
+  left: 1px;
+}
+
+.bar:hover .handleR::after,
+.bar:hover .handleL::after,
+.barDragging .handleR::after,
+.barDragging .handleL::after {
+  opacity: 0.8;
+}
+
+@media (hover: none) {
+  .handleR::after,
+  .handleL::after {
+    opacity: 0.5;
+  }
+}
+
+/* where the bar was before this drag */
+.ghost {
+  position: absolute;
+  z-index: 2;
+  border-radius: 6px;
+  border: 1.5px dashed var(--border-strong);
+  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
+  pointer-events: none;
+}
+
+.shiftTag {
+  position: absolute;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--warn) 12%, var(--surface));
+  color: var(--warn-text);
+  box-shadow: var(--shadow-xs);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  animation: tagIn 0.2s var(--ease-spring);
+}
+
+.conflictTag {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger-text);
+}
+
+@keyframes tagIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+/* ───────── live drag readout (follows the pointer) */
+
+.dragTip {
+  position: fixed;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 132px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+}
+
+.dragTipHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.dragTipHead strong {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dragTipDate {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.dragTipImpact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--ok-text);
+}
+
+.dragTipDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ok);
+}
+
+.dragTip[data-tone='warn'] .dragTipImpact {
+  color: var(--warn-text);
+}
+
+.dragTip[data-tone='warn'] .dragTipDot {
+  background: var(--warn);
+}
+
+.dragTip[data-tone='danger'] .dragTipImpact {
+  color: var(--danger-text);
+}
+
+.dragTip[data-tone='danger'] .dragTipDot {
+  background: var(--danger);
+}
+
+/* ───────── empty, unscheduled, legend */
+
+.empty {
+  position: absolute;
+  left: 220px;
+  right: 0;
+  top: 52px;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.emptyIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.emptyText {
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.unscheduled {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.unschedTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.unschedTitle svg {
+  color: var(--text-3);
+}
+
+.unschedCount {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.unschedItem {
+  max-width: 220px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 12px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  outline: none;
+  transition:
+    background-color 0.12s var(--ease),
+    color 0.12s var(--ease),
+    border-color 0.12s var(--ease);
+}
+
+.unschedItem:hover {
+  border-style: solid;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.unschedItem:focus-visible {
+  border-color: var(--ring-color);
+  box-shadow: var(--ring);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-3);
+  background: color-mix(in srgb, var(--surface-2) 35%, var(--surface));
+}
+
+.legendHint {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  color: var(--text-2);
+}
+
+.legendHint > svg {
+  color: var(--text-3);
+}
+
+.legendEsc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-3);
+}
+
+.legendEsc kbd {
+  height: 18px;
+  min-width: 18px;
+  font-size: 10.5px;
+}
+
+@media (hover: none) {
+  .legendEsc {
+    display: none;
+  }
+}
+
+.legendItems {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.legendItems > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.legend i {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 16px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.lgBar {
+  background: color-mix(in srgb, var(--text-3) 16%, var(--surface));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--text-3) 40%, transparent),
+    inset 2px 0 0 var(--text-3);
+}
+
+.lgFixed {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0 3px,
+      color-mix(in srgb, var(--text-3) 30%, transparent) 3px 4.5px
+    ),
+    color-mix(in srgb, var(--text-3) 10%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-3) 40%, transparent);
+}
+
+.lgShift {
+  background: color-mix(in srgb, var(--warn) 16%, var(--surface));
+  box-shadow: inset 0 0 0 1px var(--warn);
+}
+
+.lgConflict {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  box-shadow: inset 0 0 0 1.5px var(--danger);
+}
+
+.legend i.lgToday {
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--info);
+}
+
+/* ───────── small screens */
+
+@media (max-width: 640px) {
+  .corner,
+  .labels {
+    width: 130px;
+  }
+
+  .corner {
+    padding-left: 10px;
+    padding-right: 8px;
+  }
+
+  .label {
+    padding-left: 10px;
+    padding-right: 8px;
+  }
+
+  .canvas {
+    min-width: 0;
+  }
+
+  .empty {
+    left: 130px;
+  }
+
+  .legend {
+    padding: 10px 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar,
+  .todayBtn,
+  .label,
+  .unschedItem {
+    transition: none;
+  }
+
+  .barConflict,
+  .shiftTag {
+    animation: none;
+  }
+}

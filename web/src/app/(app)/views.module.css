@@ -1,0 +1,477 @@
+/* Shared styles for the list pages (오늘 · 인박스 · 예정 · 전체 작업 · 완료 기록 · 프로젝트).
+   Tokens only; shared primitives come from components/ui.module.css. */
+
+/* ───────── 오늘: header progress */
+
+.todayProgress {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.todayProgressLabel {
+  font-weight: 500;
+}
+
+.todayProgressBar {
+  width: 88px;
+}
+
+.todayProgressCount {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ───────── 오늘: risk alert (ui.alert + flex layout, whole card is a link) */
+
+.riskAlert.riskAlert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 12px 12px 12px 16px;
+  text-decoration: none;
+  transition:
+    border-color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease);
+}
+
+.riskAlert > svg {
+  align-self: flex-start;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.riskAlert:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.riskAlert:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.riskAlert[data-tone='danger']:hover {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
+}
+
+.riskAlert[data-tone='warn']:hover {
+  border-color: color-mix(in srgb, var(--warn) 50%, var(--border));
+}
+
+.riskText {
+  flex: 1;
+  min-width: 0;
+}
+
+.riskCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 8px 0 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-xs);
+  transition: background-color 0.15s var(--ease);
+}
+
+.riskAlert:hover .riskCta {
+  background: var(--surface-2);
+}
+
+@media (max-width: 520px) {
+  .riskCta {
+    padding: 0 6px;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .riskCtaText {
+    display: none;
+  }
+}
+
+/* ───────── 전체 작업: project group headers */
+
+.groupTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.groupIcon {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.groupName {
+  color: var(--text);
+}
+
+.groupLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-3);
+  text-decoration: none;
+  transition:
+    background-color 0.15s var(--ease),
+    color 0.15s var(--ease);
+}
+
+.groupLink:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.groupLink:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--ring-color),
+    var(--ring);
+}
+
+@media (max-width: 480px) {
+  .groupLinkText {
+    display: none;
+  }
+}
+
+/* ───────── 예정 / 완료 기록: day-by-day agenda */
+
+.agenda {
+  display: flex;
+  flex-direction: column;
+}
+
+.day {
+  margin-bottom: 20px;
+}
+
+.day[data-empty='true'] {
+  margin-bottom: 4px;
+}
+
+/* Sticky date label under the 52px top bar; it hands over to the next day as you scroll. */
+.dayHeader {
+  position: sticky;
+  top: var(--header-h);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  margin: 0 -12px 2px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.day[data-empty='true'] .dayHeader {
+  position: static;
+  min-height: 32px;
+  margin-bottom: 0;
+  border-bottom-style: dashed;
+}
+
+.dayRel {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.dayDate {
+  font-size: 12.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.day[data-empty='true'] .dayRel {
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.day[data-empty='true'] .dayDate {
+  color: var(--text-3); /* was --text-4 (~2.5:1), too faint to read */
+  font-weight: 400;
+}
+
+.dayCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dayNone {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.dayRows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* keep j/k-focused rows clear of the sticky date label */
+.dayRows :global([data-task-row]) {
+  scroll-margin-top: 44px;
+}
+
+.laterLabel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.laterLabel::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ───────── 프로젝트: header */
+
+.projectTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.projectSwatch {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+/* Inline-editable name: an invisible mirror gives the width, the input lies on top. */
+.nameField {
+  position: relative;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  margin-left: -6px;
+}
+
+.nameMirror,
+.projectName {
+  padding: 1px 6px;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+}
+
+.nameMirror {
+  display: block;
+  min-width: 4ch;
+  padding-right: calc(6px + 0.3em); /* inputs render bold text a few px wider than spans */
+  overflow: hidden;
+  white-space: pre;
+  visibility: hidden;
+}
+
+.projectName {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-overflow: ellipsis;
+  cursor: text;
+  transition:
+    background-color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease);
+}
+
+.projectName::placeholder {
+  color: var(--text-4);
+}
+
+.projectName:hover {
+  background: var(--surface-2);
+}
+
+/* inset ring: the heading clips anything drawn outside the field */
+.projectName:focus {
+  background: var(--input-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--ring-color),
+    inset 0 0 0 3px color-mix(in srgb, var(--ring-color) 25%, transparent);
+}
+
+/* ───────── 프로젝트: stats row */
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.statProgress {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.statBar {
+  width: 120px;
+}
+
+.statStrong {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.statMuted {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.stats .statBadge {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+@media (max-width: 480px) {
+  .statBar {
+    width: 88px;
+  }
+}
+
+/* ───────── 프로젝트: colour menu */
+
+.colorGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 28px);
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 8px;
+}
+
+.colorBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff; /* check mark on a saturated swatch */
+  outline: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 8%, transparent);
+  transition:
+    transform 0.12s var(--ease),
+    box-shadow 0.12s var(--ease);
+}
+
+.colorBtn:hover {
+  transform: scale(1.08);
+}
+
+.colorBtn[data-selected='true'],
+.colorBtn:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--ring-color);
+}
+
+/* ───────── 프로젝트: forecast slice */
+
+.impact {
+  margin-bottom: 28px;
+}
+
+.impactHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.impactTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.impactTitle svg {
+  color: var(--warn);
+}
+
+.impactLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding: 0 4px 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-3);
+  text-decoration: none;
+  transition:
+    background-color 0.15s var(--ease),
+    color 0.15s var(--ease);
+}
+
+.impactLink:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}

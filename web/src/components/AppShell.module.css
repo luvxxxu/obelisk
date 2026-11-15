@@ -1,0 +1,411 @@
+/* App shell: [sidebar | main (sticky top bar + page) | task panel]
+   ≥ 900px  sidebar docked: 248px, or fully hidden when collapsed (top bar shows » to reopen)
+   ≥ 1240px task panel docks as a third column; below it floats over the content
+   < 900px  sidebar becomes an off-canvas sheet (ui.nav) with a scrim; FAB visible */
+
+.shell {
+  --sb: var(--sidebar-w);
+  display: grid;
+  grid-template-columns: var(--sb) minmax(0, 1fr) 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+  transition: grid-template-columns 0.22s var(--ease-out);
+}
+
+.shell[data-collapsed='true'] {
+  --sb: var(--sidebar-w-collapsed);
+}
+
+.shell[data-panel='true'] {
+  grid-template-columns: var(--sb) minmax(0, 1fr) var(--panel-w);
+}
+
+.sidebar {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  z-index: 21;
+}
+
+.main {
+  position: relative;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg);
+  scroll-padding-top: calc(var(--header-h) + 8px);
+  scroll-padding-bottom: 24px;
+}
+
+/* Each page fades and rises in on navigation (the wrapper is keyed by pathname). */
+.route {
+  animation: route-in 0.38s var(--ease-out) both;
+}
+
+@keyframes route-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ───────── top bar (Notion page header) */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: var(--header-h);
+  padding: 0 12px;
+  background: var(--bg);
+  container-type: inline-size;
+  container-name: topbar;
+}
+
+.topLeft {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.topBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  color: var(--text-2);
+  flex-shrink: 0;
+  transition:
+    background-color 0.12s var(--ease),
+    color 0.12s var(--ease);
+}
+
+.topBtn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.topBtn:focus-visible,
+.topText:focus-visible {
+  outline: 2px solid var(--ring-color);
+  outline-offset: -2px;
+}
+
+.crumbs {
+  min-width: 0;
+  flex: 1;
+}
+
+.crumbs ol {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.crumbs li {
+  display: flex;
+  min-width: 0;
+}
+
+.crumbRoot {
+  flex-shrink: 0;
+}
+
+.crumbLink,
+.crumbCurrent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  transition: background-color 0.12s var(--ease);
+}
+
+.crumbLink:hover {
+  background: var(--surface-2);
+}
+
+.crumbMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--text);
+  color: var(--bg);
+  flex-shrink: 0;
+}
+
+.crumbSep {
+  color: var(--text-4);
+  padding: 0 1px;
+  flex-shrink: 0;
+}
+
+.crumbIcon {
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+.crumbText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topRight {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.topDate {
+  margin-right: 8px;
+  font-size: 14px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.topText {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 8px 0 6px;
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.12s var(--ease);
+}
+
+.topText:hover {
+  background: var(--surface-2);
+}
+
+@container topbar (max-width: 640px) {
+  .topDate {
+    display: none;
+  }
+}
+
+@container topbar (max-width: 420px) {
+  .topTextLabel {
+    display: none;
+  }
+
+  .topText {
+    width: 28px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .crumbRoot:not(:last-child),
+  .crumbRoot + .crumbSep {
+    display: none;
+  }
+}
+
+/* ───────── task detail panel */
+
+.panel {
+  min-width: 0;
+  height: 100%;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  animation: panelIn 0.24s var(--ease-out);
+  overflow: hidden;
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+.panelScrim,
+.scrim {
+  display: none;
+}
+
+.fab {
+  display: none;
+}
+
+/* Panel floats over content on medium screens */
+@media (max-width: 1240px) {
+  .shell[data-panel='true'] {
+    grid-template-columns: var(--sb) minmax(0, 1fr) 0;
+  }
+
+  .panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(var(--panel-w), 100vw);
+    z-index: 40;
+    box-shadow: var(--shadow-xl);
+  }
+
+  .panelScrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: transparent;
+  }
+}
+
+/* Sidebar becomes a sheet on small screens */
+@media (max-width: 899px) {
+  .shell,
+  .shell[data-panel='true'],
+  .shell[data-collapsed='true'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(300px, 86vw);
+    z-index: 45;
+    transform: translateX(-102%);
+    transition: transform 0.26s var(--ease-out);
+    box-shadow: var(--shadow-xl);
+  }
+
+  .sidebar[data-open='true'] {
+    transform: none;
+  }
+
+  .scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 44;
+    background: var(--overlay);
+    animation: fade 0.2s var(--ease);
+  }
+
+  .topbar {
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  .panelScrim {
+    background: var(--overlay);
+  }
+
+  .fab {
+    display: flex;
+    position: fixed;
+    right: 16px;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    z-index: 30;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary);
+    color: var(--on-primary);
+    box-shadow: var(--shadow-lg);
+    transition:
+      transform 0.15s var(--ease),
+      background-color 0.15s var(--ease);
+  }
+
+  .fab:active {
+    transform: scale(0.95);
+  }
+
+  .fab:focus-visible {
+    outline-offset: 3px;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ───────── splash */
+
+.splash {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.splashLogo {
+  animation: breathe 1.4s var(--ease) infinite;
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.96);
+  }
+}
+
+.splashError {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 360px;
+  padding: 0 24px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.splashMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Desktop: the sidebar keeps its width while the column animates to 0, so it slides out instead of squashing. */
+@media (min-width: 900px) {
+  .sidebar > * {
+    width: var(--sidebar-w);
+  }
+}

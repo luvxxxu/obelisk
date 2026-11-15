@@ -1,0 +1,439 @@
+/* Global overlays: quick add dialog, command palette (shadcn Command look), shortcuts help, toasts (sonner look).
+   Base dialog/overlay/menu styles come from ui.module.css; this file only adds layout specifics. */
+
+/* ───────── shared key hint ("↵ 선택") */
+
+.hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.hint kbd {
+  height: 18px;
+  min-width: 18px;
+  padding: 0 4px;
+  font-size: 10.5px;
+}
+
+.hint kbd + kbd {
+  margin-left: -1px;
+}
+
+/* ───────── quick add */
+
+.qaTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+span.qaBadge {
+  height: 22px;
+  max-width: min(240px, 46vw);
+  padding: 0 8px;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--text-2);
+}
+
+span.qaBadge svg {
+  color: var(--text-3);
+}
+
+.qaBody {
+  min-width: 0;
+}
+
+.qaHints {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+@media (max-width: 640px) {
+  .qaHints {
+    display: none;
+  }
+}
+
+/* ───────── command palette */
+
+div.palette {
+  max-width: 600px;
+  max-height: min(560px, 76vh);
+}
+
+.paletteInput {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.paletteSearchIcon {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.paletteInput input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  font-size: 15px;
+  color: var(--text);
+  outline: none;
+}
+
+.paletteInput input::placeholder {
+  color: var(--text-3);
+}
+
+button.paletteClear {
+  width: 24px;
+  height: 24px;
+}
+
+.paletteList {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(400px, 52vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  scroll-padding: 4px;
+}
+
+.paletteGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.paletteHeading {
+  padding: 8px 8px 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-3);
+  user-select: none;
+}
+
+.paletteSep {
+  height: 1px;
+  margin: 4px -4px;
+  background: var(--border);
+}
+
+button.paletteItem {
+  min-height: 36px;
+  gap: 10px;
+  padding: 6px 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.paletteItem[data-active='true'] svg {
+  color: var(--text);
+}
+
+.paletteItem[data-muted] .paletteLabel {
+  color: var(--text-3);
+}
+
+.paletteDotWrap {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.paletteLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paletteKeys {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  padding-left: 12px;
+  flex-shrink: 0;
+}
+
+.paletteKeys kbd {
+  height: 18px;
+  min-width: 18px;
+  padding: 0 4px;
+  font-size: 10.5px;
+}
+
+.paletteEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 36px 16px 32px;
+  text-align: center;
+}
+
+.paletteEmptyIcon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.paletteEmptyTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.paletteEmptyBody {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.paletteFooter {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 40px;
+  padding: 0 16px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 45%, var(--surface));
+  font-size: 12px;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+@keyframes paletteIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
+/* Phones: keep the palette at the top (the on-screen keyboard covers the bottom), not a bottom sheet. */
+@media (max-width: 640px) {
+  div.paletteOverlay {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  div.palette {
+    max-height: calc(100dvh - 24px);
+    border-radius: var(--radius-lg);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+    animation-name: paletteIn;
+  }
+
+  .paletteInput input {
+    font-size: 16px; /* avoids iOS focus zoom */
+  }
+
+  .paletteList {
+    max-height: min(420px, 60dvh);
+  }
+
+  .paletteFooter {
+    display: none;
+  }
+}
+
+/* ───────── shortcuts help */
+
+.shortcutCols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 32px;
+}
+
+.shortcutCol {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.shortcutSection {
+  min-width: 0;
+}
+
+.shortcutTitle {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.shortcutList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+
+.shortcut:last-child {
+  border-bottom: 0;
+}
+
+.shortcutLabel {
+  min-width: 0;
+  color: var(--text);
+}
+
+.keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.keysOr {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.keysThen {
+  padding: 0 1px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+@media (max-width: 600px) {
+  .shortcutCols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ───────── toasts (sonner look) */
+
+.toaster {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  width: 356px;
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 10px 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  font-size: 13.5px;
+  line-height: 1.45;
+  animation: toastIn 0.32s var(--ease-out);
+}
+
+.toastIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-2);
+}
+
+.toast[data-tone='success'] .toastIcon {
+  color: var(--ok);
+}
+
+.toast[data-tone='error'] .toastIcon {
+  color: var(--danger);
+}
+
+.toastMsg {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.toastAction {
+  flex-shrink: 0;
+}
+
+button.toastClose {
+  width: 24px;
+  height: 24px;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+
+/* Below the desktop breakpoint the floating "새 작업" button sits bottom-right: stack toasts above it. */
+@media (max-width: 899px) {
+  .toaster {
+    right: 16px;
+    bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Phones: full-width, bottom-centre. */
+@media (max-width: 640px) {
+  .toaster {
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: none;
+    align-items: stretch;
+  }
+}

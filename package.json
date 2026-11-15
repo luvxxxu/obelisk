@@ -1,0 +1,16 @@
+{
+  "name": "obelisk",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "web"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '@obelisk/backend' --filter '@obelisk/web' dev",
+    "dev:db": "docker compose -f docker-compose.dev.yml up -d",
+    "test": "bun test packages backend",
+    "typecheck": "bun run --filter '*' typecheck",
+    "build": "bun run --filter '@obelisk/web' build"
+  }
+}

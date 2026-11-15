@@ -1,0 +1,384 @@
+/* Task row — shadcn-like list row.
+   Layout: [checkbox] [title + meta badges] [hover actions]
+   Wide rows (≥ 480px content) keep meta on the title line, right-aligned with the date last so
+   dates line up down the list; narrow rows stack meta under the title. */
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 44px;
+  padding: 12px 8px 12px 12px;
+  margin: 0 -12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 0.12s var(--ease),
+    box-shadow 0.12s var(--ease),
+    opacity 0.3s var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.row:hover {
+  background: var(--surface-2);
+}
+
+.row:focus-visible {
+  outline: none;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1.5px var(--ring-color);
+}
+
+.selected,
+.selected:hover {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.selected:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--ring-color);
+}
+
+.completing .main {
+  opacity: 0.55;
+}
+
+/* ───────── checkbox */
+
+.check {
+  --c: var(--border-strong);
+  position: relative;
+  flex-shrink: 0;
+  margin-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--c);
+  color: transparent;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color 0.15s var(--ease),
+    border-color 0.15s var(--ease),
+    color 0.15s var(--ease),
+    box-shadow 0.2s var(--ease),
+    transform 0.15s var(--ease);
+}
+
+/* bigger touch / click target without changing the look (rows have room for it) */
+.check::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+}
+
+.row .check::before {
+  inset: -8px;
+}
+
+.check svg {
+  position: relative;
+  z-index: 1;
+}
+
+.check[data-priority='1'] {
+  --c: var(--info);
+}
+
+.check[data-priority='2'] {
+  --c: var(--warn);
+}
+
+.check[data-priority='3'] {
+  --c: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* in progress: half-filled disc (blue when there is no priority colour) */
+.check[data-doing='true'][data-priority='0'] {
+  --c: var(--info);
+}
+
+.check[data-doing='true']::after {
+  content: '';
+  position: absolute;
+  inset: 2.5px;
+  border-radius: 50%;
+  background: var(--c);
+  clip-path: inset(0 0 0 50%);
+  transition: opacity 0.15s var(--ease);
+}
+
+.check:hover {
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+}
+
+.check[data-priority='0']:not([data-doing='true']):hover {
+  color: var(--text-3);
+  border-color: var(--text-3);
+  background: var(--surface-2);
+}
+
+.check[data-doing='true']:hover::after {
+  opacity: 0.3;
+}
+
+.check:active {
+  transform: scale(0.9);
+}
+
+.check[data-done='true'],
+.check[data-done='true']:hover {
+  --c: var(--primary);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+.check[data-done='true']:hover {
+  opacity: 0.85;
+}
+
+.check[data-done='true']::after {
+  content: none;
+}
+
+.check path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+}
+
+/* completion: a gentle pop, the tick draws in, a soft ring fades out */
+.check[data-animate='true'][data-done='true'] {
+  animation: pop 0.32s var(--ease-spring);
+}
+
+.check[data-animate='true'][data-done='true'] path {
+  animation: draw 0.28s var(--ease-out) 0.04s both;
+}
+
+.row .check[data-animate='true'][data-done='true']::before,
+.check[data-animate='true'][data-done='true']::before {
+  inset: -1.5px;
+  animation: ring 0.5s var(--ease-out) both;
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.86);
+  }
+  55% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 24;
+  }
+}
+
+@keyframes ring {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 28%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--primary) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .check,
+  .check path,
+  .check::before,
+  .row {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ───────── content */
+
+.main {
+  flex: 1 1 0;
+  min-width: 0;
+  container-type: inline-size;
+  transition: opacity 0.3s var(--ease);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.titleLine {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  min-height: 20px;
+}
+
+.title {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  transition: color 0.2s var(--ease);
+}
+
+.noteIcon {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+.done .title {
+  color: var(--text-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-4);
+}
+
+.canceled .title {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+
+.done .meta,
+.canceled .meta {
+  opacity: 0.7;
+}
+
+.meta:empty {
+  display: none;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.meta .badge {
+  gap: 4px;
+  padding: 0 6px;
+}
+
+.meta .badge svg {
+  opacity: 0.85;
+}
+
+/* neutral meta reads quieter than the coloured (meaningful) ones */
+.meta .badge[data-tone='outline'] {
+  color: var(--text-2);
+}
+
+.date {
+  font-variant-numeric: tabular-nums;
+}
+
+.project {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 180px;
+  height: 20px;
+  padding: 0 2px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.projectName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* wide rows: one line — title left, meta right (date last so dates align) */
+@container (min-width: 480px) {
+  .content {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .titleLine {
+    flex: 1 1 auto;
+  }
+
+  .meta {
+    flex: 0 1 auto;
+    max-width: 58%;
+    justify-content: flex-end;
+    margin-left: auto;
+  }
+
+  .project {
+    order: 9;
+  }
+
+  .date {
+    order: 10;
+  }
+}
+
+/* ───────── row actions (hover / focus reveal; always on touch) */
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 58px;
+  margin: -4px -2px -4px 0;
+  opacity: 0;
+  transition: opacity 0.12s var(--ease);
+}
+
+.row:hover .actions,
+.row:focus-within .actions,
+.row:focus-visible .actions,
+.actions[data-open='true'] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .actions {
+    min-width: 0;
+    opacity: 1;
+  }
+
+  /* the whole row already opens the task on tap */
+  .openBtn {
+    display: none;
+  }
+}
+
+/* ───────── postpone menu */
+
+.postponeMenu {
+  width: 256px;
+}
+
+.postponeMenu .effect {
+  margin-left: auto;
+  height: 20px;
+}

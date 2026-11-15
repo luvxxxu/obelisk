@@ -1,0 +1,272 @@
+/* ───────── page container (Notion: centred column, or full width) */
+
+.page,
+.pageWide {
+  width: 100%;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 0 var(--page-pad) 120px;
+}
+
+.page {
+  max-width: calc(760px + var(--page-pad) * 2);
+}
+
+.pageWide {
+  max-width: calc(1440px + var(--page-pad) * 2);
+}
+
+/* ───────── page header */
+
+.header {
+  padding-top: 64px;
+  margin-bottom: 28px;
+}
+
+.pageIcon {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 78px;
+  height: 78px;
+  margin-left: -4px;
+  margin-bottom: 4px;
+  color: var(--text);
+  animation: icon-in 0.6s var(--ease-spring) both;
+}
+
+@keyframes icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82) rotate(-6deg);
+  }
+}
+
+.titleRow,
+.subtitle {
+  animation: head-in 0.5s var(--ease-out) both;
+}
+
+.titleRow {
+  animation-delay: 60ms;
+}
+
+.subtitle {
+  animation-delay: 110ms;
+}
+
+@keyframes head-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+
+.title {
+  flex: 1 1 280px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--text);
+  padding: 3px 0;
+}
+
+.titleText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subtitle {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .header {
+    padding-top: 32px;
+  }
+
+  .pageIcon {
+    width: 60px;
+    height: 60px;
+  }
+
+  .pageIcon svg {
+    width: 48px;
+    height: 48px;
+  }
+
+  .title {
+    font-size: 30px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+  }
+}
+
+/* ───────── task group */
+
+.group {
+  margin-bottom: 28px;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  margin-bottom: 4px;
+  color: var(--text-2);
+}
+
+.groupHeader[data-tone='danger'] {
+  color: var(--danger-text);
+}
+
+.groupHeader[data-tone='accent'] {
+  color: var(--text);
+}
+
+.groupHeader[data-tone='muted'] {
+  color: var(--text-3);
+}
+
+.groupToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin-left: -6px;
+  padding: 0 8px 0 4px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  transition: background-color 0.15s var(--ease);
+}
+
+.groupToggle:hover {
+  background: var(--surface-2);
+}
+
+.chevron {
+  display: inline-flex;
+  color: var(--text-3);
+  transition: transform 0.18s var(--ease);
+}
+
+.chevron[data-open='true'] {
+  transform: rotate(90deg);
+}
+
+.groupTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.groupHeader[data-tone='danger'] .count {
+  color: var(--danger-text);
+}
+
+.groupAside {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.groupEmpty {
+  padding: 12px 0;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+/* ───────── empty state */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-2);
+}
+
+.emptyIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--text-2);
+  margin-bottom: 14px;
+}
+
+.emptyTitle {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--text);
+}
+
+.emptyBody {
+  margin-top: 4px;
+  font-size: 13px;
+  max-width: 360px;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+.emptyAction {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}

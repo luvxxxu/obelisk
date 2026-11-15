@@ -1,0 +1,358 @@
+/* Quick add — shadcn input look: bordered field, leading +, focus ring via :focus-within
+   (the global outline is removed on text inputs). Parsed tokens appear as removable badges. */
+
+.wrap {
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 24px;
+  container-type: inline-size;
+}
+
+.modal {
+  margin: 0;
+}
+
+/* ───────── field */
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 6px 0 12px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  box-shadow: var(--shadow-xs);
+  cursor: text;
+  transition:
+    border-color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease),
+    background-color 0.15s var(--ease);
+}
+
+.field:hover {
+  border-color: var(--border-strong);
+}
+
+.field:focus-within {
+  border-color: var(--ring-color);
+  box-shadow: var(--ring);
+}
+
+.modal .field {
+  height: 46px;
+  padding: 0 8px 0 14px;
+  border-radius: var(--radius);
+}
+
+.plus {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-3);
+  transition: color 0.15s var(--ease);
+}
+
+.active .plus {
+  color: var(--text);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  text-overflow: ellipsis; /* long example placeholder on phones */
+}
+
+.modal .input {
+  font-size: 16px;
+}
+
+.input::placeholder {
+  color: var(--text-3);
+}
+
+/* phones: 16px avoids the iOS zoom-on-focus */
+@media (pointer: coarse) {
+  .input {
+    font-size: 16px;
+  }
+}
+
+/* ───────── trailing controls */
+
+.submit,
+.helpBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 6px 0 8px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-2);
+  outline: none;
+  cursor: pointer;
+  transition:
+    background-color 0.15s var(--ease),
+    color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease);
+}
+
+.submit:hover,
+.helpBtn:hover,
+.helpBtn[data-active='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.submit:focus-visible,
+.helpBtn:focus-visible {
+  box-shadow:
+    0 0 0 1px var(--ring-color),
+    var(--ring);
+}
+
+.submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+  background: transparent;
+}
+
+.submit kbd {
+  height: 18px;
+  min-width: 20px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+.submitLabel {
+  line-height: 1;
+}
+
+.helpBtn {
+  padding: 0 6px;
+}
+
+.helpGlyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.25px solid currentColor;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* label only while the field is in use (empty + focused) and there is room */
+.helpLabel {
+  display: none;
+}
+
+@container (min-width: 420px) {
+  .active .helpLabel,
+  .helpBtn[data-active='true'] .helpLabel {
+    display: inline;
+  }
+}
+
+@container (max-width: 359px) {
+  .submitLabel {
+    display: none;
+  }
+}
+
+/* ───────── parsed tokens */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0 0;
+  animation: in 0.18s var(--ease-out);
+}
+
+@keyframes in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.chips .chip {
+  height: 24px;
+  gap: 5px;
+  padding: 0 6px 0 8px;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow 0.12s var(--ease);
+  animation: in 0.18s var(--ease-out);
+}
+
+button.chip:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent);
+}
+
+button.chip:focus-visible {
+  box-shadow:
+    0 0 0 1px var(--ring-color),
+    var(--ring);
+}
+
+.chips .chip[data-kind='default'] {
+  padding: 0 8px;
+  border-style: dashed;
+  color: var(--text-2);
+  cursor: default;
+}
+
+.chipX {
+  margin-left: 1px;
+  opacity: 0.55;
+  transition: opacity 0.12s var(--ease);
+}
+
+.chip:hover .chipX,
+.chip:focus-visible .chipX {
+  opacity: 1;
+}
+
+.chipNote {
+  color: var(--text-3);
+  font-weight: 400;
+}
+
+/* ───────── syntax help */
+
+.help {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+  font-size: 12.5px;
+  color: var(--text-2);
+  animation: in 0.18s var(--ease-out);
+}
+
+.modal .help {
+  margin-top: 14px;
+  background: transparent;
+  border-width: 1px 0 0;
+  border-radius: 0;
+  padding: 14px 2px 0;
+}
+
+.helpHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -4px -6px 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.helpList {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.helpRow {
+  display: contents;
+}
+
+.helpRow dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.helpRow dt svg {
+  color: var(--text-3);
+}
+
+.helpRow dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  margin: 0;
+}
+
+.helpRow code,
+.helpExample {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.helpNote {
+  margin-left: 4px;
+  color: var(--text-3);
+}
+
+.helpFoot {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-3);
+}
+
+.helpExample {
+  height: 20px;
+  margin: 0 2px;
+}
+
+@media (max-width: 480px) {
+  .helpList {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .helpRow dd {
+    margin-bottom: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chips,
+  .chip,
+  .help {
+    animation: none;
+  }
+}

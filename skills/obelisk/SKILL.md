@@ -1,0 +1,81 @@
+---
+name: obelisk
+description: Manage the user's Obelisk to-do list and schedule — capture, update, complete and postpone tasks, plan projects as ordered task chains with dependencies, and predict which other tasks and fixed deadlines slip when something is delayed. Use whenever the user talks about their tasks, to-dos, deadlines, schedule, plans or Obelisk, or asks things like "what should I do today?", "what happens if I push X to next week?", "plan this project for me", "할 일", "일정", "미루면".
+---
+
+# Obelisk
+
+Obelisk is the user's personal task and schedule planner. It is deliberately simple — tasks, projects, dates, dependencies — and has one signature feature: **delay impact prediction** (if this slips, what else slips?).
+
+Server: `{{OBELISK_URL}}`
+
+## How to reach Obelisk
+
+1. **MCP tools (preferred).** If tools such as `get_overview`, `create_task`, `simulate_delay` are available, use them. They are the Obelisk MCP server at `{{OBELISK_URL}}/mcp`.
+2. **REST fallback.** If no Obelisk tools are available but you can run shell commands, use the REST API with a personal token (the user creates one in Obelisk → 설정 → AI 연결):
+   ```bash
+   export OBELISK_URL="{{OBELISK_URL}}" OBELISK_TOKEN="obk_..."
+   scripts/obelisk.sh GET /api/tasks?view=today
+   ```
+   See [references/rest-api.md](references/rest-api.md) for every endpoint.
+3. Neither available → tell the user how to connect (Claude: Customize → Connectors → Add → Add custom connector → `{{OBELISK_URL}}/mcp`, keep the Detected sign-in settings, then Connect — on Team/Enterprise an Owner adds it under Organization settings → Connectors; ChatGPT: Plugins → + → Add custom MCP server → same URL, OAuth → Create as a plugin, then use it with @Obelisk in a Work chat; an MCP server added in Codex is not shared with ChatGPT chat).
+
+## Core concepts
+
+| Concept | Meaning |
+|---|---|
+| Ref `#12` | Short per-user task number. Always show tasks to the user as `#12 Title`. Tools accept `#12`, `12`, an id, or a unique title fragment. |
+| Status | `todo`, `doing`, `done`, `canceled` |
+| Priority | `none`, `low`, `medium`, `high` |
+| Dates | `startDate` / `dueDate` as `YYYY-MM-DD` in the user's timezone. Only a due date = one-day task. Get "today" from `get_overview` — never assume it. |
+| Blocked by | Finish-to-start dependency: a task can't start before its blockers are due. |
+| Fixed | Immovable commitment (meeting, launch, hard deadline). Never shifts; a delay reaching it is a **conflict**. |
+
+How delays propagate (needed to explain predictions): [references/delay-model.md](references/delay-model.md).
+
+## Workflows
+
+### "What should I do today?"
+1. `get_overview`.
+2. Answer with: overdue items first (with a suggestion each), then today's tasks ordered by priority, then anything in `delayRisk`. Keep it to a short list.
+
+### Capturing tasks
+- One task → `create_task`. Several or a plan → `create_tasks` in a single call.
+- Translate natural dates yourself ("next Friday" → `YYYY-MM-DD`, relative to `today`).
+- Use an existing project when one obviously fits (`list_projects`); don't invent projects unprompted.
+- Mark meetings, events and external deadlines as `fixed: true`.
+
+### Postponing (the important one)
+1. If the task blocks anything (`get_task` → `blocks` non-empty) **always** run `simulate_delay` first.
+2. Tell the user plainly: which tasks move and by how much, which fixed dates break (conflicts), how project finish dates move, and which tasks absorb the delay with slack.
+3. Ask: move everything (`postpone_task` with `cascade: true`, default) or only this task (`cascade: false`)?
+4. If a fixed date conflicts, offer alternatives: a smaller delay, dropping/descoping a downstream task, or moving the fixed date itself.
+
+Never move a due date later with `update_task` when the task has dependents — it leaves dependents starting before their blocker finishes. Use `postpone_task`.
+
+### Planning a goal / project
+1. `get_overview` for today's date and current load.
+2. Propose 3–12 concrete tasks with dates and `blockedBy` links (give each a `key`). Show the plan briefly and get confirmation.
+3. Create everything with one `create_tasks` call. Then run `get_bottlenecks` and point out the critical tasks (zero slack).
+
+### Risk check / weekly review
+- `get_forecast`: what is already slipping because overdue tasks can only finish today.
+- `get_bottlenecks`: tasks with the most downstream work and least slack.
+- `list_tasks view=done` for wins. Tasks with `postponedCount ≥ 2` deserve a conversation (split, delegate, drop?).
+
+## Presentation
+
+Obelisk looks like Linear: one dense line per task, refs as `#12`, colour or bold only for meaning. Full templates: [references/formatting.md](references/formatting.md).
+
+- **Claude / ChatGPT with the MCP connector** show most results as an interactive Obelisk card (task list, task card, delay timeline, bottlenecks, projects). Don't repeat the card — reply in 1–2 sentences with the insight and at most one question. The user can tick tasks done or apply a postponement in the card; you are told when they do.
+- **Anywhere else** (Claude Code, Codex, the REST fallback) tool results already arrive as house-style markdown — reuse those lines rather than inventing a layout:
+  ```
+  ◐ `#12` 기획서 초안 · 높음 · 런칭 · 11/18 (수) – 11/20 (금)
+  ○ `#9` 견적서 회신 · 11월 12일 · **2일 지남** · ↻ 3회 미룸
+  ```
+  `○` todo · `◐` doing · `✓` done · `✕` canceled · `🔒 고정` fixed · `↻` postponed. Delay impact goes in a table (작업 · 일정 · 영향). With REST JSON, build the same lines yourself.
+
+## Style
+- Reply in the user's language. The Obelisk UI is Korean; dates read naturally as "11월 20일 (목)". Never show raw ids, JSON or ISO dates.
+- Be brief. Lists over paragraphs. Always include refs (`#12`).
+- Confirm before `delete_task`, `delete_project`, or bulk changes. Completing or creating tasks the user explicitly asked for needs no confirmation.

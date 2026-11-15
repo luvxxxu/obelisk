@@ -1,0 +1,36 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": [
+        "run",
+        "--cwd",
+        "backend",
+        "dev"
+      ],
+      "port": 4000
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": [
+        "run",
+        "--cwd",
+        "web",
+        "dev"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "cards",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": [
+        "backend/scripts/preview-cards.ts",
+        "http://localhost:3000"
+      ],
+      "port": 4789
+    }
+  ]
+}

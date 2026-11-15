@@ -1,0 +1,15 @@
+# Local development database only. `bun run dev:db`
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: obelisk
+      POSTGRES_PASSWORD: obelisk
+      POSTGRES_DB: obelisk
+    ports:
+      - "54329:5432"
+    volumes:
+      - obelisk-dev-db:/var/lib/postgresql/data
+
+volumes:
+  obelisk-dev-db:

@@ -1,0 +1,361 @@
+/* Impact report — status alert · project slips · ripple tree (each task sits under the task that
+   pushed it). Kind badge = what happens (밀림 warn · 충돌 danger · 흡수 ok · 미정 muted),
+   amount badge = by how much (tabular). Narrow containers stack the dates under the title. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+/* ───────── summary (shadcn Alert) */
+
+.summary {
+  --tone: var(--ok);
+  --tone-text: var(--ok-text);
+  --tone-soft: var(--ok-soft);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--tone) 28%, var(--border));
+  border-radius: var(--radius-lg);
+  background: var(--tone-soft);
+}
+
+.summary[data-tone='warn'] {
+  --tone: var(--warn);
+  --tone-text: var(--warn-text);
+  --tone-soft: var(--warn-soft);
+}
+
+.summary[data-tone='danger'] {
+  --tone: var(--danger);
+  --tone-text: var(--danger-text);
+  --tone-soft: var(--danger-soft);
+}
+
+.summaryIcon {
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: var(--tone-text);
+}
+
+.summaryBody {
+  min-width: 0;
+}
+
+.summaryTitle {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  color: var(--tone-text);
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.stat::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.stat[data-k='conflict']::before {
+  background: var(--danger);
+}
+
+.stat[data-k='absorbed']::before {
+  background: var(--ok);
+}
+
+.stat b {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ───────── project slips */
+
+.slips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.slip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.slip + .slip {
+  border-top: 1px solid var(--border);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.slipName {
+  min-width: 0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slipDates {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ───────── ripple tree */
+
+.tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  --indent: calc(var(--depth, 0) * 16px);
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 8px 6px calc(var(--indent) + 26px);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  animation: fadeIn 0.2s var(--ease-out) both;
+  transition: background-color 0.12s var(--ease);
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+/* elbow from the parent's node down to this node */
+.item[data-nested='true']::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--indent) - 2px);
+  top: -10px;
+  width: 12px;
+  height: 27px;
+  border-left: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  border-bottom-left-radius: 6px;
+  pointer-events: none;
+}
+
+.node {
+  position: absolute;
+  z-index: 1;
+  left: calc(var(--indent) + 10px);
+  top: 13px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.item[data-kind='root'] .node {
+  background: var(--primary);
+}
+
+.item[data-kind='conflict'] .node {
+  background: var(--danger);
+}
+
+.item[data-kind='absorbed'] .node {
+  background: var(--ok);
+}
+
+.item[data-kind='unscheduled'] .node {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--text-4);
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 22px;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 22px;
+  color: var(--text);
+  border-radius: var(--radius-xs);
+  outline: none;
+}
+
+.title:disabled {
+  cursor: inherit;
+}
+
+.title:not(:disabled):hover {
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+
+.title:focus-visible {
+  box-shadow:
+    0 0 0 1px var(--ring-color),
+    var(--ring);
+}
+
+.item[data-kind='root'] .title {
+  font-weight: 500;
+}
+
+.item[data-kind='absorbed'] .title,
+.item[data-kind='unscheduled'] .title {
+  color: var(--text-2);
+}
+
+.num {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+  margin-right: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dates {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dates svg {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.from {
+  color: var(--text-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--border-strong);
+}
+
+.tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.amount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Narrow containers (side panel, cards, mobile): dates move under the title. */
+@container (max-width: 520px) {
+  .body {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .dates {
+    font-size: 11.5px;
+    line-height: 18px;
+  }
+
+  .slip {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .slipName {
+    flex: 1;
+  }
+
+  .slipDates {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+    padding-left: 16px;
+    font-size: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item {
+    animation: none;
+  }
+}
