@@ -5,7 +5,7 @@ description: Manage the user's Obelisk to-do list and schedule — capture, upda
 
 # Obelisk
 
-Obelisk is the user's personal task and schedule planner. It is deliberately simple — tasks, projects, dates, dependencies — and has one signature feature: **delay impact prediction** (if this slips, what else slips?).
+Obelisk is the user's task and schedule planner — for themselves and for the organizations they belong to. It is deliberately simple — tasks, projects, dates, dependencies — and has one signature feature: **delay impact prediction** (if this slips, what else slips?).
 
 Server: `{{OBELISK_URL}}`
 
@@ -24,7 +24,10 @@ Server: `{{OBELISK_URL}}`
 
 | Concept | Meaning |
 |---|---|
-| Ref `#12` | Short per-user task number. Always show tasks to the user as `#12 Title`. Tools accept `#12`, `12`, an id, or a unique title fragment. |
+| Workspace | The user's **personal space** plus any **organizations** they belong to (`list_workspaces`). Every tool takes an optional `workspace` (name or id); without it the user's default workspace is used. |
+| Ref `#12` | Short task number, **per workspace**. Always show tasks to the user as `#12 Title`. Tools accept `#12`, `12`, an id, or a unique title fragment — within the workspace you are working in. |
+| Access | In an organization the user sees only projects shared with them, at **view < edit < manage**. Tasks marked `readOnly` can't be changed. Owners/admins manage every project. A project-less task in an org is private to its creator and assignee. |
+| Assignee | Who does a task (`assignee`: `"me"`, a member's name or email). `list_members` lists who can be assigned; they must be able to see the task's project. |
 | Status | `todo`, `doing`, `done`, `canceled` |
 | Priority | `none`, `low`, `medium`, `high` |
 | Dates | `startDate` / `dueDate` as `YYYY-MM-DD` in the user's timezone. Only a due date = one-day task. Get "today" from `get_overview` — never assume it. |
@@ -34,6 +37,13 @@ Server: `{{OBELISK_URL}}`
 How delays propagate (needed to explain predictions): [references/delay-model.md](references/delay-model.md).
 
 ## Workflows
+
+### Organizations and permissions
+- Not sure where to work? `list_workspaces`. Say which workspace you used when the user has more than one ("에이컴퍼니에서 …").
+- "My tasks" in an org → `list_tasks` with `assignee: "me"`. Delegating → `update_task` with `assignee`.
+- A permission error means the user's account may not do that (e.g. a view-only project). Tell them who can grant access — a project manager or an org owner/admin — and stop; don't route around it (e.g. by recreating the task elsewhere).
+- Sharing projects, inviting people, roles and teams are managed in the web app (조직 설정 / 프로젝트 → 공유), not through tools.
+- "Who changed this?" → `get_activity` with a task or project. Changes you make are logged as coming through this AI app.
 
 ### "What should I do today?"
 1. `get_overview`.
@@ -46,7 +56,7 @@ How delays propagate (needed to explain predictions): [references/delay-model.md
 - Mark meetings, events and external deadlines as `fixed: true`.
 
 ### Postponing (the important one)
-1. If the task blocks anything (`get_task` → `blocks` non-empty) **always** run `simulate_delay` first.
+1. If the task blocks anything (`get_task` → `blocks` non-empty) **always** run `simulate_delay` first. In an org, a cascade that would move a task the user can only view is refused — offer `cascade: false` or asking that task's project manager.
 2. Tell the user plainly: which tasks move and by how much, which fixed dates break (conflicts), how project finish dates move, and which tasks absorb the delay with slack.
 3. Ask: move everything (`postpone_task` with `cascade: true`, default) or only this task (`cascade: false`)?
 4. If a fixed date conflicts, offer alternatives: a smaller delay, dropping/descoping a downstream task, or moving the fixed date itself.

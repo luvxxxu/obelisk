@@ -25,9 +25,10 @@ import {
   setSidebarCollapsed,
   type ThemePref,
 } from '@/lib/ui-helpers';
-import { Icon, Logo, type IconName } from './Icon';
+import { Icon, type IconName } from './Icon';
 import { Popover, tip, ui, useDisclosure } from './primitives';
 import s from './Sidebar.module.css';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
 type Tone = 'danger' | 'warn';
 
@@ -86,6 +87,7 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
       .filter((e): e is { task: typeof e.task; date: string; last: string } => !!e.date && !!e.last && e.last >= app.today && e.date <= horizon)
       .sort((a, b) => a.date.localeCompare(b.date) || compareTasks(a.task, b.task));
     return {
+      mine: active.filter((t) => t.assigneeId && t.assigneeId === app.user?.id).length,
       today: list.filter((t) => isToday(t, app.today)).length,
       overdue: list.filter((t) => isOverdue(t, app.today)).length,
       inbox: active.filter((t) => !t.projectId).length,
@@ -99,14 +101,17 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
   const switcher: NavItem[] = [page('/'), page('/inbox', { count: data.inbox }), page('/upcoming')];
   const activeSwitch = switcher.find((n) => pathname === n.href)?.href ?? null;
 
+  const org = app.workspace?.kind === 'org';
   const views: NavItem[] = [
     page('/today', { count: data.today, tone: data.overdue ? 'danger' : undefined }),
+    ...(org ? [page('/mine', { count: data.mine || undefined })] : []),
     page('/all'),
     page('/forecast', { count: data.risk || undefined, tone: data.conflicts ? 'danger' : 'warn' }),
     page('/logbook'),
   ];
 
   const projects = app.projects.filter((p) => !p.archivedAt).sort((a, b) => a.position - b.position);
+  const canCreate = app.workspace?.canCreateProjects ?? true;
 
   const submitProject = async () => {
     const n = name.trim();
@@ -132,12 +137,7 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
     <nav className={s.sidebar} data-mobile={mobile} aria-label="주 메뉴">
       {/* ───── top: brand · collapse · new */}
       <div className={s.top}>
-        <Link href="/" className={s.brand} onClick={close} aria-label="Obelisk 홈">
-          <span className={s.brandMark}>
-            <Logo size={14} />
-          </span>
-          <span className={s.brandName}>Obelisk</span>
-        </Link>
+        <WorkspaceSwitcher onNavigate={close} />
         <div className={s.topActions}>
           {mobile ? (
             <button className={s.topBtn} onClick={close} aria-label="메뉴 닫기">
@@ -278,9 +278,11 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
         <section className={s.section}>
           <div className={s.sectionLabel}>
             <span>프로젝트</span>
-            <button className={s.sectionAction} onClick={() => setAdding(true)} aria-label="프로젝트 추가" {...tip('프로젝트 추가')}>
-              <Icon name="plus" size={15} />
-            </button>
+            {canCreate && (
+              <button className={s.sectionAction} onClick={() => setAdding(true)} aria-label="프로젝트 추가" {...tip('프로젝트 추가')}>
+                <Icon name="plus" size={15} />
+              </button>
+            )}
           </div>
           <ul className={s.menu}>
             {projects.map((p) => {
@@ -300,6 +302,11 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
                       <Icon name="folder" size={17} />
                     </span>
                     <span className={s.label}>{p.name}</span>
+                    {org && p.access === 'view' && (
+                      <span className={s.access} aria-label="보기 전용" {...tip('보기 전용', { side: 'right' })}>
+                        <Icon name="eye" size={14} />
+                      </span>
+                    )}
                     {!!count && <span className={s.count}>{count}</span>}
                   </Link>
                 </li>
@@ -329,6 +336,10 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
                   />
                 </div>
               </li>
+            ) : !canCreate ? (
+              projects.length === 0 && (
+                <li className={s.emptyNote}>아직 볼 수 있는 프로젝트가 없어요. 관리자에게 공유를 요청하세요.</li>
+              )
             ) : (
               <li>
                 <button className={cx(s.item, s.addItem)} onClick={() => setAdding(true)}>

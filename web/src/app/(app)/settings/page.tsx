@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Icon, type IconName } from '@/components/Icon';
@@ -13,6 +12,7 @@ import { toast } from '@/lib/toast';
 import { applyThemePref, modCombo } from '@/lib/ui-helpers';
 import { setUi } from '@/lib/ui-state';
 import type { User } from '@obelisk/core';
+import { SettingsNav } from './SettingsNav';
 import s from './settings.module.css';
 
 type Theme = 'system' | 'light' | 'dark';
@@ -80,16 +80,7 @@ export default function SettingsPage() {
   return (
     <Page>
       <ViewHeader icon="settings" title="설정" description="프로필과 화면, 계정을 관리해요.">
-        <nav className={cx(ui.tabs, s.subnav)} aria-label="설정 메뉴">
-          <Link href="/settings" className={ui.tab} data-active="true" aria-current="page">
-            <Icon name="user" size={15} />
-            일반
-          </Link>
-          <Link href="/settings/ai" className={ui.tab}>
-            <Icon name="sparkle" size={15} />
-            AI 연결
-          </Link>
-        </nav>
+        <SettingsNav />
       </ViewHeader>
 
       <div className={s.stack}>

@@ -6,17 +6,27 @@ import { config, SESSION_COOKIE } from '../config';
 import { randomToken, sha256 } from '../common/crypto';
 import { bearerToken, parseCookies } from '../common/http';
 import { InjectDb, type Db } from '../db/db.module';
-import { apiTokens, oauthGrants, sessions, users, type UserRow } from '../db/schema';
+import { apiTokens, oauthGrants, sessions, users, workspaceMembers, workspaces, type UserRow } from '../db/schema';
+import { WorkspacesService } from '../workspace/workspaces.service';
 
 export interface AuthContext {
   user: UserRow;
   via: 'session' | 'api_token' | 'oauth';
   /** Session or token id, used e.g. for logout */
   credentialId: string;
+  /** The OAuth app or API token name — shown in the activity log ("via Claude"). */
+  client?: string | null;
 }
 
 export function toUser(r: UserRow): User {
-  return { id: r.id, email: r.email, name: r.name, timezone: r.timezone, createdAt: r.createdAt.toISOString() };
+  return {
+    id: r.id,
+    email: r.email,
+    name: r.name,
+    timezone: r.timezone,
+    defaultWorkspaceId: r.defaultWorkspaceId,
+    createdAt: r.createdAt.toISOString(),
+  };
 }
 
 const DUMMY_HASH = await Bun.password.hash('obelisk-timing-guard');
@@ -35,22 +45,33 @@ function throttle(key: string) {
 
 @Injectable()
 export class AuthService {
-  constructor(@InjectDb() private readonly db: Db) {}
+  constructor(
+    @InjectDb() private readonly db: Db,
+    private readonly workspaces: WorkspacesService,
+  ) {}
 
-  async signupAllowed(): Promise<boolean> {
+  async signupAllowed(inviteToken?: string): Promise<boolean> {
     if (config.signupMode === 'open') return true;
+    if (inviteToken && (await this.workspaces.inviteUsable(inviteToken))) return true;
     if (config.signupMode === 'closed') return false;
     const [row] = await this.db.select({ n: count() }).from(users);
     return (row?.n ?? 0) === 0;
   }
 
+  /**
+   * New account + its personal space. With a live organization invite, sign-up is allowed
+   * whatever SIGNUP_MODE says, and the new account joins that organization right away
+   * (it then opens there by default).
+   */
   async signup(input: SignupInput) {
     const passwordHash = await Bun.password.hash(input.password);
-    const user = await this.db.transaction(async (tx) => {
+    const { user, joined } = await this.db.transaction(async (tx) => {
       // Serialize sign-ups so two people can't both become "the first user".
       await tx.execute(sql`select pg_advisory_xact_lock(731_6001)`);
-      if (config.signupMode === 'closed') throw new ForbiddenException('이 서버는 새 계정 가입을 받지 않습니다');
-      if (config.signupMode === 'first') {
+      const invited = !!input.inviteToken && (await this.workspaces.inviteUsable(input.inviteToken, tx));
+      if (input.inviteToken && !invited) throw new ForbiddenException('초대 링크가 만료되었거나 더 이상 쓸 수 없습니다');
+      if (!invited && config.signupMode === 'closed') throw new ForbiddenException('이 서버는 새 계정 가입을 받지 않습니다');
+      if (!invited && config.signupMode === 'first') {
         const [row] = await tx.select({ n: count() }).from(users);
         if ((row?.n ?? 0) > 0) throw new ForbiddenException('이 서버는 새 계정 가입을 받지 않습니다');
       }
@@ -60,10 +81,24 @@ export class AuthService {
         .insert(users)
         .values({ email: input.email, name: input.name, passwordHash, timezone: input.timezone ?? 'Asia/Seoul' })
         .returning();
-      return created!;
+      const [personal] = await tx
+        .insert(workspaces)
+        .values({ kind: 'personal', name: '개인 공간', personalUserId: created!.id })
+        .returning();
+      await tx.insert(workspaceMembers).values({ workspaceId: personal!.id, userId: created!.id, role: 'owner' });
+      let joined: string | null = null;
+      if (invited) {
+        joined = await this.workspaces.acceptInvite({ user: created!, via: 'session', credentialId: '' }, input.inviteToken!, tx);
+      }
+      const [user] = await tx
+        .update(users)
+        .set({ defaultWorkspaceId: joined ?? personal!.id })
+        .where(eq(users.id, created!.id))
+        .returning();
+      return { user: user!, joined };
     });
     const token = await this.createSession(user.id);
-    return { user, token };
+    return { user, token, joinedWorkspaceId: joined };
   }
 
   async login(email: string, password: string) {
@@ -99,7 +134,13 @@ export class AuthService {
     return parseCookies(req.headers.cookie)[SESSION_COOKIE] ?? null;
   }
 
-  async updateMe(userId: string, patch: { name?: string; timezone?: string }) {
+  async updateMe(userId: string, patch: { name?: string; timezone?: string; defaultWorkspaceId?: string }) {
+    if (patch.defaultWorkspaceId) {
+      const member = await this.db.query.workspaceMembers.findFirst({
+        where: and(eq(workspaceMembers.workspaceId, patch.defaultWorkspaceId), eq(workspaceMembers.userId, userId)),
+      });
+      if (!member) throw new ForbiddenException('멤버인 공간만 기본 공간으로 고를 수 있습니다');
+    }
     const [row] = await this.db.update(users).set(patch).where(eq(users.id, userId)).returning();
     return row!;
   }
@@ -125,7 +166,7 @@ export class AuthService {
     const hash = sha256(token);
     if (token.startsWith('obk_')) {
       const rows = await this.db
-        .select({ user: users, id: apiTokens.id, lastUsedAt: apiTokens.lastUsedAt })
+        .select({ user: users, id: apiTokens.id, name: apiTokens.name, lastUsedAt: apiTokens.lastUsedAt })
         .from(apiTokens)
         .innerJoin(users, eq(users.id, apiTokens.userId))
         .where(and(eq(apiTokens.tokenHash, hash), isNull(apiTokens.revokedAt)))
@@ -135,11 +176,11 @@ export class AuthService {
       if (!hit.lastUsedAt || Date.now() - hit.lastUsedAt.getTime() > 60_000) {
         await this.db.update(apiTokens).set({ lastUsedAt: sql`now()` }).where(eq(apiTokens.id, hit.id));
       }
-      return { user: hit.user, via: 'api_token', credentialId: hit.id };
+      return { user: hit.user, via: 'api_token', credentialId: hit.id, client: hit.name };
     }
     if (token.startsWith('oat_')) {
       const rows = await this.db
-        .select({ user: users, id: oauthGrants.id, lastUsedAt: oauthGrants.lastUsedAt })
+        .select({ user: users, id: oauthGrants.id, clientName: oauthGrants.clientName, lastUsedAt: oauthGrants.lastUsedAt })
         .from(oauthGrants)
         .innerJoin(users, eq(users.id, oauthGrants.userId))
         .where(
@@ -155,7 +196,7 @@ export class AuthService {
       if (!hit.lastUsedAt || Date.now() - hit.lastUsedAt.getTime() > 60_000) {
         await this.db.update(oauthGrants).set({ lastUsedAt: sql`now()` }).where(eq(oauthGrants.id, hit.id));
       }
-      return { user: hit.user, via: 'oauth', credentialId: hit.id };
+      return { user: hit.user, via: 'oauth', credentialId: hit.id, client: hit.clientName };
     }
     return null;
   }

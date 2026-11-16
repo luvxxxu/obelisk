@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import {
@@ -17,7 +16,11 @@ import {
 import { Page, ViewHeader } from '@/components/View';
 import { api } from '@/lib/api';
 import { cx, relativeTime } from '@/lib/format';
+import { setUser, useApp } from '@/lib/store';
 import { toast } from '@/lib/toast';
+import { workspaceLabel, WorkspaceMark } from '@/components/WorkspaceSwitcher';
+import type { User } from '@obelisk/core';
+import { SettingsNav } from '../SettingsNav';
 import base from '../settings.module.css';
 import s from './ai.module.css';
 
@@ -150,6 +153,59 @@ function SkeletonRows({ cols }: { cols: number }) {
   );
 }
 
+/** Which workspace AI tools use when a request doesn't name one. Permissions always follow the account. */
+function AiWorkspaceCard() {
+  const app = useApp();
+  if (app.workspaces.length < 2) return null;
+  const current = app.user?.defaultWorkspaceId ?? app.workspaces[0]?.id;
+  const choose = async (id: string) => {
+    try {
+      const { user } = await api<{ user: User }>('PATCH', '/api/auth/me', { defaultWorkspaceId: id });
+      setUser(user);
+      const w = app.workspaces.find((x) => x.id === id);
+      toast.success(`AI 기본 공간을 ${workspaceLabel(w)}(으)로 바꿨어요`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+  return (
+    <Card className={base.section}>
+      <CardHeader>
+        <CardTitle>
+          <Icon name="building" size={16} className={s.titleIcon} /> AI 기본 공간
+        </CardTitle>
+        <CardDescription>
+          연결 하나로 개인 공간과 모든 조직을 다뤄요. AI가 공간을 따로 말하지 않으면 여기서 고른 곳에서 일해요. 조직에서는 내 계정 권한(보기·쓰기·관리)이 그대로 적용돼요.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className={s.content}>
+        <div className={s.wsList} role="radiogroup" aria-label="AI 기본 공간">
+          {app.workspaces.map((w) => (
+            <button
+              key={w.id}
+              role="radio"
+              aria-checked={current === w.id}
+              className={s.wsOption}
+              data-selected={current === w.id}
+              onClick={() => current !== w.id && void choose(w.id)}
+            >
+              <WorkspaceMark ws={w} size="sm" />
+              <span className={s.wsText}>
+                <span className={s.wsName}>{workspaceLabel(w)}</span>
+                <span className={s.wsMeta}>{w.kind === 'personal' ? '나만 보는 공간' : `조직 · 멤버 ${w.memberCount}명`}</span>
+              </span>
+              {current === w.id && <Icon name="check" size={15} />}
+            </button>
+          ))}
+        </div>
+        <p className={ui.help}>
+          AI에게 “에이컴퍼니에서 할 일 보여줘”처럼 공간을 말하면 그 공간을 써요. <code>list_workspaces</code> 도구로 목록을 확인할 수 있어요.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AiSettingsPage() {
   const [info, setInfo] = useState<{ publicUrl: string; mcpUrl: string; skillUrl: string } | null>(null);
   const [tokens, setTokens] = useState<TokenRow[]>([]);
@@ -203,16 +259,7 @@ export default function AiSettingsPage() {
         title="AI 연결"
         subtitle="Claude, ChatGPT 같은 AI 도구가 Obelisk의 모든 기능을 MCP와 Agent Skill로 사용할 수 있어요."
       >
-        <nav className={cx(ui.tabs, base.subnav)} aria-label="설정 메뉴">
-          <Link href="/settings" className={ui.tab}>
-            <Icon name="user" size={15} />
-            일반
-          </Link>
-          <Link href="/settings/ai" className={ui.tab} data-active="true" aria-current="page">
-            <Icon name="sparkle" size={15} />
-            AI 연결
-          </Link>
-        </nav>
+        <SettingsNav />
       </ViewHeader>
 
       <div className={base.stack}>
@@ -252,6 +299,8 @@ export default function AiSettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        <AiWorkspaceCard />
 
         {/* ───────── how to connect */}
         <Card className={base.section}>

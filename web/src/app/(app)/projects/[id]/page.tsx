@@ -6,20 +6,26 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { ImpactView } from '@/components/ImpactView';
+import { MoveProjectDialog } from '@/components/MoveProjectDialog';
 import { Badge, buttonClass, ConfirmModal, isEnter, Popover, Progress, tip, ui, useDisclosure } from '@/components/primitives';
 import { QuickAdd } from '@/components/QuickAdd';
+import { ShareDialog } from '@/components/ShareDialog';
 import { Timeline } from '@/components/Timeline';
 import { EmptyState, Page, TaskGroup, ViewHeader } from '@/components/View';
 import { useForecast, usePref, useTasks } from '@/lib/hooks';
 import { deleteProject, updateProject, useApp } from '@/lib/store';
+import { cx } from '@/lib/format';
 import { setUi } from '@/lib/ui-state';
 import s from '../../views.module.css';
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { projects, today } = useApp();
+  const { projects, today, workspace, workspaces } = useApp();
   const project = projects.find((p) => p.id === id);
+  const org = workspace?.kind === 'org';
+  const share = useDisclosure();
+  const move = useDisclosure();
   const tasks = useTasks();
   const fc = useForecast();
   const [mode, setMode] = usePref<'list' | 'timeline'>(`project-mode`, 'list');
@@ -89,6 +95,10 @@ export default function ProjectPage() {
 
   const total = data.active.length + data.done.length;
   const pct = total ? Math.round((data.done.length / total) * 100) : 0;
+  const manage = project.access === 'manage';
+  const readOnly = project.access === 'view';
+  const shareLabel =
+    project.memberAccess === 'edit' ? '조직 전체 쓰기' : project.memberAccess === 'view' ? '조직 전체 보기' : '비공개';
 
   return (
     <Page wide={mode === 'timeline'}>
@@ -106,6 +116,8 @@ export default function ProjectPage() {
                 className={s.projectName}
                 value={name}
                 placeholder="프로젝트 이름"
+                readOnly={!manage}
+                title={manage ? undefined : '이름은 관리 권한이 있어야 바꿀 수 있어요'}
                 onChange={(e) => setName(e.target.value)}
                 onBlur={() => name.trim() && name.trim() !== project.name ? void updateProject(project.id, { name: name.trim() }) : setName(project.name)}
                 onKeyDown={(e) => isEnter(e) && (e.target as HTMLInputElement).blur()}
@@ -116,6 +128,19 @@ export default function ProjectPage() {
         }
         actions={
           <>
+            {org && (
+              <button
+                className={cx(buttonClass({ variant: 'outline', size: 'sm' }), s.shareBtn)}
+                onClick={share.toggle}
+                aria-haspopup="dialog"
+                {...tip(manage ? '누가 보고 쓸 수 있는지 정하기' : '누가 접근할 수 있는지 보기', { side: 'bottom' })}
+              >
+                <Icon name={project.memberAccess === 'none' ? 'lock' : 'users'} size={14} />
+                {shareLabel}
+                <span className={s.shareDivider} aria-hidden="true" />
+                공유
+              </button>
+            )}
             <div className={ui.segmented} data-size="sm" role="group" aria-label="보기 방식">
               <button className={ui.segment} aria-pressed={mode === 'list'} onClick={() => setMode('list')}>
                 <Icon name="list" size={14} /> 리스트
@@ -124,6 +149,7 @@ export default function ProjectPage() {
                 <Icon name="timeline" size={14} /> 타임라인
               </button>
             </div>
+            {manage && (
             <button
               ref={menuRef}
               className={buttonClass({ variant: 'outline', size: 'sm', icon: true })}
@@ -131,11 +157,12 @@ export default function ProjectPage() {
               aria-label="프로젝트 메뉴"
               aria-haspopup="dialog"
               aria-expanded={menu.open}
-              {...tip('색상 · 보관 · 삭제', { side: 'bottom' })}
+              {...tip('색상 · 옮기기 · 보관 · 삭제', { side: 'bottom' })}
             >
               <Icon name="more" size={18} />
             </button>
-            <Popover anchor={menuRef} open={menu.open} onClose={menu.close} align="end" width={208}>
+            )}
+            <Popover anchor={menuRef} open={menu.open} onClose={menu.close} align="end" width={224}>
               <div className={ui.menuTitle}>색상</div>
               <div className={s.colorGrid}>
                 {PROJECT_COLORS.map((c) => (
@@ -152,6 +179,11 @@ export default function ProjectPage() {
                 ))}
               </div>
               <div className={ui.menuSep} />
+              {workspaces.length > 1 && (
+                <button className={ui.menuItem} onClick={() => (menu.close(), move.setOpen(true))}>
+                  <Icon name="arrowUpRight" size={15} /> 다른 공간으로 옮기기…
+                </button>
+              )}
               <button
                 className={ui.menuItem}
                 onClick={async () => {
@@ -186,6 +218,12 @@ export default function ProjectPage() {
               예상 완료 {formatRelativeKo(data.finish, today)}
             </Badge>
           )}
+          {readOnly && (
+            <Badge tone="outline" className={s.statBadge} {...tip('작업을 볼 수만 있어요. 쓰기 권한은 프로젝트 관리자에게 요청하세요.', { side: 'bottom' })}>
+              <Icon name="eye" size={12} />
+              보기 전용
+            </Badge>
+          )}
           {risk.slip && (
             <Badge tone="warn" className={s.statBadge}>
               <Icon name="ripple" size={12} />
@@ -199,7 +237,7 @@ export default function ProjectPage() {
         <Timeline tasks={[...data.active, ...data.done.slice(0, 20)]} />
       ) : (
         <>
-          <QuickAdd projectId={project.id} placeholder={`${project.name}에 할 일 추가`} />
+          {!readOnly && <QuickAdd projectId={project.id} placeholder={`${project.name}에 할 일 추가`} />}
           {risk.touched.length > 0 && (
             <section className={s.impact} aria-label="이 프로젝트에 닿는 지연">
               <div className={s.impactHead}>
@@ -234,6 +272,8 @@ export default function ProjectPage() {
         </>
       )}
 
+      {org && <ShareDialog project={project} open={share.open} onClose={share.close} />}
+      <MoveProjectDialog project={project} taskCount={data.mine.length} open={move.open} onClose={move.close} />
       <ConfirmModal
         open={del.open}
         onClose={del.close}

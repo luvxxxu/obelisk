@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { loginInput, signupInput, updateMeInput } from '@obelisk/core';
 import type { Request, Response } from 'express';
 import { config, SESSION_COOKIE } from '../config';
@@ -21,16 +21,17 @@ export class AuthController {
     );
   }
 
+  /** With ?invite=<token>, says whether that invite opens sign-up on a closed server. */
   @Get('signup-status')
-  async signupStatus() {
-    return { allowed: await this.auth.signupAllowed() };
+  async signupStatus(@Query('invite') invite?: string) {
+    return { allowed: await this.auth.signupAllowed(typeof invite === 'string' ? invite : undefined) };
   }
 
   @Post('signup')
   async signup(@Body() body: unknown, @Res({ passthrough: true }) res: Response) {
-    const { user, token } = await this.auth.signup(parse(signupInput, body));
+    const { user, token, joinedWorkspaceId } = await this.auth.signup(parse(signupInput, body));
     this.setSession(res, token);
-    return { user: toUser(user) };
+    return { user: toUser(user), joinedWorkspaceId };
   }
 
   @Post('login')

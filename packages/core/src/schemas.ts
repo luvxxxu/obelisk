@@ -25,6 +25,7 @@ export const createTaskInput = z
     startDate: isoDate.nullable().optional(),
     dueDate: isoDate.nullable().optional(),
     fixed: z.boolean().optional(),
+    assigneeId: uuid.nullable().optional(),
     blockedBy: z.array(uuid).max(50).optional(),
   })
   .refine((v) => !v.startDate || !v.dueDate || v.startDate <= v.dueDate, {
@@ -42,6 +43,7 @@ export const updateTaskInput = z.object({
   startDate: isoDate.nullable().optional(),
   dueDate: isoDate.nullable().optional(),
   fixed: z.boolean().optional(),
+  assigneeId: uuid.nullable().optional(),
   position: z.number().finite().optional(),
 });
 export type UpdateTaskInput = z.infer<typeof updateTaskInput>;
@@ -59,6 +61,7 @@ export const bulkCreateTasksInput = z.object({
         startDate: isoDate.nullable().optional(),
         dueDate: isoDate.nullable().optional(),
         fixed: z.boolean().optional(),
+        assigneeId: uuid.nullable().optional(),
         /** keys of tasks in this batch, or ids / #numbers of existing tasks */
         blockedBy: z.array(z.string().min(1)).max(50).optional(),
       }),
@@ -112,9 +115,13 @@ export const postponeInput = z
   });
 export type PostponeInput = z.infer<typeof postponeInput>;
 
+export const accessLevel = z.enum(['view', 'edit', 'manage']);
+export const memberAccess = z.enum(['none', 'view', 'edit']);
+
 export const createProjectInput = z.object({
   name: z.string().trim().min(1, '이름을 입력하세요').max(120),
   color: projectColor.optional(),
+  memberAccess: memberAccess.optional(),
 });
 export type CreateProjectInput = z.infer<typeof createProjectInput>;
 
@@ -133,6 +140,8 @@ export const signupInput = z.object({
   password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다').max(200),
   name: z.string().trim().min(1, '이름을 입력하세요').max(80),
   timezone: timezone.optional(),
+  /** An organization invite lets you sign up even when the server is closed to sign-ups. */
+  inviteToken: z.string().min(8).max(200).optional(),
 });
 export type SignupInput = z.infer<typeof signupInput>;
 
@@ -144,8 +153,54 @@ export const loginInput = z.object({
 export const updateMeInput = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   timezone: timezone.optional(),
+  defaultWorkspaceId: uuid.optional(),
 });
 
 export const createTokenInput = z.object({
   name: z.string().trim().min(1).max(80),
 });
+
+// ───────────────────────────── workspaces
+
+const workspaceName = z.string().trim().min(1, '이름을 입력하세요').max(80);
+
+export const createWorkspaceInput = z.object({ name: workspaceName });
+
+export const updateWorkspaceInput = z.object({
+  name: workspaceName.optional(),
+  membersCanCreateProjects: z.boolean().optional(),
+});
+
+export const updateMemberInput = z.object({ role: z.enum(['owner', 'admin', 'member']) });
+
+export const createInviteInput = z.object({
+  role: z.enum(['admin', 'member']).default('member'),
+  /** null = never expires */
+  expiresInDays: z.number().int().min(1).max(365).nullable().default(7),
+  /** null = unlimited */
+  maxUses: z.number().int().min(1).max(1000).nullable().default(null),
+});
+export type CreateInviteInput = z.infer<typeof createInviteInput>;
+
+const teamName = z.string().trim().min(1, '팀 이름을 입력하세요').max(60);
+export const createTeamInput = z.object({ name: teamName, memberIds: z.array(uuid).max(500).optional() });
+export const updateTeamInput = z.object({ name: teamName.optional(), memberIds: z.array(uuid).max(500).optional() });
+
+/** Partial update of a project's sharing. level null removes that grant. */
+export const updateProjectAccessInput = z.object({
+  memberAccess: memberAccess.optional(),
+  members: z.array(z.object({ userId: uuid, level: accessLevel.nullable() })).max(500).optional(),
+  teams: z.array(z.object({ teamId: uuid, level: accessLevel.nullable() })).max(200).optional(),
+});
+export type UpdateProjectAccessInput = z.infer<typeof updateProjectAccessInput>;
+
+export const moveProjectInput = z.object({ workspaceId: uuid });
+
+export const activityQuery = z.object({
+  taskId: uuid.optional(),
+  projectId: uuid.optional(),
+  actorId: uuid.optional(),
+  before: z.iso.datetime({ offset: true }).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+export type ActivityQuery = z.infer<typeof activityQuery>;

@@ -1,9 +1,10 @@
-import type { PlanItem, Priority, Project, ProjectColor, Task } from '@obelisk/core';
+import type { AccessLevel, PlanItem, Priority, Project, ProjectColor, Task } from '@obelisk/core';
 import type { ProjectRow, TaskRow } from '../db/schema';
 
 export function toTask(r: TaskRow): Task {
   return {
     id: r.id,
+    workspaceId: r.workspaceId,
     number: r.number,
     title: r.title,
     notes: r.notes,
@@ -15,19 +16,25 @@ export function toTask(r: TaskRow): Task {
     fixed: r.fixed,
     position: r.position,
     postponedCount: r.postponedCount,
+    assigneeId: r.assigneeId,
+    createdBy: r.createdBy,
     completedAt: r.completedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };
 }
 
-export function toProject(r: ProjectRow): Project {
+export function toProject(r: ProjectRow, access: AccessLevel): Project {
   return {
     id: r.id,
+    workspaceId: r.workspaceId,
     name: r.name,
     color: r.color as ProjectColor,
     position: r.position,
     archivedAt: r.archivedAt?.toISOString() ?? null,
+    access,
+    memberAccess: r.memberAccess,
+    createdBy: r.createdBy,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };

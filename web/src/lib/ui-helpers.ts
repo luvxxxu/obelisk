@@ -24,11 +24,13 @@ export const PAGE_META: Record<string, PageMeta> = {
   '/today': { label: '오늘', icon: 'sun' },
   '/inbox': { label: '인박스', icon: 'inbox' },
   '/upcoming': { label: '예정', icon: 'calendar' },
+  '/mine': { label: '내 작업', icon: 'user' },
   '/all': { label: '전체 작업', icon: 'layers' },
   '/forecast': { label: '파급 예측', icon: 'ripple' },
   '/logbook': { label: '완료 기록', icon: 'checkCircle' },
   '/settings': { label: '설정', icon: 'settings' },
   '/settings/ai': { label: 'AI 연결', icon: 'sparkle' },
+  '/settings/org': { label: '조직 설정', icon: 'building' },
 };
 
 /** Static page meta for a pathname (projects are resolved by the caller). */

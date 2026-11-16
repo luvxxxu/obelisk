@@ -12,7 +12,8 @@ import {
 } from '@obelisk/core';
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { cx } from '@/lib/format';
-import { createProject, createTask, useApp } from '@/lib/store';
+import { canWriteProject, createProject, createTask, useApp } from '@/lib/store';
+import { toast } from '@/lib/toast';
 import { Icon } from './Icon';
 import { tip, ui, type BadgeTone } from './primitives';
 import s from './QuickAdd.module.css';
@@ -90,12 +91,14 @@ export const QuickAdd = forwardRef<
   {
     projectId?: string | null;
     defaultDueDate?: ISODate | null;
+    /** Assign new tasks to this member (e.g. yourself on 내 작업). */
+    defaultAssigneeId?: string | null;
     placeholder?: string;
     autoFocus?: boolean;
     onCreated?: () => void;
     variant?: 'inline' | 'modal';
   }
->(function QuickAdd({ projectId, defaultDueDate, placeholder, autoFocus, onCreated, variant = 'inline' }, ref) {
+>(function QuickAdd({ projectId, defaultDueDate, defaultAssigneeId, placeholder, autoFocus, onCreated, variant = 'inline' }, ref) {
   const { today, projects } = useApp();
   const [value, setValue] = useState('');
   const [disabled, setDisabled] = useState<QuickAddKind[]>([]);
@@ -114,7 +117,12 @@ export const QuickAdd = forwardRef<
     if (!title || busy) return;
     setBusy(true);
     let pid = projectId ?? null;
+    if (matched && !canWriteProject(matched.id)) {
+      toast.error(`‘${matched.name}’ 프로젝트는 보기 전용이라 작업을 추가할 수 없어요`);
+      return;
+    }
     if (parsed.projectName) {
+      setBusy(true);
       pid = matched?.id ?? (await createProject({ name: parsed.projectName }))?.id ?? pid;
     }
     const due = parsed.dueDate ?? (parsed.startDate ? null : (defaultDueDate ?? null));
@@ -125,6 +133,7 @@ export const QuickAdd = forwardRef<
       dueDate: due,
       priority: (parsed.priority ?? 0) as Priority,
       fixed: parsed.fixed || undefined,
+      ...(defaultAssigneeId ? { assigneeId: defaultAssigneeId } : {}),
     });
     setBusy(false);
     if (created) {

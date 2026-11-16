@@ -5,3 +5,5 @@ export * from './impact';
 export * from './quickadd';
 export * from './views';
 export * from './order';
+export * from './access';
+export * from './activity';

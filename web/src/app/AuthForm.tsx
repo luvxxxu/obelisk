@@ -1,6 +1,6 @@
 'use client';
 
-import type { User } from '@obelisk/core';
+import type { InvitePreview, User } from '@obelisk/core';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -9,6 +9,11 @@ import { buttonClass, ui } from '@/components/primitives';
 import { api } from '@/lib/api';
 import { load } from '@/lib/store';
 import s from './auth.module.css';
+
+function inviteParam(): string | null {
+  if (typeof window === 'undefined') return null;
+  return new URLSearchParams(location.search).get('invite');
+}
 
 function safeNext(): string {
   if (typeof window === 'undefined') return '/';
@@ -49,13 +54,21 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   // UI-only: password visibility + Caps Lock hint.
   const [showPassword, setShowPassword] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
+  const [invite, setInvite] = useState<{ token: string; org: string | null } | null>(null);
 
   useEffect(() => {
     setNextQuery(location.search);
+    const token = inviteParam();
+    if (token) {
+      setInvite({ token, org: null });
+      api<{ invite: InvitePreview }>('GET', `/api/invites/${encodeURIComponent(token)}`)
+        .then((r) => setInvite({ token, org: r.invite.valid ? r.invite.workspace.name : null }))
+        .catch(() => {});
+    }
     api<{ user: User }>('GET', '/api/auth/me')
       .then(() => router.replace(safeNext()))
       .catch(() => {});
-    api<{ allowed: boolean }>('GET', '/api/auth/signup-status')
+    api<{ allowed: boolean }>('GET', `/api/auth/signup-status${token ? `?invite=${encodeURIComponent(token)}` : ''}`)
       .then((r) => setSignupAllowed(r.allowed))
       .catch(() => setSignupAllowed(false));
   }, [router]);
@@ -71,11 +84,13 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           password,
           name,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          ...(invite ? { inviteToken: invite.token } : {}),
         });
       } else {
         await api('POST', '/api/auth/login', { email, password });
       }
-      const next = safeNext();
+      // Signing up through an invite already joined the org (it opens there); no need to go back to the link.
+      const next = mode === 'signup' && invite && safeNext().startsWith('/invite/') ? '/' : safeNext();
       if (next.startsWith('/oauth/')) {
         window.location.href = next;
         return;
@@ -105,7 +120,13 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           </div>
           <h1 className={s.title}>{isLogin ? 'Obelisk에 로그인' : 'Obelisk 시작하기'}</h1>
           <p className={s.description}>
-            {isLogin ? '단순하게 적고, 미루기 전에 미리 확인해요.' : '할 일을 적고, 미루면 무엇이 밀리는지 미리 확인하세요.'}
+            {invite
+              ? isLogin
+                ? `로그인하면 ${invite.org ? `‘${invite.org}’ ` : ''}초대를 수락할 수 있어요.`
+                : `계정을 만들면 ${invite.org ? `‘${invite.org}’에 ` : '초대받은 조직에 '}바로 참여해요.`
+              : isLogin
+                ? '단순하게 적고, 미루기 전에 미리 확인해요.'
+                : '할 일을 적고, 미루면 무엇이 밀리는지 미리 확인하세요.'}
           </p>
         </header>
 

@@ -675,3 +675,18 @@
     display: none;
   }
 }
+
+/* ───────── organizations */
+
+.access {
+  display: inline-flex;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.emptyNote {
+  padding: 4px 10px 6px 38px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-3);
+}

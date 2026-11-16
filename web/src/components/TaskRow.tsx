@@ -4,10 +4,10 @@ import { addDays, diffDays, startOfWeek, type ISODate, type Task } from '@obelis
 import { memo, useMemo, useRef, useState } from 'react';
 import { cx, dateTone, overdueLabel, spanLabel, type DateTone } from '@/lib/format';
 import { previewFor, requestDateChange } from '@/lib/reschedule';
-import { selectTask, toggleDone, useApp } from '@/lib/store';
+import { canEdit, memberName, selectTask, toggleDone, useApp } from '@/lib/store';
 import { DatePickerPanel } from './DatePicker';
 import { Icon } from './Icon';
-import { Popover, tip, ui, type BadgeTone } from './primitives';
+import { Avatar, Popover, tip, ui, type BadgeTone } from './primitives';
 import s from './TaskRow.module.css';
 
 export function shiftSpan(t: Pick<Task, 'startDate' | 'dueDate'>, days: number) {
@@ -33,10 +33,13 @@ export function Checkbox({
   onToggle,
   size = 18,
   animate = false,
+  disabled = false,
 }: {
   task: Pick<Task, 'status' | 'priority'>;
   onToggle: () => void;
   size?: number;
+  /** Read-only task: shown, but can't be ticked. */
+  disabled?: boolean;
   /** Play the subtle completion animation (used while a row is completing). */
   animate?: boolean;
 }) {
@@ -49,11 +52,13 @@ export function Checkbox({
       data-doing={task.status === 'doing'}
       data-animate={animate}
       style={{ width: size, height: size }}
+      disabled={disabled}
       onClick={(e) => {
         e.stopPropagation();
         onToggle();
       }}
-      aria-label={done ? '완료 취소' : '완료'}
+      aria-label={disabled ? '보기 전용' : done ? '완료 취소' : '완료'}
+      {...tip(disabled && '보기 전용 — 쓰기 권한이 없어요', { side: 'top' })}
     >
       <svg viewBox="0 0 24 24" width={size - 6} height={size - 6} aria-hidden="true">
         <path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -167,17 +172,20 @@ export const TaskRow = memo(function TaskRow({
   const label = showDate ? spanLabel(task, today) : null;
   const done = task.status === 'done' || completing;
   const active = task.status === 'todo' || task.status === 'doing';
-  const canPostpone = active && !!(task.dueDate || task.startDate);
+  const editable = canEdit(task, app);
+  const canPostpone = editable && active && !!(task.dueDate || task.startDate);
+  const org = app.workspace?.kind === 'org';
+  const assignee = org && task.assigneeId ? (memberName(task.assigneeId, app) ?? '전 멤버') : null;
 
   const complete = () => {
-    if (task.status === 'done') return void toggleDone(task.id);
+    if (task.status === 'done' || !editable) return void toggleDone(task.id);
     setCompleting(true);
     window.setTimeout(() => {
       void toggleDone(task.id).finally(() => setCompleting(false));
     }, 380);
   };
 
-  const hasMeta = !!(label || project || waitingOn > 0 || blocking > 0 || task.fixed || task.postponedCount > 1);
+  const hasMeta = !!(label || project || assignee || waitingOn > 0 || blocking > 0 || task.fixed || task.postponedCount > 1);
 
   return (
     <div
@@ -200,7 +208,7 @@ export const TaskRow = memo(function TaskRow({
         }
       }}
     >
-      <Checkbox task={done ? { ...task, status: 'done' } : task} onToggle={complete} animate={completing} />
+      <Checkbox task={done ? { ...task, status: 'done' } : task} onToggle={complete} animate={completing} disabled={!editable} />
 
       <div className={s.main}>
         <div className={s.content}>
@@ -248,6 +256,12 @@ export const TaskRow = memo(function TaskRow({
                 <span className={s.project}>
                   <span className={ui.dot} style={{ background: `var(--c-${project.color})` }} />
                   <span className={s.projectName}>{project.name}</span>
+                </span>
+              )}
+              {assignee && (
+                <span className={s.assignee} {...tip(`담당 ${assignee}`, { side: 'top' })}>
+                  <Avatar name={assignee} size="sm" className={s.assigneeAvatar} />
+                  <span className={s.assigneeName}>{assignee}</span>
                 </span>
               )}
             </div>

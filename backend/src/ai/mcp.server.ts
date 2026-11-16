@@ -11,6 +11,8 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { HttpException } from '@nestjs/common';
 import {
   addDays,
+  canEditTask,
+  describeActivity,
   formatDaysKo,
   isoDate,
   isOverdue,
@@ -22,6 +24,7 @@ import {
   type Dependency,
   type ImpactReport,
   type ImpactSummary,
+  type Member,
   type Priority,
   type Project,
   type Task,
@@ -32,23 +35,33 @@ import { config } from '../config';
 import type { ImpactService } from '../planner/impact.service';
 import type { ProjectsService } from '../planner/projects.service';
 import type { TasksService } from '../planner/tasks.service';
+import type { Access, AccessService } from '../workspace/access.service';
+import type { ActivityService } from '../workspace/activity.service';
+import type { WorkspacesService } from '../workspace/workspaces.service';
 import {
   esc,
   eulReul,
   impactPhrase,
   mdBottlenecks,
   mdCompleted,
+  mdActivity,
   mdCreatedMany,
   mdImpact,
+  mdMembers,
   mdOverview,
   mdProjects,
   mdTaskDetail,
   mdTaskList,
+  mdWorkspaces,
+  type ActivityOut,
   type BottleneckOut,
   type ImpactOut,
   type LinkOut,
+  type MemberOut,
   type ProjectOut,
   type TaskOut,
+  type WorkspaceOut,
+  activityOut,
 } from './present';
 import {
   isWidgetView,
@@ -66,9 +79,17 @@ export interface McpDeps {
   tasks: TasksService;
   projects: ProjectsService;
   impact: ImpactService;
+  access: AccessService;
+  workspaces: WorkspacesService;
+  activity: ActivityService;
 }
 
-const INSTRUCTIONS = `Obelisk is the user's personal to-do and schedule planner.
+const INSTRUCTIONS = `Obelisk is the user's to-do and schedule planner — for themselves and for the organizations they belong to.
+
+Workspaces and permissions
+- The user has a personal space and may belong to organizations (list_workspaces). Every tool takes an optional "workspace" (name or id); without it, the user's default workspace is used. Task refs like "#12" are numbered per workspace, so keep using the same workspace for a ref you got from it.
+- This connection acts as the user and has exactly their permissions. In an organization they may see only some projects, and some of those read-only (view < edit < manage). Tasks marked readOnly can't be changed; a write that isn't allowed fails with a permission error — tell the user who could grant access (a project manager or an org admin) instead of retrying another way. Sharing and membership are managed in the web app, not here.
+- Tasks can have an assignee (a workspace member; "me" for the user). list_members shows who can be assigned; list_tasks assignee="me" lists the user's own work. get_activity shows who changed what.
 
 Concepts
 - Tasks have a short ref like "#12" (preferred when talking to the user), a status (todo, doing, done, canceled), a priority (none/low/medium/high), an optional project, and optional startDate/dueDate (YYYY-MM-DD, in the user's timezone; "today" is returned by get_overview).
@@ -84,7 +105,8 @@ Good habits
 - Start with get_overview when the user asks about their day/week.
 - Use create_tasks (with keys + blockedBy) to turn a goal into an ordered plan in one call.
 - Refer to tasks as "#12 Title". Accept task refs as "#12", "12", an id, or a unique title fragment.
-- Confirm before delete_task/delete_project.`;
+- Confirm before delete_task/delete_project.
+- In an organization, say which workspace you are working in when it isn't obvious.`;
 
 const PRESENT_CARDS = `
 
@@ -105,36 +127,82 @@ const priorityIn = z
 const PRIORITY_VALUE: Record<z.infer<typeof priorityIn>, Priority> = { none: 0, low: 1, medium: 2, high: 3 };
 const ref = z.string().min(1).describe('Task ref: "#12", "12", a task id, or a unique part of the title');
 const projectRef = z.string().min(1).describe('Project name or id');
+const assigneeRef = z.string().min(1).describe('Assignee: "me", or a workspace member\'s name or email');
+const workspaceArg = z
+  .string()
+  .min(1)
+  .optional()
+  .describe('Workspace name or id (see list_workspaces). Omit for the default workspace.');
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const nullableDate = isoDate.nullable();
 
+/** Per-workspace state for one MCP request: the caller's access plus small caches. */
 class Ctx {
   readonly today: string;
   private projectMap?: Map<string, Project>;
   private deps?: Dependency[];
+  private memberList?: Member[];
   private taskById = new Map<string, Task>();
 
   constructor(
-    readonly auth: AuthContext,
+    readonly a: Access,
     readonly s: McpDeps,
   ) {
-    this.today = todayIn(auth.user.timezone);
+    this.today = todayIn(a.user.timezone);
   }
 
   get userId() {
-    return this.auth.user.id;
+    return this.a.userId;
+  }
+
+  get workspaceName() {
+    return this.a.kind === 'personal' ? '개인 공간' : this.a.workspace.name;
   }
 
   async projects() {
     if (!this.projectMap) {
-      const list = await this.s.projects.list(this.userId, { includeArchived: true });
+      const list = await this.s.projects.list(this.a, { includeArchived: true });
       this.projectMap = new Map(list.map((p) => [p.id, p]));
     }
     return this.projectMap;
   }
 
   async dependencies() {
-    if (!this.deps) this.deps = await this.s.tasks.dependencies(this.userId);
+    if (!this.deps) this.deps = await this.s.tasks.dependencies(this.a);
     return this.deps;
+  }
+
+  async members() {
+    if (!this.memberList) this.memberList = await this.s.workspaces.members(this.a.workspaceId);
+    return this.memberList;
+  }
+
+  async memberName(id: string | null): Promise<string | null> {
+    if (!id) return null;
+    return (await this.members()).find((m) => m.id === id)?.name ?? null;
+  }
+
+  /** "me", an email, an exact name or a unique part of one → user id. null / "none" clears. */
+  async resolveAssignee(ref: string | null | undefined): Promise<string | null | undefined> {
+    if (ref === undefined) return undefined;
+    const s = (ref ?? '').trim();
+    if (!s || /^(none|null|unassigned|없음)$/i.test(s)) return null;
+    if (/^(me|나|본인)$/i.test(s)) return this.userId;
+    const list = await this.members();
+    const lower = s.toLowerCase();
+    const hit =
+      list.find((m) => m.email.toLowerCase() === lower) ??
+      list.find((m) => m.name.toLowerCase() === lower) ??
+      (() => {
+        const partial = list.filter((m) => m.name.toLowerCase().includes(lower));
+        return partial.length === 1 ? partial[0] : undefined;
+      })();
+    if (!hit) {
+      throw new ToolError(
+        `No member "${s}" in ${this.workspaceName}. Members: ${list.map((m) => m.name).join(', ')}. Use list_members.`,
+      );
+    }
+    return hit.id;
   }
 
   remember(tasks: Task[]) {
@@ -144,7 +212,7 @@ class Ctx {
   private async lookup(id: string): Promise<Task | null> {
     if (!this.taskById.has(id)) {
       try {
-        this.taskById.set(id, await this.s.tasks.get(this.userId, id));
+        this.taskById.set(id, await this.s.tasks.get(this.a, id));
       } catch {
         return null;
       }
@@ -172,7 +240,7 @@ class Ctx {
     if (refOrName === undefined) return undefined;
     if (refOrName === null || refOrName === '' || refOrName.toLowerCase() === 'inbox') return null;
     try {
-      return (await this.s.projects.resolve(this.userId, refOrName)).id;
+      return (await this.s.projects.resolve(this.a, refOrName)).id;
     } catch {
       const names = [...(await this.projects()).values()].filter((p) => !p.archivedAt).map((p) => p.name);
       throw new ToolError(
@@ -196,6 +264,8 @@ class Ctx {
       dueDate: t.dueDate,
       fixed: t.fixed,
     };
+    if (t.assigneeId) out.assignee = (await this.memberName(t.assigneeId)) ?? '(전 멤버)';
+    if (!canEditTask(t, this.a)) out.readOnly = true;
     if (isOverdue(t, this.today)) out.overdue = true;
     if (t.postponedCount > 0) out.postponedCount = t.postponedCount;
     if (t.completedAt) out.completedAt = t.completedAt;
@@ -352,8 +422,24 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       capabilities: { tools: {}, prompts: {}, resources: {} },
     },
   );
-  const ctx = new Ctx(auth, deps);
-  const uid = auth.user.id;
+  // One access context per workspace named in this request (most requests use one).
+  const ctxs = new Map<string, Promise<Ctx>>();
+  const ctxFor = (ref?: string) => {
+    const key = ref?.trim() ?? '';
+    if (!ctxs.has(key)) ctxs.set(key, deps.access.resolve(auth, key || undefined).then((a) => new Ctx(a, deps)));
+    return ctxs.get(key)!;
+  };
+  /** A task id names its own workspace: use it when the caller didn't pick one. */
+  const ctxForRef = async (ref: string, workspace?: string) => {
+    if (!workspace && UUID_RE.test(ref.trim())) {
+      try {
+        return new Ctx(await deps.access.forTask(auth, ref.trim()), deps);
+      } catch {
+        /* fall through to the default workspace (which answers "not found") */
+      }
+    }
+    return ctxFor(workspace);
+  };
 
   const tool = <S extends z.ZodRawShape, R extends Record<string, unknown>>(
     name: string,
@@ -363,9 +449,11 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       annotations: Record<string, boolean>;
       /** MCP Apps view + the status line ChatGPT shows while the tool runs. */
       ui?: { view: WidgetView; invoking: string; invoked: string };
+      /** Not about one workspace (no "workspace" argument). */
+      global?: boolean;
     },
     inputSchema: S,
-    fn: (args: z.infer<z.ZodObject<S>>) => Promise<R>,
+    fn: (args: z.infer<z.ZodObject<S>> & { workspace?: string }, c: Ctx) => Promise<R>,
     /** Markdown for the text content block (JSON when omitted). */
     render?: (result: R) => string,
   ) => {
@@ -376,14 +464,15 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
         description: meta.ui
           ? `${meta.description} In Claude/ChatGPT chat the user sees the result as an Obelisk card: don't relist it, answer in 1–2 sentences.`
           : meta.description,
-        inputSchema,
+        inputSchema: meta.global ? inputSchema : { ...inputSchema, workspace: workspaceArg },
         annotations: { title: meta.title, ...meta.annotations },
         ...(meta.ui ? { _meta: widgetToolMeta(meta.ui.view, meta.ui) } : {}),
       },
-      (async (args: z.infer<z.ZodObject<S>>) => {
+      (async (args: z.infer<z.ZodObject<S>> & { workspace?: string }) => {
         let data: R;
         try {
-          data = await fn(args);
+          const c = meta.global ? (undefined as unknown as Ctx) : await ctxFor(args.workspace);
+          data = await fn(args, c);
         } catch (e) {
           return fail(e);
         }
@@ -434,39 +523,41 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       ui: { view: 'tasks', invoking: '오늘 일정을 살펴보는 중…', invoked: '오늘 일정을 불러왔어요' },
     },
     { days: z.number().int().min(1).max(60).default(7).describe('How many days ahead to include in "upcoming"') },
-    async ({ days }) => {
+    async ({ days }, c) => {
       const [active, fc, projects] = await Promise.all([
-        deps.tasks.listActive(uid),
-        deps.impact.forecast(uid, auth.user.timezone),
-        ctx.projects(),
+        deps.tasks.listActive(c.a),
+        deps.impact.forecast(c.a),
+        c.projects(),
       ]);
-      const done = await deps.tasks.list(uid, { view: 'done', limit: 50 }, ctx.today);
-      const horizon = addDays(ctx.today, days);
+      const done = await deps.tasks.list(c.a, { view: 'done', limit: 50 }, c.today);
+      const horizon = addDays(c.today, days);
       // Each task appears once (an in-progress task that starts later is "today", not also "upcoming"),
       // most important first: the card and the markdown group these by day, in this order.
-      const overdue = selectView(active, 'overdue', ctx.today).sort(byImportance);
-      const today = selectView(active, 'today', ctx.today)
-        .filter((t) => !isOverdue(t, ctx.today))
+      const overdue = selectView(active, 'overdue', c.today).sort(byImportance);
+      const today = selectView(active, 'today', c.today)
+        .filter((t) => !isOverdue(t, c.today))
         .sort(byImportance);
       const shown = new Set([...overdue, ...today].map((t) => t.id));
-      const upcoming = selectView(active, 'upcoming', ctx.today)
+      const upcoming = selectView(active, 'upcoming', c.today)
         .filter((t) => !shown.has(t.id) && (t.startDate ?? t.dueDate)! <= horizon)
         .sort(byImportance);
-      const risk = await ctx.impact(fc.report);
+      const risk = await c.impact(fc.report);
       return {
-        today: ctx.today,
-        timezone: auth.user.timezone,
+        today: c.today,
+        workspace: c.workspaceName,
+        timezone: c.a.user.timezone,
         user: auth.user.name,
         counts: {
           active: active.length,
           overdue: overdue.length,
           today: today.length,
           inbox: active.filter((t) => !t.projectId).length,
-          completedToday: done.filter((t) => t.completedAt && todayIn(auth.user.timezone, new Date(t.completedAt)) === ctx.today).length,
+          ...(c.a.kind === 'org' ? { assignedToMe: active.filter((t) => t.assigneeId === c.userId).length } : {}),
+          completedToday: done.filter((t) => t.completedAt && todayIn(c.a.user.timezone, new Date(t.completedAt)) === c.today).length,
         },
-        overdue: await ctx.tasksOut(overdue),
-        todayTasks: await ctx.tasksOut(today),
-        upcoming: await ctx.tasksOut(upcoming),
+        overdue: await c.tasksOut(overdue),
+        todayTasks: await c.tasksOut(today),
+        upcoming: await c.tasksOut(upcoming),
         upcomingDays: days,
         delayRisk:
           fc.report.rootIds.length === 0
@@ -496,21 +587,25 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       query: z.string().max(200).optional().describe('Text search in title and notes'),
       from: isoDate.optional().describe('Only tasks scheduled on/after this date'),
       to: isoDate.optional().describe('Only tasks scheduled on/before this date'),
+      assignee: assigneeRef.optional().describe('"me" for my tasks, a member name/email, or "none" for unassigned'),
       limit: z.number().int().min(1).max(500).default(100),
     },
-    async (a) => {
-      const projectId = await ctx.resolveProject(a.project);
+    async (a, c) => {
+      const projectId = await c.resolveProject(a.project);
+      const assigneeId = await c.resolveAssignee(a.assignee);
       const list = await deps.tasks.list(
-        uid,
-        { view: a.view, projectId, status: a.status, query: a.query, from: a.from, to: a.to, limit: a.limit },
-        ctx.today,
+        c.a,
+        { view: a.view, projectId, status: a.status, query: a.query, from: a.from, to: a.to, limit: a.limit, assigneeId },
+        c.today,
       );
       return {
-        today: ctx.today,
+        today: c.today,
+        workspace: c.workspaceName,
         view: a.view,
-        ...(projectId !== undefined ? { project: await ctx.projectName(projectId) } : {}),
+        ...(assigneeId !== undefined ? { assignee: assigneeId ? await c.memberName(assigneeId) : 'none' } : {}),
+        ...(projectId !== undefined ? { project: await c.projectName(projectId) } : {}),
         count: list.length,
-        tasks: await ctx.tasksOut(list),
+        tasks: await c.tasksOut(list),
       };
     },
     mdTaskList,
@@ -525,9 +620,10 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       ui: { view: 'task', invoking: '작업을 여는 중…', invoked: '작업 상세' },
     },
     { ref },
-    async ({ ref }) => {
-      const t = await deps.tasks.resolve(uid, ref);
-      return { today: ctx.today, task: await ctx.task(t, { withDeps: true, withNotes: true }) };
+    async ({ ref, workspace }, c0) => {
+      const c = await ctxForRef(ref, workspace);
+      const t = await deps.tasks.resolve(c.a, ref);
+      return { today: c.today, workspace: c.workspaceName, task: await c.task(t, { withDeps: true, withNotes: true }) };
     },
     (r) => mdTaskDetail(r.task, r.today),
   );
@@ -551,22 +647,24 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       startDate: isoDate.optional(),
       dueDate: isoDate.optional(),
       fixed: z.boolean().optional(),
+      assignee: assigneeRef.optional(),
       blockedBy: z.array(ref).max(50).optional(),
     },
-    async (a) => {
-      const projectId = await ctx.resolveProject(a.project);
-      const blockedBy = await Promise.all((a.blockedBy ?? []).map(async (r) => (await deps.tasks.resolve(uid, r)).id));
-      const t = await deps.tasks.create(uid, {
+    async (a, c) => {
+      const projectId = await c.resolveProject(a.project);
+      const blockedBy = await Promise.all((a.blockedBy ?? []).map(async (r) => (await deps.tasks.resolve(c.a, r)).id));
+      const t = await deps.tasks.create(c.a, {
         title: a.title,
         notes: a.notes,
         projectId,
+        assigneeId: await c.resolveAssignee(a.assignee),
         priority: a.priority ? PRIORITY_VALUE[a.priority] : undefined,
         startDate: a.startDate,
         dueDate: a.dueDate,
         fixed: a.fixed,
         blockedBy,
       });
-      return { today: ctx.today, created: await ctx.task(t, { withDeps: true }) };
+      return { today: c.today, created: await c.task(t, { withDeps: true }) };
     },
     (r) => mdTaskDetail(r.created, r.today, '만들었습니다'),
   );
@@ -592,24 +690,29 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
             startDate: isoDate.optional(),
             dueDate: isoDate.optional(),
             fixed: z.boolean().optional(),
+            assignee: assigneeRef.optional(),
             blockedBy: z.array(z.string().min(1)).optional().describe('Keys from this batch or existing task refs'),
           }),
         )
         .min(1)
         .max(100),
     },
-    async (a) => {
-      const projectId = await ctx.resolveProject(a.project);
-      const res = await deps.tasks.createMany(uid, {
-        projectId,
-        tasks: a.tasks.map((t) => ({ ...t, priority: t.priority ? PRIORITY_VALUE[t.priority] : undefined })),
-      });
-      ctx.remember(res.tasks);
+    async (a, c) => {
+      const projectId = await c.resolveProject(a.project);
+      const tasks = await Promise.all(
+        a.tasks.map(async ({ assignee, ...t }) => ({
+          ...t,
+          priority: t.priority ? PRIORITY_VALUE[t.priority] : undefined,
+          assigneeId: await c.resolveAssignee(assignee),
+        })),
+      );
+      const res = await deps.tasks.createMany(c.a, { projectId, tasks });
+      c.remember(res.tasks);
       return {
-        today: ctx.today,
-        created: await ctx.tasksOut(res.tasks),
+        today: c.today,
+        created: await c.tasksOut(res.tasks),
         dependencies: await Promise.all(
-          res.dependencies.map(async (d) => ({ task: await ctx.refOf(d.taskId), blockedBy: await ctx.refOf(d.dependsOnId) })),
+          res.dependencies.map(async (d) => ({ task: await c.refOf(d.taskId), blockedBy: await c.refOf(d.dependsOnId) })),
         ),
       };
     },
@@ -621,7 +724,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
     {
       title: 'Update task',
       description:
-        'Change any field of a task. Pass null to clear project/startDate/dueDate. Moving a due date later does NOT move dependents — the response lists who is affected; prefer postpone_task for postponements.',
+        'Change any field of a task. Pass null to clear project/startDate/dueDate/assignee. Moving a due date later does NOT move dependents — the response lists who is affected; prefer postpone_task for postponements.',
       annotations: { ...WRITE, idempotentHint: true },
       ui: { view: 'task', invoking: '작업을 고치는 중…', invoked: '작업을 수정했어요' },
     },
@@ -635,31 +738,33 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       startDate: nullableDate.optional(),
       dueDate: nullableDate.optional(),
       fixed: z.boolean().optional(),
+      assignee: assigneeRef.nullable().optional(),
     },
-    async (a) => {
-      const cur = await deps.tasks.resolve(uid, a.ref);
+    async (a, c) => {
+      const cur = await deps.tasks.resolve(c.a, a.ref);
       let preview: ImpactOut | undefined;
       const anchor = cur.dueDate ?? cur.startDate;
       const nextAnchor = a.dueDate !== undefined ? a.dueDate : a.startDate !== undefined && !cur.dueDate ? a.startDate : anchor;
       if (anchor && nextAnchor && nextAnchor > anchor && (cur.status === 'todo' || cur.status === 'doing')) {
-        const sim = await deps.impact.simulate(uid, { taskId: cur.id, toDate: nextAnchor });
+        const sim = await deps.impact.simulate(c.a, { taskId: cur.id, toDate: nextAnchor });
         if (sim.report.summary.delayedCount || sim.report.summary.conflictCount) {
-          preview = await ctx.impact(sim.report, { task: cur, days: sim.days });
+          preview = await c.impact(sim.report, { task: cur, days: sim.days });
         }
       }
-      const t = await deps.tasks.update(uid, cur.id, {
+      const t = await deps.tasks.update(c.a, cur.id, {
         title: a.title,
         notes: a.notes,
         status: a.status,
         priority: a.priority ? PRIORITY_VALUE[a.priority] : undefined,
-        projectId: await ctx.resolveProject(a.project),
+        projectId: await c.resolveProject(a.project),
         startDate: a.startDate,
         dueDate: a.dueDate,
         fixed: a.fixed,
+        assigneeId: await c.resolveAssignee(a.assignee),
       });
       return {
-        today: ctx.today,
-        updated: await ctx.task(t, { withDeps: true }),
+        today: c.today,
+        updated: await c.task(t, { withDeps: true }),
         ...(preview
           ? {
               warning:
@@ -689,17 +794,17 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       ui: { view: 'task', invoking: '완료 처리하는 중…', invoked: '완료했어요' },
     },
     { ref, undo: z.boolean().default(false) },
-    async ({ ref, undo }) => {
-      const cur = await deps.tasks.resolve(uid, ref);
-      const t = await deps.tasks.update(uid, cur.id, { status: undo ? 'todo' : 'done' });
+    async ({ ref, undo }, c) => {
+      const cur = await deps.tasks.resolve(c.a, ref);
+      const t = await deps.tasks.update(c.a, cur.id, { status: undo ? 'todo' : 'done' });
       const unblocked = undo
         ? []
-        : (await ctx.dependencies()).filter((d) => d.dependsOnId === t.id).map((d) => d.taskId);
+        : (await c.dependencies()).filter((d) => d.dependsOnId === t.id).map((d) => d.taskId);
       return {
-        today: ctx.today,
-        task: await ctx.task(t),
+        today: c.today,
+        task: await c.task(t),
         action: (undo ? 'reopened' : 'completed') as 'reopened' | 'completed',
-        ...(unblocked.length ? { nowUnblocked: await Promise.all(unblocked.map((id) => ctx.link(id))) } : {}),
+        ...(unblocked.length ? { nowUnblocked: await Promise.all(unblocked.map((id) => c.link(id))) } : {}),
       };
     },
     mdCompleted,
@@ -713,9 +818,9 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       annotations: DESTRUCTIVE,
     },
     { ref },
-    async ({ ref }) => {
-      const t = await deps.tasks.resolve(uid, ref);
-      await deps.tasks.remove(uid, t.id);
+    async ({ ref }, c) => {
+      const t = await deps.tasks.resolve(c.a, ref);
+      await deps.tasks.remove(c.a, t.id);
       return { deleted: `#${t.number} ${t.title}` };
     },
     (r) => `🗑 ${r.deleted} — 삭제했습니다.`,
@@ -737,11 +842,11 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       days: z.number().int().min(-365).max(365).optional(),
       toDate: isoDate.optional().describe('New due date for the task'),
     },
-    async (a) => {
+    async (a, c) => {
       if ((a.days === undefined) === (a.toDate === undefined)) throw new ToolError('Provide exactly one of days or toDate.');
-      const t = await deps.tasks.resolve(uid, a.ref);
-      const sim = await deps.impact.simulate(uid, { taskId: t.id, days: a.days, toDate: a.toDate });
-      return { today: ctx.today, prediction: await ctx.impact(sim.report, { task: t, days: sim.days }) };
+      const t = await deps.tasks.resolve(c.a, a.ref);
+      const sim = await deps.impact.simulate(c.a, { taskId: t.id, days: a.days, toDate: a.toDate });
+      return { today: c.today, prediction: await c.impact(sim.report, { task: t, days: sim.days }) };
     },
     (r) => mdImpact(r.prediction, 'simulate'),
   );
@@ -761,15 +866,15 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       toDate: isoDate.optional(),
       cascade: z.boolean().default(true),
     },
-    async (a) => {
+    async (a, c) => {
       if ((a.days === undefined) === (a.toDate === undefined)) throw new ToolError('Provide exactly one of days or toDate.');
-      const t = await deps.tasks.resolve(uid, a.ref);
-      const res = await deps.impact.postpone(uid, { taskId: t.id, days: a.days, toDate: a.toDate, cascade: a.cascade });
+      const t = await deps.tasks.resolve(c.a, a.ref);
+      const res = await deps.impact.postpone(c.a, { taskId: t.id, days: a.days, toDate: a.toDate, cascade: a.cascade });
       return {
-        today: ctx.today,
-        moved: await ctx.tasksOut(res.updated),
+        today: c.today,
+        moved: await c.tasksOut(res.updated),
         cascade: res.cascade,
-        impact: await ctx.impact(res.report, { task: t, days: res.days, applied: { cascade: res.cascade } }),
+        impact: await c.impact(res.report, { task: t, days: res.days, applied: { cascade: res.cascade } }),
       };
     },
     (r) => mdImpact(r.impact, 'applied', { cascade: r.cascade, moved: r.moved.length }),
@@ -785,9 +890,9 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       ui: { view: 'impact', invoking: '밀리는 일정을 찾는 중…', invoked: '지연 예측' },
     },
     {},
-    async () => {
-      const fc = await deps.impact.forecast(uid, auth.user.timezone);
-      return { today: fc.today, overdueRoots: fc.report.rootIds.length, forecast: await ctx.impact(fc.report) };
+    async (_a, c) => {
+      const fc = await deps.impact.forecast(c.a);
+      return { today: fc.today, overdueRoots: fc.report.rootIds.length, forecast: await c.impact(fc.report) };
     },
     (r) => mdImpact(r.forecast, 'forecast'),
   );
@@ -802,20 +907,20 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       ui: { view: 'bottlenecks', invoking: '병목을 찾는 중…', invoked: '병목 작업' },
     },
     { limit: z.number().int().min(1).max(50).default(10) },
-    async ({ limit }) => {
-      const lv = (await deps.impact.leverage(uid)).slice(0, limit);
+    async ({ limit }, c) => {
+      const lv = (await deps.impact.leverage(c.a)).slice(0, limit);
       const out: BottleneckOut[] = await Promise.all(
         lv.map(async (l) => {
-          const t = await deps.tasks.get(uid, l.taskId);
+          const t = await deps.tasks.get(c.a, l.taskId);
           return {
-            ...(await ctx.task(t, { withNotes: false })),
+            ...(await c.task(t, { withNotes: false })),
             downstreamTasks: l.downstreamCount,
             slackDays: l.slackDays,
             ifOneDayLate: { delayed: l.delayedIfLate, fixedConflicts: l.conflictsIfLate },
           };
         }),
       );
-      return { today: ctx.today, bottlenecks: out };
+      return { today: c.today, bottlenecks: out };
     },
     mdBottlenecks,
   );
@@ -830,10 +935,10 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       annotations: { ...WRITE, idempotentHint: true },
     },
     { task: ref, blockedBy: ref },
-    async (a) => {
-      const t = await deps.tasks.resolve(uid, a.task);
-      const b = await deps.tasks.resolve(uid, a.blockedBy);
-      await deps.tasks.addDependency(uid, t.id, b.id);
+    async (a, c) => {
+      const t = await deps.tasks.resolve(c.a, a.task);
+      const b = await deps.tasks.resolve(c.a, a.blockedBy);
+      await deps.tasks.addDependency(c.a, t.id, b.id);
       return {
         ok: true,
         dependency: `${code(`#${t.number}`)} ${esc(t.title)} ← ${code(`#${b.number}`)} ${esc(b.title)} — 선행 작업이 끝나야 시작할 수 있도록 연결했습니다.`,
@@ -850,10 +955,10 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       annotations: { ...WRITE, idempotentHint: true },
     },
     { task: ref, blockedBy: ref },
-    async (a) => {
-      const t = await deps.tasks.resolve(uid, a.task);
-      const b = await deps.tasks.resolve(uid, a.blockedBy);
-      await deps.tasks.removeDependency(uid, t.id, b.id);
+    async (a, c) => {
+      const t = await deps.tasks.resolve(c.a, a.task);
+      const b = await deps.tasks.resolve(c.a, a.blockedBy);
+      await deps.tasks.removeDependency(c.a, t.id, b.id);
       return { ok: true, removed: `${code(`#${t.number}`)} ${esc(t.title)} ↚ ${code(`#${b.number}`)} ${esc(b.title)}` };
     },
     (r) => `연결을 끊었습니다 — ${r.removed}`,
@@ -870,10 +975,10 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       ui: { view: 'projects', invoking: '프로젝트를 불러오는 중…', invoked: '프로젝트' },
     },
     { includeArchived: z.boolean().default(false) },
-    async ({ includeArchived }) => {
+    async ({ includeArchived }, c) => {
       const [list, active] = await Promise.all([
-        deps.projects.list(uid, { includeArchived }),
-        deps.tasks.listActive(uid),
+        deps.projects.list(c.a, { includeArchived }),
+        deps.tasks.listActive(c.a),
       ]);
       const projects: ProjectOut[] = list.map((p) => {
         const mine = active.filter((t) => t.projectId === p.id);
@@ -884,11 +989,12 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
           color: p.color,
           archived: !!p.archivedAt,
           open: mine.length,
-          overdue: mine.filter((t) => isOverdue(t, ctx.today)).length,
+          overdue: mine.filter((t) => isOverdue(t, c.today)).length,
           plannedFinish: dated.sort().at(-1) ?? null,
+          ...(c.a.kind === 'org' ? { access: p.access } : {}),
         };
       });
-      return { today: ctx.today, projects };
+      return { today: c.today, workspace: c.workspaceName, projects };
     },
     mdProjects,
   );
@@ -897,12 +1003,17 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
     'create_project',
     {
       title: 'Create project',
-      description: 'Create a project (a list that groups tasks).',
+      description:
+        'Create a project (a list that groups tasks). In an organization it starts private (only you and admins) unless memberAccess gives every member view or edit; share it further in the web app.',
       annotations: WRITE,
     },
-    { name: z.string().min(1).max(120), color: z.enum(PROJECT_COLORS).optional() },
-    async (a) => ({ project: await deps.projects.create(uid, a) }),
-    (r) => `● **${esc(r.project.name)}** 프로젝트를 만들었습니다.`,
+    {
+      name: z.string().min(1).max(120),
+      color: z.enum(PROJECT_COLORS).optional(),
+      memberAccess: z.enum(['none', 'view', 'edit']).optional().describe('Organizations only: what every member gets (default none = private)'),
+    },
+    async ({ workspace: _w, ...a }, c) => ({ project: (await deps.projects.create(c.a, a)).project, workspace: c.workspaceName }),
+    (r) => `● **${esc(r.project.name)}** 프로젝트를 ${esc(r.workspace)}에 만들었습니다.`,
   );
 
   tool(
@@ -918,9 +1029,9 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       color: z.enum(PROJECT_COLORS).optional(),
       archived: z.boolean().optional(),
     },
-    async (a) => {
-      const p = await deps.projects.resolve(uid, a.project);
-      return { project: await deps.projects.update(uid, p.id, { name: a.name, color: a.color, archived: a.archived }) };
+    async (a, c) => {
+      const p = await deps.projects.resolve(c.a, a.project);
+      return { project: await deps.projects.update(c.a, p.id, { name: a.name, color: a.color, archived: a.archived }) };
     },
     (r) => `● **${esc(r.project.name)}** 프로젝트를 ${r.project.archivedAt ? '보관했습니다' : '수정했습니다'}.`,
   );
@@ -933,13 +1044,95 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       annotations: DESTRUCTIVE,
     },
     { project: projectRef, deleteTasks: z.boolean().default(false) },
-    async (a) => {
-      const p = await deps.projects.resolve(uid, a.project);
-      await deps.projects.remove(uid, p.id, { deleteTasks: a.deleteTasks });
+    async (a, c) => {
+      const p = await deps.projects.resolve(c.a, a.project);
+      await deps.projects.remove(c.a, p.id, { deleteTasks: a.deleteTasks });
       return { deleted: p.name, tasks: a.deleteTasks ? 'deleted' : 'moved to inbox' };
     },
     (r) =>
       `🗑 **${esc(r.deleted)}** 프로젝트를 삭제했습니다. 작업은 ${r.tasks === 'deleted' ? '함께 삭제했습니다' : '인박스로 옮겼습니다'}.`,
+  );
+
+  // ───────────────────────────── workspaces, members, activity
+
+  tool(
+    'list_workspaces',
+    {
+      title: 'List workspaces',
+      description:
+        "The user's personal space and the organizations they belong to, with their role in each and which one is the default (used when a tool gets no workspace).",
+      annotations: READ,
+      global: true,
+    },
+    {},
+    async () => {
+      const def = await ctxFor();
+      const list = await deps.workspaces.listFor(auth.user.id);
+      const workspaces: WorkspaceOut[] = list.map((w) => ({
+        id: w.id,
+        name: w.kind === 'personal' ? '개인 공간' : w.name,
+        kind: w.kind,
+        role: w.role,
+        members: w.memberCount,
+        default: w.id === def.a.workspaceId,
+      }));
+      return { workspaces };
+    },
+    mdWorkspaces,
+  );
+
+  tool(
+    'list_members',
+    {
+      title: 'List members',
+      description: 'Members of a workspace (name, email, role, teams) — who can be made an assignee.',
+      annotations: READ,
+    },
+    {},
+    async (_a, c) => {
+      const [members, teams] = await Promise.all([c.members(), deps.workspaces.teams(c.a.workspaceId)]);
+      const teamName = new Map(teams.map((t) => [t.id, t.name]));
+      const out: MemberOut[] = members.map((m) => ({
+        name: m.name,
+        email: m.email,
+        role: m.role,
+        teams: m.teamIds.map((id) => teamName.get(id) ?? '').filter(Boolean),
+        ...(m.id === c.userId ? { me: true as const } : {}),
+      }));
+      return { workspace: c.workspaceName, members: out };
+    },
+    mdMembers,
+  );
+
+  tool(
+    'get_activity',
+    {
+      title: 'Get activity',
+      description:
+        'Who changed what and when: the history of one task, of one project, or (without either) recent activity in the workspace — limited to what the user can see. Shows when a change came through an AI app or API token.',
+      annotations: READ,
+    },
+    {
+      task: ref.optional().describe('A task ref to get its history'),
+      project: projectRef.optional().describe('A project to get its history'),
+      limit: z.number().int().min(1).max(100).default(30),
+    },
+    async (a, c0) => {
+      const c = a.task ? await ctxForRef(a.task, a.workspace) : c0;
+      let title = `${c.workspaceName} 최근 활동`;
+      let entries;
+      if (a.task) {
+        const t = await deps.tasks.resolve(c.a, a.task);
+        title = `#${t.number} ${t.title} 기록`;
+        entries = (await deps.activity.forTask(c.a, t.id)).slice(0, a.limit);
+      } else {
+        const projectId = a.project ? await c.resolveProject(a.project) : undefined;
+        if (projectId) title = `${await c.projectName(projectId)} 기록`;
+        entries = await deps.activity.list(c.a, { projectId: projectId ?? undefined, limit: a.limit });
+      }
+      return { title, timezone: c.a.user.timezone, activity: entries.map(activityOut) };
+    },
+    mdActivity,
   );
 
   // ───────────────────────────── ChatGPT connector compatibility (search / fetch)
@@ -953,9 +1146,9 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       annotations: READ,
     },
     { query: z.string().min(1).max(200) },
-    async ({ query }) => {
-      const open = await deps.tasks.list(uid, { query, limit: 20 }, ctx.today);
-      const done = await deps.tasks.list(uid, { query, view: 'done', limit: 10 }, ctx.today);
+    async ({ query }, c) => {
+      const open = await deps.tasks.list(c.a, { query, limit: 20 }, c.today);
+      const done = await deps.tasks.list(c.a, { query, view: 'done', limit: 10 }, c.today);
       return {
         results: [...open, ...done].map((t) => ({
           id: t.id,
@@ -970,9 +1163,10 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
     'fetch',
     { title: 'Fetch task', description: 'Fetch the full content of a task by id.', annotations: READ },
     { id: z.string().min(1) },
-    async ({ id }) => {
-      const t = await deps.tasks.resolve(uid, id);
-      const full = await ctx.task(t, { withDeps: true, withNotes: true });
+    async ({ id, workspace }, c0) => {
+      const c = await ctxForRef(id, workspace);
+      const t = await deps.tasks.resolve(c.a, id);
+      const full = await c.task(t, { withDeps: true, withNotes: true });
       const refs = (l?: LinkOut[]) => (l ?? []).map((x) => `${x.ref} ${x.title}`).join(', ');
       const lines = [
         `#${t.number} ${t.title}`,

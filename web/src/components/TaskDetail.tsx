@@ -2,13 +2,17 @@
 
 import {
   addDays,
+  describeActivity,
   diffDays,
   formatRelativeKo,
   formatShortKo,
   PRIORITY_LABEL_KO,
   STATUS_LABEL_KO,
+  viaLabelKo,
   wouldCreateCycle,
+  type ActivityEntry,
   type ISODate,
+  type ProjectAccessInfo,
   type Priority,
   type Task,
   type TaskStatus,
@@ -16,11 +20,15 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { cx, daysLabel, overdueLabel } from '@/lib/format';
+import { api } from '@/lib/api';
+import { cx, daysLabel, overdueLabel, relativeTime } from '@/lib/format';
 import { previewFor, requestDateChange } from '@/lib/reschedule';
 import {
   addDependency,
+  canEdit,
+  canWriteProject,
   createProject,
+  memberName,
   deleteTask,
   removeDependency,
   reschedule,
@@ -33,7 +41,7 @@ import { toast } from '@/lib/toast';
 import { DatePickerPanel } from './DatePicker';
 import { Icon, type IconName } from './Icon';
 import { ImpactView } from './ImpactView';
-import { AutoTextarea, Badge, ConfirmModal, isEnter, Popover, Separator, Switch, tip, ui, useDisclosure } from './primitives';
+import { AutoTextarea, Avatar, Badge, ConfirmModal, isEnter, Popover, Separator, Switch, tip, ui, useDisclosure } from './primitives';
 import { Checkbox, shiftSpan } from './TaskRow';
 import s from './TaskDetail.module.css';
 
@@ -152,7 +160,10 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 }
 
 function TaskDetailInner({ task }: { task: Task }) {
-  const { today, projects, tasks, deps } = useApp();
+  const app = useApp();
+  const { today, projects, tasks, deps } = app;
+  const readOnly = !canEdit(task, app);
+  const org = app.workspace?.kind === 'org';
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes);
   const del = useDisclosure();
@@ -215,9 +226,15 @@ function TaskDetailInner({ task }: { task: Task }) {
           >
             <Icon name="link" size={15} />
           </button>
+          {readOnly && (
+            <Badge tone="outline" className={s.readOnlyBadge} {...tip('쓰기 권한이 없어 볼 수만 있어요', { side: 'bottom' })}>
+              <Icon name="eye" size={12} /> 보기 전용
+            </Badge>
+          )}
           <button
             ref={moreRef}
             className={ui.iconBtn}
+            disabled={readOnly}
             onClick={more.toggle}
             aria-label="더 보기"
             aria-haspopup="menu"
@@ -264,9 +281,11 @@ function TaskDetailInner({ task }: { task: Task }) {
       </div>
 
       <div className={s.scroll}>
+        {/* A disabled fieldset turns every control inside read-only at once; links keep working. */}
+        <fieldset className={s.fieldset} disabled={readOnly}>
         <div className={s.titleRow}>
           <span className={s.checkWrap}>
-            <Checkbox task={task} onToggle={() => void toggleDone(task.id)} size={22} />
+            <Checkbox task={task} onToggle={() => void toggleDone(task.id)} size={22} disabled={readOnly} />
           </span>
           <div className={s.titleField}>
             <AutoTextarea
@@ -332,6 +351,12 @@ function TaskDetailInner({ task }: { task: Task }) {
             <ProjectPicker value={task.projectId} onChange={(pid) => void updateTask(task.id, { projectId: pid })} />
           </Prop>
 
+          {org && (
+            <Prop icon="user" label="담당자">
+              <AssigneePicker task={task} onChange={(id) => void updateTask(task.id, { assigneeId: id })} />
+            </Prop>
+          )}
+
           <Prop icon="pin" label="고정 일정" hint={FIXED_HINT}>
             <Switch checked={task.fixed} onChange={(v) => void updateTask(task.id, { fixed: v })} label="고정 일정" />
             <span className={s.switchText}>{task.fixed ? '늦어져도 밀리지 않아요' : '회의·출시일처럼 못 옮기는 일정'}</span>
@@ -372,12 +397,16 @@ function TaskDetailInner({ task }: { task: Task }) {
           mode="blocks"
         />
 
-        {active && (task.dueDate || task.startDate) && <DelaySimulator task={task} dependents={dependents} />}
+        {active && (task.dueDate || task.startDate) && !readOnly && <DelaySimulator task={task} dependents={dependents} />}
+        </fieldset>
+
+        <TaskActivity task={task} />
 
         <footer className={s.footer}>
           <span className={s.footerItem}>#{task.number}</span>
           <span className={s.footerItem}>
             {new Date(task.createdAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })} 생성
+            {org && task.createdBy && memberName(task.createdBy, app) ? ` · ${memberName(task.createdBy, app)}` : ''}
           </span>
           {task.postponedCount > 0 && <span className={s.footerItem}>{task.postponedCount}회 미룸</span>}
           {task.completedAt && (
@@ -536,15 +565,19 @@ function DateField({
 }
 
 function ProjectPicker({ value, onChange }: { value: string | null; onChange: (id: string | null) => void }) {
-  const { projects } = useApp();
+  const { projects, workspace } = useApp();
   const pathname = usePathname();
   const ref = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const d = useDisclosure();
   const [q, setQ] = useState('');
   const current = projects.find((p) => p.id === value);
-  const list = projects.filter((p) => !p.archivedAt && p.name.toLowerCase().includes(q.toLowerCase()));
-  const canCreate = !!q.trim() && !list.some((p) => p.name.toLowerCase() === q.trim().toLowerCase());
+  // Tasks can only move into projects you may write to.
+  const list = projects.filter((p) => !p.archivedAt && canWriteProject(p.id) && p.name.toLowerCase().includes(q.toLowerCase()));
+  const canCreate =
+    !!q.trim() &&
+    !projects.some((p) => p.name.toLowerCase() === q.trim().toLowerCase()) &&
+    (workspace?.canCreateProjects ?? true);
   const href = current ? `/projects/${current.id}` : null;
   useFocusWhenOpen(d.open, inputRef);
 
@@ -862,6 +895,183 @@ function DelaySimulator({ task, dependents }: { task: Task; dependents: Task[] }
             )}
           </div>
         </div>
+      )}
+    </section>
+  );
+}
+
+/* ───────── assignee (organizations) */
+
+function AssigneePicker({ task, onChange }: { task: Task; onChange: (id: string | null) => void }) {
+  const app = useApp();
+  const ref = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const d = useDisclosure();
+  const [q, setQ] = useState('');
+  const [access, setAccess] = useState<ProjectAccessInfo | null>(null);
+  useFocusWhenOpen(d.open, inputRef);
+
+  // Who can see this task's project — someone who can't can't be its assignee.
+  useEffect(() => {
+    if (!d.open || !task.projectId) return;
+    let alive = true;
+    api<{ access: ProjectAccessInfo }>('GET', `/api/projects/${task.projectId}/access`)
+      .then((r) => alive && setAccess(r.access))
+      .catch(() => alive && setAccess(null));
+    return () => {
+      alive = false;
+    };
+  }, [d.open, task.projectId]);
+
+  const current = task.assigneeId ? app.members.find((m) => m.id === task.assigneeId) : null;
+  const ql = q.trim().toLowerCase();
+  const list = app.members
+    .filter((m) => !ql || m.name.toLowerCase().includes(ql) || m.email.toLowerCase().includes(ql))
+    .sort((a, b) => Number(b.id === app.user?.id) - Number(a.id === app.user?.id));
+  const canSee = (id: string) => !task.projectId || !access || access.effective.some((e) => e.userId === id && e.level);
+
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className={s.trigger}
+        data-empty={!task.assigneeId}
+        data-open={d.open}
+        aria-haspopup="dialog"
+        aria-expanded={d.open}
+        aria-label={`담당자: ${current?.name ?? '없음'}`}
+        onClick={d.toggle}
+      >
+        {task.assigneeId ? (
+          <>
+            <Avatar name={current?.name ?? '?'} size="sm" className={s.assigneeAvatar} />
+            <span className={s.triggerText}>{current?.name ?? '전 멤버'}</span>
+          </>
+        ) : (
+          <span className={s.triggerText}>담당자 지정</span>
+        )}
+        <Chevron />
+      </button>
+      <Popover anchor={ref} open={d.open} onClose={() => (d.close(), setQ(''))} width={280}>
+        <div className={s.cmdInput}>
+          <Icon name="search" size={15} />
+          <input
+            ref={inputRef}
+            placeholder="이름이나 이메일로 찾기"
+            aria-label="멤버 찾기"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              const hit = list.find((m) => canSee(m.id));
+              if (isEnter(e) && hit) {
+                onChange(hit.id);
+                d.close();
+                setQ('');
+              }
+            }}
+          />
+        </div>
+        <div className={s.cmdList}>
+          {task.assigneeId && !ql && (
+            <>
+              <button className={ui.menuItem} onClick={() => (onChange(null), d.close())}>
+                <Icon name="x" size={15} />
+                <span className={ui.truncate}>담당자 해제</span>
+              </button>
+              <div className={ui.menuSep} />
+            </>
+          )}
+          {list.map((m, i) => {
+            const ok = canSee(m.id);
+            return (
+              <button
+                key={m.id}
+                className={ui.menuItem}
+                data-selected={m.id === task.assigneeId}
+                data-active={!!ql && ok && i === list.findIndex((x) => canSee(x.id))}
+                disabled={!ok}
+                onClick={() => (onChange(m.id), d.close(), setQ(''))}
+                {...tip(!ok && '이 프로젝트를 볼 수 없는 멤버예요. 먼저 공유하세요.', { side: 'left' })}
+              >
+                <Avatar name={m.name} size="sm" className={s.assigneeAvatar} />
+                <span className={s.memberText}>
+                  <span className={ui.truncate}>
+                    {m.name}
+                    {m.id === app.user?.id && <span className={s.memberMe}> (나)</span>}
+                  </span>
+                  <span className={s.memberMeta}>{ok ? m.email : '프로젝트 권한 없음'}</span>
+                </span>
+                {m.id === task.assigneeId && <Icon name="check" size={14} className={s.menuCheck} />}
+              </button>
+            );
+          })}
+          {list.length === 0 && <div className={s.cmdEmpty}>일치하는 멤버가 없어요</div>}
+        </div>
+      </Popover>
+    </>
+  );
+}
+
+/* ───────── activity (who changed what) */
+
+function TaskActivity({ task }: { task: Task }) {
+  const [entries, setEntries] = useState<ActivityEntry[] | null>(null);
+  const [all, setAll] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    api<{ activity: ActivityEntry[] }>('GET', `/api/tasks/${task.id}/activity`)
+      .then((r) => alive && setEntries(r.activity))
+      .catch(() => alive && setEntries([]));
+    return () => {
+      alive = false;
+    };
+  }, [task.id, task.updatedAt]);
+
+  if (!entries?.length) return null;
+  const shown = all ? entries : entries.slice(0, 6);
+  return (
+    <section className={s.section} aria-label="활동 기록">
+      <div className={s.sectionHead}>
+        <h3 className={s.sectionTitle}>
+          <Icon name="activity" size={14} />
+          활동
+        </h3>
+      </div>
+      <ol className={s.activity}>
+        {shown.map((e) => {
+          const via = viaLabelKo(e.via, e.client);
+          return (
+            <li key={e.id} className={s.activityItem}>
+              <Avatar name={e.actor.name} size="sm" className={s.activityAvatar} />
+              <div className={s.activityBody}>
+                <span className={s.activityText}>
+                  <strong>{e.actor.name}</strong> {describeActivity(e)}
+                </span>
+                <span className={s.activityMeta}>
+                  <time dateTime={e.createdAt} title={new Date(e.createdAt).toLocaleString('ko-KR')}>
+                    {relativeTime(e.createdAt)}
+                  </time>
+                  {via && (
+                    <>
+                      {' · '}
+                      <span className={s.activityVia}>
+                        <Icon name={e.via === 'oauth' ? 'sparkle' : 'key'} size={11} />
+                        {via}
+                      </span>
+                    </>
+                  )}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      {entries.length > 6 && (
+        <button className={s.activityMore} onClick={() => setAll((v) => !v)}>
+          {all ? '접기' : `이전 기록 ${entries.length - 6}개 더 보기`}
+        </button>
       )}
     </section>
   );

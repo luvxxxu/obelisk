@@ -1,0 +1,248 @@
+/* Project share dialog — Notion "Share" look on the pure black/white base. */
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 32px 0;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: opacity 0.15s var(--ease);
+}
+
+.body[data-busy='true'] {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ───────── add people / teams */
+
+.adder {
+  position: relative;
+}
+
+.adderField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg);
+  transition:
+    border-color 0.12s var(--ease),
+    box-shadow 0.12s var(--ease);
+}
+
+.adderField:focus-within {
+  border-color: var(--ring-color);
+  box-shadow: var(--ring);
+}
+
+.adderIcon {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.adderInput {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.adderInput::placeholder {
+  color: var(--text-3);
+}
+
+.suggest {
+  margin-top: 6px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  animation: share-in 0.14s var(--ease-out);
+}
+
+.none {
+  padding: 8px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.addHint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* ───────── grants */
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  animation: share-in 0.18s var(--ease-out) both;
+}
+
+.row:first-child {
+  border-top: 0;
+}
+
+.adminRow {
+  opacity: 0.85;
+}
+
+.orgMark,
+.teamMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  flex-shrink: 0;
+}
+
+.teamMark {
+  border-radius: 50%;
+}
+
+span.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 11px;
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 1px;
+}
+
+.whoName {
+  font-size: 14px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.whoMeta {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.me {
+  color: var(--text-3);
+}
+
+.fixedLevel {
+  font-size: 13px;
+  color: var(--text-3);
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+/* ───────── level select: a quiet text select, like Notion's "Can edit ▾" */
+
+.level {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.select {
+  appearance: none;
+  height: 28px;
+  padding: 0 24px 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background-color 0.12s var(--ease),
+    color 0.12s var(--ease);
+}
+
+.select:hover:not(:disabled),
+.select:focus-visible {
+  background: var(--surface-2);
+  color: var(--text);
+  outline: none;
+}
+
+.select:disabled {
+  cursor: default;
+  padding-right: 8px;
+  color: var(--text-3);
+}
+
+.selectChev {
+  position: absolute;
+  right: 6px;
+  pointer-events: none;
+  color: var(--text-3);
+}
+
+.footNote {
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+@keyframes share-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .footNote {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .suggest {
+    animation: none;
+  }
+}

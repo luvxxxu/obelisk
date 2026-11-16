@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cx } from '@/lib/format';
-import { selectTask, useApp } from '@/lib/store';
+import { canWriteProject, selectTask, switchWorkspace, useApp } from '@/lib/store';
 import { dismiss, useToasts } from '@/lib/toast';
 import { modKey } from '@/lib/ui-helpers';
 import { setUi, useUi } from '@/lib/ui-state';
@@ -21,10 +21,14 @@ export function QuickAddModal() {
   const app = useApp();
   const pathname = usePathname();
   const projectId = pathname.startsWith('/projects/') ? pathname.split('/')[2] : undefined;
-  const project = app.projects.find((p) => p.id === projectId);
+  // A view-only project can't take new tasks: they go to your inbox instead.
+  const project = app.projects.find((p) => p.id === projectId && canWriteProject(p.id));
   const onToday = pathname === '/today';
+  const onMine = pathname === '/mine';
 
-  const description = project
+  const description = onMine
+    ? '여기서 추가한 작업은 내가 담당자로 지정돼요.'
+    : project
     ? `#프로젝트를 따로 적지 않으면 ‘${project.name}’에 추가돼요.`
     : onToday
       ? '날짜를 적지 않으면 오늘 할 일로 추가돼요.'
@@ -60,6 +64,7 @@ export function QuickAddModal() {
           autoFocus
           projectId={project?.id ?? null}
           defaultDueDate={pathname === '/today' ? app.today : null}
+          defaultAssigneeId={onMine ? app.user?.id : null}
           onCreated={() => setUi({ quickAdd: false })}
         />
       </div>
@@ -125,6 +130,26 @@ export function CommandPalette() {
       { id: 'logbook', label: '완료 기록', icon: 'checkCircle', keys: ['G', 'L'], group: '이동', run: go('/logbook') },
       { id: 'ai', label: 'AI 연결 (MCP · Skill)', icon: 'sparkle', group: '이동', run: go('/settings/ai') },
       { id: 'settings', label: '설정', icon: 'settings', group: '이동', run: go('/settings') },
+      ...(app.workspace?.kind === 'org'
+        ? [
+            { id: 'mine', label: '내 작업', icon: 'user' as const, group: '이동', run: go('/mine') },
+            { id: 'org', label: '조직 설정 · 멤버 · 팀', icon: 'building' as const, group: '이동', run: go('/settings/org') },
+          ]
+        : []),
+      ...app.workspaces
+        .filter((w) => w.id !== app.workspace?.id)
+        .map<Cmd>((w) => ({
+          id: `w-${w.id}`,
+          label: `${w.kind === 'personal' ? '개인 공간' : w.name}(으)로 전환`,
+          hint: w.kind === 'personal' ? '나만 보는 공간' : `멤버 ${w.memberCount}명`,
+          icon: w.kind === 'personal' ? 'user' : 'building',
+          group: '공간',
+          run: () => {
+            close();
+            router.push('/');
+            void switchWorkspace(w.id);
+          },
+        })),
       ...app.projects
         .filter((p) => !p.archivedAt)
         .map((p) => ({

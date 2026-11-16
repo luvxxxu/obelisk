@@ -8,6 +8,20 @@
       "when": 1794550003217,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794802892700,
+      "tag": "0001_workspaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794802912632,
+      "tag": "0002_drop_user_scoping",
+      "breakpoints": true
     }
   ]
 }

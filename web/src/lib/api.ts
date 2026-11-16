@@ -7,6 +7,13 @@ export class ApiError extends Error {
   }
 }
 
+let workspaceHeader: string | null = null;
+
+/** The workspace this tab has open; sent with every call (calls by task/project id use that thing's own). */
+export function setWorkspaceHeader(id: string | null) {
+  workspaceHeader = id;
+}
+
 export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
   let res: Response;
   try {
@@ -15,6 +22,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
       headers: {
         ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
         'x-obelisk-client': 'web',
+        ...(workspaceHeader ? { 'x-obelisk-workspace': workspaceHeader } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
       credentials: 'same-origin',

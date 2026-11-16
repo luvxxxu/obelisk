@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import {
+  canEditTask,
   changesFromReport,
   forecast,
   isActive,
@@ -15,18 +16,22 @@ import {
 import { and, eq, sql } from 'drizzle-orm';
 import { InjectDb, type Db } from '../db/db.module';
 import { tasks } from '../db/schema';
+import type { Access } from '../workspace/access.service';
+import { ActivityService } from '../workspace/activity.service';
 import { toPlanItem, toTask } from './mappers';
-import { TasksService } from './tasks.service';
+import { taskSubject, TasksService } from './tasks.service';
 
 @Injectable()
 export class ImpactService {
   constructor(
     @InjectDb() private readonly db: Db,
     private readonly tasks: TasksService,
+    private readonly activity: ActivityService,
   ) {}
 
-  private async plan(userId: string) {
-    const [active, deps] = await Promise.all([this.tasks.listActive(userId), this.tasks.dependencies(userId)]);
+  /** The plan as the caller sees it: hidden tasks and their links are not part of it. */
+  private async plan(a: Access) {
+    const [active, deps] = await Promise.all([this.tasks.listActive(a), this.tasks.dependencies(a)]);
     return { active, items: active.map(toPlanItem), deps };
   }
 
@@ -37,22 +42,37 @@ export class ImpactService {
     }
   }
 
-  async simulate(userId: string, input: DelayInput): Promise<{ task: Task; days: number; report: ImpactReport }> {
-    const task = await this.tasks.get(userId, input.taskId);
+  async simulate(a: Access, input: DelayInput): Promise<{ task: Task; days: number; report: ImpactReport }> {
+    const task = await this.tasks.get(a, input.taskId);
     this.assertMovable(task);
-    const { items, deps } = await this.plan(userId);
+    const { items, deps } = await this.plan(a);
     const days = resolveDelayDays(task, input);
     return { task, days, report: simulate(items, deps, { [task.id]: days }) };
   }
 
-  /** Move a task (and, with `cascade`, everything its delay pushes) in one transaction. */
-  async postpone(userId: string, input: PostponeInput) {
-    const { task, days, report } = await this.simulate(userId, input);
+  /**
+   * Move a task (and, with `cascade`, everything its delay pushes) in one transaction.
+   * Every task that would move needs "edit": a cascade that reaches a view-only task is
+   * refused as a whole rather than half-applied.
+   */
+  async postpone(a: Access, input: PostponeInput) {
+    const { task, days, report } = await this.simulate(a, input);
+    a.assertTaskEditable(task);
     const changes = changesFromReport(report, input.cascade);
+    const all = await this.tasks.listActive(a);
+    const byId = new Map(all.map((t) => [t.id, t]));
+    const blocked = changes.map((c) => byId.get(c.taskId)).filter((t): t is Task => !!t && !canEditTask(t, a));
+    if (blocked.length) {
+      throw new ForbiddenException(
+        `연쇄로 밀리는 작업 중 ${blocked.map(taskSubject).join(', ')}에 쓰기 권한이 없어 함께 옮길 수 없습니다. ` +
+          '연쇄 없이(cascade=false) 이 작업만 미루거나, 프로젝트 관리자에게 쓰기 권한을 요청하세요.',
+      );
+    }
     const updated = await this.db.transaction(async (tx) => {
       const out: Task[] = [];
       for (const c of changes) {
         const isRoot = c.taskId === task.id;
+        const before = byId.get(c.taskId);
         const [row] = await tx
           .update(tasks)
           .set({
@@ -61,23 +81,37 @@ export class ImpactService {
             updatedAt: new Date(),
             ...(isRoot && days > 0 ? { postponedCount: sql`${tasks.postponedCount} + 1` } : {}),
           })
-          .where(and(eq(tasks.id, c.taskId), eq(tasks.userId, userId)))
+          .where(and(eq(tasks.id, c.taskId), eq(tasks.workspaceId, a.workspaceId)))
           .returning();
-        if (row) out.push(toTask(row));
+        if (!row) continue;
+        out.push(toTask(row));
+        const dates = {
+          startDate: { from: before?.startDate ?? null, to: row.startDate },
+          dueDate: { from: before?.dueDate ?? null, to: row.dueDate },
+        };
+        await this.activity.record(tx, a, {
+          action: isRoot ? 'task.postponed' : 'task.updated',
+          taskId: row.id,
+          projectId: row.projectId,
+          subject: taskSubject(row),
+          data: isRoot
+            ? { days, cascade: input.cascade, moved: changes.length - 1, changes: dates }
+            : { changes: dates, cause: taskSubject(task), causeId: task.id },
+        });
       }
       return out;
     });
     return { task: updated.find((t) => t.id === task.id) ?? task, days, cascade: input.cascade, report, updated };
   }
 
-  async forecast(userId: string, timezone: string) {
-    const today = todayIn(timezone);
-    const { items, deps } = await this.plan(userId);
+  async forecast(a: Access) {
+    const today = todayIn(a.user.timezone);
+    const { items, deps } = await this.plan(a);
     return { today, report: forecast(items, deps, today) };
   }
 
-  async leverage(userId: string) {
-    const { items, deps } = await this.plan(userId);
+  async leverage(a: Access) {
+    const { items, deps } = await this.plan(a);
     return leverage(items, deps);
   }
 }

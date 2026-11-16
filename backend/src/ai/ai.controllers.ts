@@ -31,6 +31,9 @@ import { InjectDb, type Db } from '../db/db.module';
 import { ImpactService } from '../planner/impact.service';
 import { ProjectsService } from '../planner/projects.service';
 import { TasksService } from '../planner/tasks.service';
+import { AccessService } from '../workspace/access.service';
+import { ActivityService } from '../workspace/activity.service';
+import { WorkspacesService } from '../workspace/workspaces.service';
 import { buildMcpServer } from './mcp.server';
 import { OAuthService, type AuthorizeParams } from './oauth.service';
 import { TokensService } from './tokens.service';
@@ -46,6 +49,9 @@ export class McpController {
     private readonly tasks: TasksService,
     private readonly projects: ProjectsService,
     private readonly impact: ImpactService,
+    private readonly access: AccessService,
+    private readonly workspaces: WorkspacesService,
+    private readonly activity: ActivityService,
   ) {}
 
   /** RFC 6750 §3.1: no error code when the request carried no credentials at all. */
@@ -69,7 +75,18 @@ export class McpController {
     // only response that carries the server instructions — so tailor them right here.
     const body = req.body as { method?: string; params?: { capabilities?: unknown } } | undefined;
     const ui = body?.method === 'initialize' && clientSupportsUi(body.params?.capabilities);
-    const server = buildMcpServer(auth, { tasks: this.tasks, projects: this.projects, impact: this.impact }, { ui });
+    const server = buildMcpServer(
+      auth,
+      {
+        tasks: this.tasks,
+        projects: this.projects,
+        impact: this.impact,
+        access: this.access,
+        workspaces: this.workspaces,
+        activity: this.activity,
+      },
+      { ui },
+    );
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     res.on('close', () => {
       void transport.close();

@@ -13,7 +13,15 @@
  * documents the same house style.
  */
 import {
+  describeActivity,
   diffDays,
+  LEVEL_LABEL_KO,
+  ROLE_LABEL_KO,
+  viaLabelKo,
+  type AccessLevel,
+  type ActivityEntry,
+  type WorkspaceKind,
+  type WorkspaceRole,
   formatDaysKo,
   formatRelativeKo,
   formatShortKo,
@@ -43,6 +51,10 @@ export interface TaskOut {
   startDate: ISODate | null;
   dueDate: ISODate | null;
   fixed: boolean;
+  /** Assignee's name. */
+  assignee?: string;
+  /** The caller can see but not change this task. */
+  readOnly?: true;
   overdue?: true;
   postponedCount?: number;
   completedAt?: string;
@@ -101,6 +113,46 @@ export interface ProjectOut {
   open: number;
   overdue: number;
   plannedFinish: ISODate | null;
+  /** The caller's level (organizations only). */
+  access?: AccessLevel;
+}
+
+export interface WorkspaceOut {
+  id: string;
+  name: string;
+  kind: WorkspaceKind;
+  role: WorkspaceRole;
+  members: number;
+  default: boolean;
+}
+
+export interface MemberOut {
+  name: string;
+  email: string;
+  role: WorkspaceRole;
+  teams: string[];
+  me?: true;
+}
+
+export interface ActivityOut {
+  at: string;
+  who: string;
+  via?: string;
+  what: string;
+  subject: string;
+  action: string;
+}
+
+export function activityOut(e: ActivityEntry): ActivityOut {
+  const via = viaLabelKo(e.via, e.client);
+  return {
+    at: e.createdAt,
+    who: e.actor.name,
+    ...(via ? { via } : {}),
+    what: describeActivity(e),
+    subject: e.subject,
+    action: e.action,
+  };
 }
 
 // ───────────────────────────── primitives
@@ -155,8 +207,10 @@ export function taskLine(t: TaskOut, today: ISODate, opts: { project?: boolean }
   const when = whenLabel(t, today);
   if (when) meta.push(when);
   if (t.overdue && t.dueDate) meta.push(`**${diffDays(today, t.dueDate)}일 지남**`);
+  if (t.assignee) meta.push(`@${esc(t.assignee)}`);
   if (t.fixed) meta.push('🔒 고정');
   if ((t.postponedCount ?? 0) >= 2) meta.push(`↻ ${t.postponedCount}회 미룸`);
+  if (t.readOnly) meta.push('👁 보기 전용');
   return `${STATUS_GLYPH[t.status]} ${code(t.ref)} ${esc(t.title)}${meta.length ? ` · ${meta.join(' · ')}` : ''}`;
 }
 
@@ -282,8 +336,10 @@ export function mdTaskDetail(t: TaskOut, today: ISODate, heading?: string): stri
   const when = whenLabel(t, today);
   if (when) meta.push(t.startDate && t.dueDate && t.startDate !== t.dueDate ? when : `${when}${t.dueDate ? ' 마감' : ''}`);
   if (t.overdue && t.dueDate) meta.push(`**${diffDays(today, t.dueDate)}일 지남**`);
+  if (t.assignee) meta.push(`담당 ${esc(t.assignee)}`);
   if (t.fixed) meta.push('🔒 고정 일정');
   if (t.postponedCount) meta.push(`↻ ${t.postponedCount}회 미룸`);
+  if (t.readOnly) meta.push('👁 보기 전용');
   const notes = t.notes
     ? t.notes
         .split('\n')
@@ -399,8 +455,42 @@ export function mdProjects(o: { today: ISODate; projects: ProjectOut[] }): strin
       p.overdue ? `기한 지남 **${p.overdue}**` : null,
       p.plannedFinish ? `예상 완료 ${formatRelativeKo(p.plannedFinish, o.today)}` : null,
       p.archived ? '보관됨' : null,
+      p.access === 'view' ? '👁 보기 전용' : null,
     ].filter(Boolean);
     return `- **${esc(p.name)}** · ${meta.join(' · ')}`;
   });
   return join(`### 프로젝트 · ${o.projects.length}`, lines.join('\n'));
 }
+
+export function mdWorkspaces(o: { workspaces: WorkspaceOut[] }): string {
+  const lines = o.workspaces.map((w) => {
+    const meta = [w.kind === 'personal' ? '개인 공간' : `조직 · ${ROLE_LABEL_KO[w.role]} · 멤버 ${w.members}명`, w.default ? '**기본**' : null];
+    return `- **${esc(w.name)}** · ${meta.filter(Boolean).join(' · ')}`;
+  });
+  return join(`### 공간 · ${o.workspaces.length}`, lines.join('\n'));
+}
+
+export function mdMembers(o: { workspace: string; members: MemberOut[] }): string {
+  const lines = o.members.map(
+    (m) => `- **${esc(m.name)}**${m.me ? ' (나)' : ''} · ${ROLE_LABEL_KO[m.role]} · ${esc(m.email)}${m.teams.length ? ` · ${m.teams.map(esc).join(', ')}` : ''}`,
+  );
+  return join(`### ${esc(o.workspace)} 멤버 · ${o.members.length}`, lines.join('\n'));
+}
+
+function timeKo(iso: string, timezone: string): string {
+  const d = new Date(iso);
+  const parts = new Intl.DateTimeFormat('ko-KR', { timeZone: timezone, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${get('month')}/${get('day')} ${get('hour')}:${get('minute')}`;
+}
+
+export function mdActivity(o: { title: string; timezone: string; activity: ActivityOut[] }): string {
+  if (!o.activity.length) return join(`### ${esc(o.title)}`, '기록된 활동이 없습니다.');
+  const lines = o.activity.map((e) => {
+    const subject = e.subject && !e.action.startsWith('member.') ? `${esc(e.subject)} — ` : e.subject ? `${esc(e.subject)} · ` : '';
+    return `- ${timeKo(e.at, o.timezone)} · **${esc(e.who)}** · ${subject}${esc(e.what)}${e.via ? ` · _${esc(e.via)}_` : ''}`;
+  });
+  return join(`### ${esc(o.title)}`, lines.join('\n'));
+}
+
+export const levelKo = (l: AccessLevel) => LEVEL_LABEL_KO[l];

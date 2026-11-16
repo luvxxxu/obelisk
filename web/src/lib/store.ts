@@ -1,22 +1,28 @@
 'use client';
 
 import {
+  canEditTask,
+  type AccessView,
   type Bootstrap,
   type CreateProjectInput,
   type CreateTaskInput,
   type DateChange,
   type Dependency,
+  type Member,
   type PlanItem,
   type Project,
   type Task,
   type TaskStatus,
+  type Team,
   type UpdateProjectInput,
   type UpdateTaskInput,
   type User,
+  type Workspace,
+  type WorkspaceSummary,
   todayIn,
 } from '@obelisk/core';
 import { useSyncExternalStore } from 'react';
-import { api, ApiError } from './api';
+import { api, ApiError, setWorkspaceHeader } from './api';
 import { toast } from './toast';
 
 export interface AppState {
@@ -24,6 +30,11 @@ export interface AppState {
   error: string | null;
   user: User | null;
   today: string;
+  /** The open workspace (personal space or an organization) and what the user may do there. */
+  workspace: Workspace | null;
+  workspaces: WorkspaceSummary[];
+  members: Member[];
+  teams: Team[];
   projects: Project[];
   tasks: Record<string, Task>;
   deps: Dependency[];
@@ -35,6 +46,10 @@ let state: AppState = {
   error: null,
   user: null,
   today: todayIn(Intl.DateTimeFormat().resolvedOptions().timeZone),
+  workspace: null,
+  workspaces: [],
+  members: [],
+  teams: [],
   projects: [],
   tasks: {},
   deps: [],
@@ -84,6 +99,41 @@ function upsertTasks(list: Task[]) {
   });
 }
 
+// ─────────────────────────────── permissions (the server enforces; this only hides what you can't do)
+
+export const READ_ONLY_MESSAGE = '보기 전용 작업이에요. 프로젝트 관리자에게 쓰기 권한을 요청하세요.';
+
+export function accessView(s: AppState = state): AccessView {
+  return {
+    userId: s.user?.id ?? '',
+    kind: s.workspace?.kind ?? 'personal',
+    projectLevel: (id) => s.projects.find((p) => p.id === id)?.access ?? null,
+  };
+}
+
+export function canEdit(task: Pick<Task, 'projectId' | 'createdBy' | 'assigneeId'>, s: AppState = state): boolean {
+  return canEditTask(task, accessView(s));
+}
+
+/** Can the user add tasks to this project (null = their inbox)? */
+export function canWriteProject(projectId: string | null | undefined, s: AppState = state): boolean {
+  if (!projectId) return true;
+  const level = s.projects.find((p) => p.id === projectId)?.access;
+  return level === 'edit' || level === 'manage';
+}
+
+export function memberName(id: string | null | undefined, s: AppState = state): string | null {
+  if (!id) return null;
+  return s.members.find((m) => m.id === id)?.name ?? null;
+}
+
+function guard(task: Task | undefined): task is Task {
+  if (!task) return false;
+  if (canEdit(task)) return true;
+  toast.error(READ_ONLY_MESSAGE);
+  return false;
+}
+
 function fail(e: unknown, fallback = '변경 사항을 저장하지 못했습니다') {
   if (e instanceof ApiError && e.status === 401) {
     set({ status: 'unauthenticated' });
@@ -108,27 +158,66 @@ export function planItems(s: AppState = state): PlanItem[] {
 // ─────────────────────────────── loading
 
 let inflight: Promise<void> | null = null;
+/** Bumped on every workspace switch: a response for the previous workspace is thrown away. */
+let generation = 0;
+
+const WORKSPACE_KEY = 'obelisk:workspace';
+
+function storedWorkspace(): string | null {
+  try {
+    return localStorage.getItem(WORKSPACE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeWorkspace(id: string | null) {
+  try {
+    if (id) localStorage.setItem(WORKSPACE_KEY, id);
+    else localStorage.removeItem(WORKSPACE_KEY);
+  } catch {}
+  setWorkspaceHeader(id);
+}
 
 export function load(silent = false): Promise<void> {
   if (inflight) return inflight;
   if (!silent) set({ status: state.status === 'ready' ? 'ready' : 'loading' });
+  if (!state.workspace) setWorkspaceHeader(storedWorkspace());
+  const gen = generation;
   inflight = (async () => {
     const writes = localWrites;
     try {
-      const b = await api<Bootstrap>('GET', '/api/bootstrap');
-      if (state.status === 'ready' && localWrites !== writes) return; // stale; the next sync catches up
+      let b: Bootstrap;
+      try {
+        b = await api<Bootstrap>('GET', '/api/bootstrap');
+      } catch (e) {
+        // The remembered workspace is gone (left, removed, deleted): fall back to the default one.
+        if (!(e instanceof ApiError && e.status === 404)) throw e;
+        storeWorkspace(null);
+        b = await api<Bootstrap>('GET', '/api/bootstrap');
+        if (state.workspace) toast.show('그 공간에 더 이상 접근할 수 없어 기본 공간을 열었어요');
+      }
+      if (gen !== generation) return;
+      if (state.status === 'ready' && localWrites !== writes && state.workspace?.id === b.workspace.id) return; // stale; the next sync catches up
+      storeWorkspace(b.workspace.id);
       const tasks: Record<string, Task> = {};
       for (const t of b.tasks) tasks[t.id] = t;
-      set({
+      set((s) => ({
         status: 'ready',
         error: null,
         user: b.user,
         today: b.today,
+        workspace: b.workspace,
+        workspaces: b.workspaces,
+        members: b.members,
+        teams: b.teams,
         projects: b.projects,
         tasks,
         deps: b.dependencies,
-      });
+        selectedTaskId: s.selectedTaskId && !tasks[s.selectedTaskId] && s.workspace?.id !== b.workspace.id ? null : s.selectedTaskId,
+      }));
     } catch (e) {
+      if (gen !== generation) return;
       if (e instanceof ApiError && e.status === 401) set({ status: 'unauthenticated' });
       // A background refresh may share this request with the first load — never leave the splash hanging.
       else if (!silent || state.status !== 'ready') {
@@ -142,7 +231,56 @@ export function load(silent = false): Promise<void> {
 }
 
 export function reset() {
-  set({ status: 'unauthenticated', user: null, projects: [], tasks: {}, deps: [], selectedTaskId: null });
+  generation++;
+  storeWorkspace(null);
+  set({
+    status: 'unauthenticated',
+    user: null,
+    workspace: null,
+    workspaces: [],
+    members: [],
+    teams: [],
+    projects: [],
+    tasks: {},
+    deps: [],
+    selectedTaskId: null,
+  });
+}
+
+// ─────────────────────────────── workspaces
+
+/** Open another workspace in this tab. Its data replaces the current one's. */
+export async function switchWorkspace(id: string, opts: { selectTaskId?: string } = {}) {
+  if (state.workspace?.id === id && state.status === 'ready') {
+    if (opts.selectTaskId) selectTask(opts.selectTaskId);
+    return;
+  }
+  generation++;
+  inflight = null;
+  storeWorkspace(id);
+  set({ status: 'loading', projects: [], tasks: {}, deps: [], members: [], teams: [], selectedTaskId: opts.selectTaskId ?? null });
+  await load();
+}
+
+export async function createWorkspace(name: string): Promise<WorkspaceSummary | null> {
+  try {
+    const { workspace } = await api<{ workspace: WorkspaceSummary }>('POST', '/api/workspaces', { name });
+    await switchWorkspace(workspace.id);
+    return workspace;
+  } catch (e) {
+    fail(e, '조직을 만들지 못했습니다');
+    return null;
+  }
+}
+
+/** Follow a /t/:id link: the task may live in another workspace. */
+export async function openTaskLink(id: string) {
+  try {
+    const { task } = await api<{ task: Task }>('GET', `/api/tasks/${id}`);
+    await switchWorkspace(task.workspaceId, { selectTaskId: task.id });
+  } catch {
+    selectTask(id);
+  }
 }
 
 export function setUser(user: User) {
@@ -173,7 +311,7 @@ export async function createTask(input: CreateTaskInput): Promise<Task | null> {
 
 export async function updateTask(id: string, patch: UpdateTaskInput): Promise<Task | null> {
   const prev = state.tasks[id];
-  if (!prev) return null;
+  if (!guard(prev)) return null;
   const optimistic: Task = { ...prev, ...(patch as Partial<Task>) };
   if (patch.status && patch.status !== prev.status) {
     optimistic.completedAt = patch.status === 'done' ? new Date().toISOString() : null;
@@ -192,7 +330,7 @@ export async function updateTask(id: string, patch: UpdateTaskInput): Promise<Ta
 
 export async function toggleDone(id: string) {
   const t = state.tasks[id];
-  if (!t) return;
+  if (!guard(t)) return;
   const done = t.status !== 'done';
   const res = await updateTask(id, { status: done ? 'done' : 'todo' });
   if (res && done) {
@@ -218,6 +356,15 @@ export async function toggleDone(id: string) {
 /** Atomically apply a set of date changes (single task or a previewed cascade). */
 export async function reschedule(changes: DateChange[], rootId?: string): Promise<boolean> {
   const prev = changes.map((c) => state.tasks[c.taskId]).filter((t): t is Task => !!t);
+  if (!prev.every((t) => canEdit(t))) {
+    const blocked = prev.filter((t) => !canEdit(t));
+    toast.error(
+      blocked.length === prev.length
+        ? READ_ONLY_MESSAGE
+        : `함께 밀리는 작업 중 ${blocked.map((t) => `#${t.number}`).join(', ')}은(는) 보기 전용이라 옮길 수 없어요. ‘이 작업만’ 옮겨 보세요.`,
+    );
+    return false;
+  }
   upsertTasks(
     changes
       .map((c) => state.tasks[c.taskId] && { ...state.tasks[c.taskId]!, startDate: c.startDate, dueDate: c.dueDate })
@@ -244,6 +391,10 @@ export interface TaskMove {
 export async function moveTasks(changes: TaskMove[]): Promise<boolean> {
   if (!changes.length) return true;
   const prev = changes.map((c) => state.tasks[c.taskId]).filter((t): t is Task => !!t);
+  if (!prev.every((t) => canEdit(t))) {
+    toast.error(READ_ONLY_MESSAGE);
+    return false;
+  }
   const now = new Date().toISOString();
   upsertTasks(
     changes.flatMap((c) => {
@@ -270,7 +421,7 @@ export async function moveTasks(changes: TaskMove[]): Promise<boolean> {
 
 export async function deleteTask(id: string) {
   const t = state.tasks[id];
-  if (!t) return;
+  if (!guard(t)) return;
   const prevDeps = state.deps;
   localWrites++;
   set((s) => {
@@ -292,6 +443,7 @@ export async function deleteTask(id: string) {
 }
 
 export async function addDependency(taskId: string, dependsOnId: string) {
+  if (!guard(state.tasks[taskId])) return false;
   try {
     await api('POST', `/api/tasks/${taskId}/dependencies`, { dependsOnId });
     set((s) => ({
@@ -307,6 +459,7 @@ export async function addDependency(taskId: string, dependsOnId: string) {
 }
 
 export async function removeDependency(taskId: string, dependsOnId: string) {
+  if (!guard(state.tasks[taskId])) return;
   const prev = state.deps;
   set((s) => ({ deps: s.deps.filter((d) => !(d.taskId === taskId && d.dependsOnId === dependsOnId)) }));
   try {
@@ -320,6 +473,10 @@ export async function removeDependency(taskId: string, dependsOnId: string) {
 // ─────────────────────────────── projects
 
 export async function createProject(input: CreateProjectInput): Promise<Project | null> {
+  if (state.workspace && !state.workspace.canCreateProjects) {
+    toast.error('이 조직에서는 소유자와 관리자만 프로젝트를 만들 수 있어요');
+    return null;
+  }
   try {
     const { project } = await api<{ project: Project }>('POST', '/api/projects', input);
     set((s) => ({ projects: [...s.projects, project] }));
@@ -337,6 +494,25 @@ export async function updateProject(id: string, patch: UpdateProjectInput) {
     return project;
   } catch (e) {
     fail(e);
+    return null;
+  }
+}
+
+/** After changing sharing, membership or settings: reload what this workspace looks like. */
+export function refresh() {
+  return load(true);
+}
+
+export async function moveProject(id: string, workspaceId: string) {
+  try {
+    const res = await api<{ workspace: { id: string; name: string }; tasks: number; linksCut: number }>(
+      'POST',
+      `/api/projects/${id}/move`,
+      { workspaceId },
+    );
+    return res;
+  } catch (e) {
+    fail(e, '프로젝트를 옮기지 못했습니다');
     return null;
   }
 }

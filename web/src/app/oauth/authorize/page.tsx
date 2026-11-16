@@ -19,6 +19,11 @@ interface RequestInfo {
 const PERMISSIONS: { icon: IconName; title: string; detail: string; tone?: 'danger' }[] = [
   { icon: 'listChecks', title: '작업과 프로젝트 관리', detail: '작업과 프로젝트를 보고, 만들고, 수정하고, 완료할 수 있어요' },
   { icon: 'ripple', title: '일정 예측과 조정', detail: '일정 지연 예측을 실행하고 일정을 옮길 수 있어요' },
+  {
+    icon: 'building',
+    title: '개인 공간과 참여한 조직',
+    detail: '조직에서는 내 권한(보기·쓰기·관리)만큼만 일하고, 공유·멤버 설정은 바꿀 수 없어요',
+  },
   { icon: 'trash', title: '작업과 프로젝트 삭제', detail: 'AI는 삭제하기 전에 꼭 확인을 받아요', tone: 'danger' },
 ];
 

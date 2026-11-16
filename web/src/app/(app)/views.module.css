@@ -475,3 +475,16 @@
   background: var(--surface-2);
   color: var(--text);
 }
+
+/* ───────── project sharing (organizations) */
+
+button.shareBtn {
+  gap: 6px;
+}
+
+.shareDivider {
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: var(--border-strong);
+}

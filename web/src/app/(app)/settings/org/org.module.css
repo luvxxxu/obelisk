@@ -1,0 +1,556 @@
+/* Organization settings — members, invites, teams, activity, general.
+   Lists are hairline-separated rows inside cards (no grey fills), per the pure black/white base. */
+
+.tabs {
+  margin: 4px 0 20px;
+}
+
+.panel {
+  animation: org-fade 0.22s var(--ease-out);
+}
+
+/* Card header with an action on the right (title/description stay left). */
+div.headWrap {
+  position: relative;
+  padding-right: 150px;
+}
+
+.headAction {
+  position: absolute;
+  top: var(--card-pad, 24px);
+  right: var(--card-pad, 24px);
+}
+
+.flush {
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 6px;
+}
+
+.pad {
+  padding: 8px var(--card-pad, 24px) 16px;
+}
+
+.emptyLine {
+  padding: 4px var(--card-pad, 24px) 18px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+.muted {
+  color: var(--text-3);
+}
+
+/* ───────── search */
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  margin: 0 var(--card-pad, 24px) 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-3);
+}
+
+.search[data-boxed='true'] {
+  margin: 0 0 6px;
+}
+
+.search:focus-within {
+  border-color: var(--ring-color);
+  box-shadow: var(--ring);
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--text);
+}
+
+/* ───────── people rows */
+
+.people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px var(--card-pad, 24px);
+  border-top: 1px solid var(--border);
+  transition: background-color 0.12s var(--ease);
+  animation: org-fade 0.2s var(--ease-out) both;
+}
+
+.person:hover {
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+
+span.personAvatar {
+  border-radius: 50%;
+}
+
+.personText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.personName {
+  font-size: 14px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.personMeta {
+  font-size: 12.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.personTeams {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.removeBtn {
+  color: var(--text-3);
+  opacity: 0;
+  transition: opacity 0.12s var(--ease);
+}
+
+.person:hover .removeBtn,
+.removeBtn:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .removeBtn {
+    opacity: 1;
+  }
+}
+
+/* ───────── role */
+
+.roleBtn,
+.roleText {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.roleBtn {
+  transition:
+    background-color 0.12s var(--ease),
+    color 0.12s var(--ease);
+}
+
+.roleBtn:hover,
+.roleBtn[aria-expanded='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.roleBtn[data-role='owner'],
+.roleText[data-role='owner'] {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.roleChev {
+  color: var(--text-3);
+}
+
+button.roleItem {
+  min-height: 44px;
+}
+
+.roleItemText {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 1px;
+}
+
+.roleItemHint {
+  font-size: 12px;
+  color: var(--text-3);
+  font-weight: 400;
+}
+
+/* ───────── invites */
+
+.linkMark,
+.teamMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  flex-shrink: 0;
+}
+
+.linkMark {
+  border-radius: var(--radius);
+}
+
+.hint {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12.5px;
+}
+
+.inviteForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+p.choiceHelp {
+  margin-top: -8px;
+}
+
+.linkBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  animation: org-pop 0.24s var(--ease-spring);
+}
+
+.linkUrl {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+/* ───────── teams */
+
+.stack {
+  display: flex;
+  flex-shrink: 0;
+}
+
+span.stackAvatar {
+  border-radius: 50%;
+  margin-left: -6px;
+  box-shadow: 0 0 0 2px var(--surface, var(--bg));
+}
+
+span.stackAvatar:first-child {
+  margin-left: 0;
+}
+
+.stackMore {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--text-3);
+  align-self: center;
+}
+
+.teamForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pickList {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.1s var(--ease);
+}
+
+.pick:hover {
+  background: var(--surface-2);
+}
+
+.pick input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pickBox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-strong);
+  color: transparent;
+  flex-shrink: 0;
+  transition:
+    background-color 0.12s var(--ease),
+    border-color 0.12s var(--ease),
+    color 0.12s var(--ease);
+}
+
+.pick[data-on='true'] .pickBox {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+
+.pick:has(input:focus-visible) .pickBox {
+  box-shadow: var(--ring);
+}
+
+.footCount {
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+/* ───────── activity feed */
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0 var(--card-pad, 24px) 12px;
+}
+
+select.actorSelect {
+  width: auto;
+  height: 28px;
+  padding: 0 28px 0 10px;
+  font-size: 13px;
+  margin-left: auto;
+}
+
+.feed {
+  border-top: 1px solid var(--border);
+}
+
+.day {
+  padding: 10px var(--card-pad, 24px) 4px;
+}
+
+.dayLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+  margin: 4px 0 6px;
+}
+
+.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+.entries::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 14px;
+  bottom: 14px;
+  width: 1px;
+  background: var(--border);
+}
+
+.entry {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 7px 0;
+  animation: org-fade 0.2s var(--ease-out) both;
+}
+
+.entryIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  background: var(--surface, var(--bg));
+  box-shadow:
+    inset 0 0 0 1px var(--border-strong),
+    0 0 0 3px var(--surface, var(--bg));
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+.entryBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.entryText {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.entryText strong {
+  color: var(--text);
+  font-weight: 550;
+}
+
+.subject {
+  color: var(--text);
+}
+
+.what {
+  color: var(--text-2);
+}
+
+.entryMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.entryProject {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+span.viaBadge {
+  height: 18px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.moreRow {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 16px;
+}
+
+/* ───────── general */
+
+.orgInfo {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.dangerStack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+@keyframes org-fade {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes org-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  div.headWrap {
+    padding-right: var(--card-pad, 18px);
+    padding-bottom: 56px;
+  }
+
+  .headAction {
+    top: auto;
+    bottom: 12px;
+    left: var(--card-pad, 18px);
+    right: auto;
+  }
+
+  .personTeams,
+  .stack {
+    display: none;
+  }
+
+  select.actorSelect {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .person,
+  .entry,
+  .linkBox {
+    animation: none;
+  }
+}

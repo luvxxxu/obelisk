@@ -6,7 +6,8 @@
 - **지연 파급 예측** — 작업을 미루면 뒤따르는 작업이 며칠씩 밀리는지, 어떤 고정 일정(회의·출시일)과 충돌하는지, 프로젝트 완료일이 어떻게 바뀌는지 즉시 계산합니다. 미루기 메뉴, 상세 패널, 타임라인 드래그 어디에서든 적용 전에 미리 보여줍니다.
 - **파급 예측 대시보드** — 기한이 지난 작업은 빨라도 오늘 끝난다는 현실을 일정 전체에 반영해서 "지금 이미 밀리고 있는 일정", 하루만 늦어도 전체가 흔들리는 **핵심 작업**, **자꾸 미뤄지는 작업**을 보여줍니다.
 - **자연어 빠른 입력** — `기획서 초안 다음 주 수요일까지 #업무 !높음`, `워크숍 11/20~11/22 @고정`
-- **AI 완전 지원** — 모든 기능을 MCP 도구 20개 + 프롬프트 3개로 제공하고(OAuth 2.1 내장), 언제 어떻게 쓸지 알려주는 Agent Skill을 함께 배포합니다. Claude, ChatGPT, Claude Code, Codex에서 바로 연결할 수 있습니다.
+- **조직** — 개인 공간은 그대로 두고 여러 조직에 참여합니다. 프로젝트마다 멤버·팀별로 **보기 · 쓰기 · 관리** 권한을 나누고, 담당자와 활동 기록, 초대 링크를 지원합니다. 연결한 AI(MCP)도 계정 권한을 그대로 따릅니다.
+- **AI 완전 지원** — 모든 기능을 MCP 도구 23개 + 프롬프트 3개로 제공하고(OAuth 2.1 내장), 언제 어떻게 쓸지 알려주는 Agent Skill을 함께 배포합니다. Claude, ChatGPT, Claude Code, Codex에서 바로 연결할 수 있습니다.
 - **Dokploy 한 번에 배포** — `docker-compose.yml` 하나로 web + backend + Postgres + 매일 백업. 도메인은 web 하나만 연결하면 됩니다.
 
 ## 구조
@@ -29,6 +30,28 @@ obelisk/
                         └─ /.well-known ┘
 Claude / ChatGPT ──► https://도메인/mcp  (OAuth: /.well-known → /oauth/authorize → /api/oauth/token)
 ```
+
+## 조직과 권한
+
+계정마다 **개인 공간**이 하나 있고(가입 전 데이터도 모두 여기에 있습니다), 원하는 만큼 **조직**을 만들거나 초대받아 참여할 수 있습니다. 사이드바 왼쪽 위에서 공간을 바꿉니다. 작업 번호(`#12`)는 공간마다 따로 매깁니다.
+
+| 역할 | 할 수 있는 일 |
+|---|---|
+| 소유자 | 관리자 권한 전부 + 소유자 지정·해제, 조직 삭제 (소유자는 최소 한 명) |
+| 관리자 | 모든 프로젝트 관리, 멤버 역할·내보내기, 초대 링크, 팀, 전체 활동 기록 |
+| 멤버 | 공유받은 프로젝트만. 설정에 따라 새 프로젝트 만들기 |
+
+프로젝트 권한은 **보기 < 쓰기 < 관리** 세 단계입니다. 쓰기는 작업 추가·수정·삭제·연결, 관리는 이름·보관·삭제·공유·다른 공간으로 옮기기까지입니다. 멤버 한 사람의 권한은 `조직 전체 기본값`, `개인에게 준 권한`, `속한 팀에 준 권한` 중 가장 높은 것입니다.
+
+- **새 프로젝트는 비공개**로 시작합니다. 만든 사람이 관리 권한을 갖고 프로젝트 → 공유에서 사람·팀·조직 전체에 권한을 줍니다.
+- 조직에서 **프로젝트 없는 작업**은 만든 사람과 담당자만 봅니다(관리자도 못 봅니다).
+- **담당자**는 그 프로젝트를 볼 수 있는 멤버만 지정할 수 있습니다. 조직에서는 사이드바에 **내 작업**이 생깁니다.
+- **볼 수 없는 작업은 존재 자체가 드러나지 않습니다**: 목록·의존 관계·지연 예측·활동 기록에서 빠지고, 직접 요청하면 404입니다. 연쇄 미루기가 보기 전용 작업까지 옮겨야 하면 통째로 거절됩니다(이 작업만 미루기는 가능).
+- **초대 링크**는 역할·만료·사용 횟수를 정해 만들고, 링크 자체는 해시로만 저장합니다. 초대 링크로는 `SIGNUP_MODE`가 막혀 있어도 가입할 수 있습니다.
+- **활동 기록**은 누가 무엇을 언제 바꿨는지와, AI 앱·API 토큰을 거쳤는지를 남깁니다. 작업 상세에는 그 작업의 기록이, 조직 설정 → 활동에는 볼 수 있는 범위의 전체 기록이 나옵니다.
+- 개인 공간 프로젝트를 조직으로(또는 조직 사이로) **옮길 수 있습니다**. 작업 번호는 새로 매겨지고, 남는 작업과의 의존 관계는 끊기며, 공유 설정은 초기화됩니다.
+
+**API·MCP**: 토큰과 OAuth 연결은 계정 권한을 그대로 씁니다. 공간은 `X-Obelisk-Workspace` 헤더(id)나 `?workspace=`로 고르고, 없으면 계정의 기본 공간(설정 → AI 연결 → AI 기본 공간)을 씁니다. 공유 설정, 멤버, 초대, 팀 관리는 웹 로그인 세션에서만 할 수 있어서 AI가 접근 범위를 넓힐 수 없습니다.
 
 ## 로컬 개발
 
@@ -69,6 +92,12 @@ bun test packages
 ```bash
 bun backend/scripts/smoke.ts http://localhost:3000
 ```
+
+```bash
+bun backend/scripts/org-smoke.ts http://localhost:3000
+```
+
+`org-smoke.ts`는 계정 세 개로 조직 권한 전체(초대·비공개 기본값·보기/쓰기/관리·팀·비공개 인박스·담당자·연쇄 미루기 거절·역할·활동 기록·MCP 권한·프로젝트 옮기기·삭제)를 확인합니다.
 
 `smoke.ts`는 가입 → 작업/의존성 → 시뮬레이션·연쇄 미루기 → MCP 도구 호출(API 토큰) → OAuth 동적 등록·PKCE·토큰 교환·갱신 → Skill zip까지 실제 서버를 상대로 확인합니다 (`SIGNUP_MODE=open` 필요).
 
@@ -150,8 +179,9 @@ MCP 주소: `https://도메인/mcp` (Streamable HTTP, stateless). 앱의 **설�
 
 | 분류 | 도구 |
 |---|---|
-| 읽기 | `get_overview`, `list_tasks`, `get_task`, `list_projects`, `search`, `fetch` |
-| 쓰기 | `create_task`, `create_tasks`(키·의존성 포함 일괄 계획), `update_task`, `complete_task`, `delete_task`, `add_dependency`, `remove_dependency`, `create_project`, `update_project`, `delete_project` |
+| 읽기 | `get_overview`, `list_tasks`(`assignee` 필터), `get_task`, `list_projects`, `search`, `fetch` |
+| 조직 | `list_workspaces`, `list_members`, `get_activity` — 모든 도구에 선택 인자 `workspace` |
+| 쓰기 | `create_task`, `create_tasks`(키·의존성 포함 일괄 계획), `update_task`(담당자 포함), `complete_task`, `delete_task`, `add_dependency`, `remove_dependency`, `create_project`, `update_project`, `delete_project` |
 | 지연 예측 | `simulate_delay`, `postpone_task`(cascade), `get_forecast`, `get_bottlenecks` |
 | 프롬프트 | `plan_my_day`, `break_down_goal`, `weekly_review` |
 
