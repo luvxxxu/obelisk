@@ -121,6 +121,13 @@ export function CommandPalette() {
     const base: Cmd[] = [
       { id: 'new', label: '새 작업 만들기', icon: 'plus', keys: ['N'], group: '명령', run: () => setUi({ palette: false, quickAdd: true }) },
       { id: 'shortcuts', label: '키보드 단축키 보기', icon: 'keyboard', keys: ['?'], group: '명령', run: () => setUi({ palette: false, shortcuts: true }) },
+      ...(app.user?.jev.connected
+        ? [
+            { id: 'jev-priority', label: 'Jev · 우선순위 정리', hint: '중요도와 마감으로 제안', icon: 'flag' as const, group: 'Jev', run: () => setUi({ palette: false, jev: { kind: 'priority' } }) },
+            { id: 'jev-postpone', label: 'Jev · 오늘 미룰 작업 고르기', icon: 'postpone' as const, group: 'Jev', run: () => setUi({ palette: false, jev: { kind: 'postpone', scope: 'today' } }) },
+            { id: 'jev-postpone-week', label: 'Jev · 이번 주 일정 고르게 펴기', icon: 'calendar' as const, group: 'Jev', run: () => setUi({ palette: false, jev: { kind: 'postpone', scope: 'week' } }) },
+          ]
+        : []),
       { id: 'home', label: '홈', icon: 'home', keys: ['G', 'H'], group: '이동', run: go('/') },
       { id: 'today', label: '오늘', icon: 'sun', keys: ['G', 'T'], group: '이동', run: go('/today') },
       { id: 'upcoming', label: '예정', icon: 'calendar', keys: ['G', 'U'], group: '이동', run: go('/upcoming') },
@@ -129,6 +136,7 @@ export function CommandPalette() {
       { id: 'all', label: '전체 작업', icon: 'layers', keys: ['G', 'A'], group: '이동', run: go('/all') },
       { id: 'logbook', label: '완료 기록', icon: 'checkCircle', keys: ['G', 'L'], group: '이동', run: go('/logbook') },
       { id: 'ai', label: 'AI 연결 (MCP · Skill)', icon: 'sparkle', group: '이동', run: go('/settings/ai') },
+      { id: 'jev', label: 'Jev 설정', hint: 'TypeSafe API 키', icon: 'sparkle', group: '이동', run: go('/settings/jev') },
       { id: 'settings', label: '설정', icon: 'settings', group: '이동', run: go('/settings') },
       ...(app.workspace?.kind === 'org'
         ? [

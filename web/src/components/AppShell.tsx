@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { longDateKo } from '@/lib/format';
+import { useJevAutoPilot } from '@/lib/jev';
 import { getState, load, selectTask, startSync, useApp } from '@/lib/store';
 import {
   DESKTOP_QUERY,
@@ -19,6 +20,7 @@ import {
 import { getUi, setUi, useUi } from '@/lib/ui-state';
 import { Icon, Logo } from './Icon';
 import { CommandPalette, QuickAddModal, ShortcutsHelp, Toaster } from './Overlays';
+import { JevDialogs } from './JevDialogs';
 import { PostponeDialog } from './PostponeDialog';
 import { tip, TooltipLayer, ui } from './primitives';
 import { Sidebar } from './Sidebar';
@@ -322,8 +324,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       <CommandPalette />
       <ShortcutsHelp />
       <PostponeDialog />
+      <JevDialogs />
+      <JevAutoPilot />
       <Toaster />
       <TooltipLayer />
     </div>
   );
+}
+
+/** Opt-in auto-apply of high-confidence Jev priorities (renders nothing). */
+function JevAutoPilot() {
+  useJevAutoPilot();
+  return null;
 }

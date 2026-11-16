@@ -6,17 +6,22 @@ import {
   matchProject,
   parseQuickAdd,
   PRIORITY_LABEL_KO,
+  JEV_CONFIDENT,
   type ISODate,
   type Priority,
   type QuickAddKind,
+  type TriageSuggestion,
 } from '@obelisk/core';
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { cx } from '@/lib/format';
+import { fetchTriage, useJev } from '@/lib/jev';
 import { canWriteProject, createProject, createTask, useApp } from '@/lib/store';
 import { toast } from '@/lib/toast';
 import { Icon } from './Icon';
 import { tip, ui, type BadgeTone } from './primitives';
 import s from './QuickAdd.module.css';
+
+type JevKind = 'project' | 'priority' | 'fixed';
 
 export interface QuickAddHandle {
   focus: () => void;
@@ -112,6 +117,77 @@ export const QuickAdd = forwardRef<
   const activeProjects = projects.filter((p) => !p.archivedAt);
   const matched = parsed.projectName ? matchProject(activeProjects, parsed.projectName) : null;
 
+  // ── Jev triage: suggest project / priority / fixed for what the text leaves open.
+  const jev = useJev();
+  const due = parsed.dueDate ?? (parsed.startDate ? null : (defaultDueDate ?? null));
+  const projectChosen = projectId !== undefined || !!parsed.projectName;
+  const triageKey = JSON.stringify([parsed.title.trim(), parsed.startDate, due, projectChosen]);
+  const [triage, setTriage] = useState<{ key: string; s: TriageSuggestion } | null>(null);
+  const [accepted, setAccepted] = useState<Set<JevKind>>(new Set());
+  const [asking, setAsking] = useState(false);
+  useEffect(() => {
+    const title = parsed.title.trim();
+    if (!jev.connected || title.length < 2) {
+      setAsking(false);
+      return;
+    }
+    if (triage?.key === triageKey) return;
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setAsking(true);
+      try {
+        const sg = await fetchTriage(
+          {
+            title,
+            startDate: parsed.startDate,
+            dueDate: due,
+            ...(projectChosen ? { projectId: projectId ?? matched?.id ?? null } : {}),
+          },
+          ctrl.signal,
+        );
+        if (!sg || ctrl.signal.aborted) return;
+        setTriage({ key: triageKey, s: sg });
+        // Auto-apply (opt-in) pre-accepts what Jev is sure about; otherwise the user picks.
+        const pre = new Set<JevKind>();
+        if (jev.autoApply) {
+          if (sg.project?.id && sg.project.confidence >= JEV_CONFIDENT) pre.add('project');
+          if (sg.priority.value > 0 && sg.priority.confidence >= JEV_CONFIDENT) pre.add('priority');
+          if (sg.fixed.value && sg.fixed.probability >= 0.85) pre.add('fixed');
+        }
+        setAccepted(pre);
+      } catch {
+        // Triage is a hint: a failed call just shows nothing.
+      } finally {
+        if (!ctrl.signal.aborted) setAsking(false);
+      }
+    }, 450);
+    return () => {
+      ctrl.abort();
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triageKey, jev.connected, jev.autoApply]);
+
+  const live = triage?.key === triageKey && parsed.title.trim().length >= 2 ? triage.s : null;
+  // A coin-flip project guess is noise: only offer one Jev is at least fairly sure about.
+  const jevProject =
+    live?.project?.id && !projectChosen && live.project.confidence >= 0.5
+      ? activeProjects.find((p) => p.id === live.project!.id && canWriteProject(p.id))
+      : undefined;
+  const offers: { kind: JevKind; text: string; confidence: number; color?: string }[] = [];
+  if (live && jevProject) offers.push({ kind: 'project', text: jevProject.name, confidence: live.project!.confidence, color: `var(--c-${jevProject.color})` });
+  if (live && parsed.priority === null && live.priority.value > 0)
+    offers.push({ kind: 'priority', text: `우선순위 ${PRIORITY_LABEL_KO[live.priority.value]}`, confidence: live.priority.confidence });
+  if (live && !parsed.fixed && live.fixed.value) offers.push({ kind: 'fixed', text: '고정 일정', confidence: live.fixed.probability });
+  const toggleOffer = (k: JevKind) =>
+    setAccepted((cur) => {
+      const n = new Set(cur);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
+  const take = (k: JevKind) => accepted.has(k) && offers.some((o) => o.kind === k);
+
   const submit = async () => {
     const title = parsed.title.trim();
     if (!title || busy) return;
@@ -125,20 +201,24 @@ export const QuickAdd = forwardRef<
       setBusy(true);
       pid = matched?.id ?? (await createProject({ name: parsed.projectName }))?.id ?? pid;
     }
-    const due = parsed.dueDate ?? (parsed.startDate ? null : (defaultDueDate ?? null));
+    if (take('project') && jevProject) pid = jevProject.id;
+    const priority = (parsed.priority ?? (take('priority') && live ? live.priority.value : 0)) as Priority;
+    const fixed = parsed.fixed || take('fixed');
     const created = await createTask({
       title,
       projectId: pid,
       startDate: parsed.startDate,
       dueDate: due,
-      priority: (parsed.priority ?? 0) as Priority,
-      fixed: parsed.fixed || undefined,
+      priority,
+      fixed: fixed || undefined,
       ...(defaultAssigneeId ? { assigneeId: defaultAssigneeId } : {}),
     });
     setBusy(false);
     if (created) {
       setValue('');
       setDisabled([]);
+      setTriage(null);
+      setAccepted(new Set());
       onCreated?.();
     }
   };
@@ -213,6 +293,11 @@ export const QuickAdd = forwardRef<
               if (value) setValue('');
               else input.current?.blur();
             }
+            // Tab takes every Jev suggestion at once (and stays in the field).
+            if (e.key === 'Tab' && !e.shiftKey && offers.some((o) => !accepted.has(o.kind))) {
+              e.preventDefault();
+              setAccepted(new Set(offers.map((o) => o.kind)));
+            }
           }}
           aria-label="새 작업"
         />
@@ -280,6 +365,38 @@ export const QuickAdd = forwardRef<
               <Icon name="calendar" size={12} />
               {formatRelativeKo(defaultDueDate!, today)}
               <span className={s.chipNote}>기본</span>
+            </span>
+          )}
+        </div>
+      )}
+      {(offers.length > 0 || (asking && !live && jev.connected)) && typing && (
+        <div className={s.jevRow} aria-live="polite">
+          <span className={s.jevLabel} data-busy={asking || undefined}>
+            <Icon name="sparkle" size={12} strokeWidth={2} />
+            Jev
+          </span>
+          {offers.map((o) => {
+            const on = accepted.has(o.kind);
+            return (
+              <button
+                key={o.kind}
+                type="button"
+                className={cx(ui.badge, s.chip, s.jevChip)}
+                data-on={on || undefined}
+                aria-pressed={on}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => toggleOffer(o.kind)}
+                {...tip(on ? '누르면 제안을 빼요' : `누르면 적용해요 · 확신 ${Math.round(o.confidence * 100)}%`, { side: 'bottom' })}
+              >
+                {o.color ? <span className={ui.dot} style={{ background: o.color }} /> : <Icon name={o.kind === 'fixed' ? 'pin' : 'flag'} size={12} />}
+                {o.text}
+                {on ? <Icon name="check" size={12} strokeWidth={2.6} /> : <Icon name="plus" size={12} />}
+              </button>
+            );
+          })}
+          {offers.some((o) => !accepted.has(o.kind)) && (
+            <span className={s.jevHint}>
+              <kbd>Tab</kbd> 모두 적용
             </span>
           )}
         </div>

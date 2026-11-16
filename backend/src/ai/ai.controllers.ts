@@ -34,6 +34,7 @@ import { TasksService } from '../planner/tasks.service';
 import { AccessService } from '../workspace/access.service';
 import { ActivityService } from '../workspace/activity.service';
 import { WorkspacesService } from '../workspace/workspaces.service';
+import { JevService } from '../jev/jev.service';
 import { buildMcpServer } from './mcp.server';
 import { OAuthService, type AuthorizeParams } from './oauth.service';
 import { TokensService } from './tokens.service';
@@ -52,6 +53,7 @@ export class McpController {
     private readonly access: AccessService,
     private readonly workspaces: WorkspacesService,
     private readonly activity: ActivityService,
+    private readonly jev: JevService,
   ) {}
 
   /** RFC 6750 §3.1: no error code when the request carried no credentials at all. */
@@ -84,6 +86,7 @@ export class McpController {
         access: this.access,
         workspaces: this.workspaces,
         activity: this.activity,
+        jev: this.jev,
       },
       { ui },
     );

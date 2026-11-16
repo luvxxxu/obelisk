@@ -7,3 +7,4 @@ export * from './views';
 export * from './order';
 export * from './access';
 export * from './activity';
+export * from './jev';

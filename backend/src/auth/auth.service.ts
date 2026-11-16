@@ -7,6 +7,7 @@ import { randomToken, sha256 } from '../common/crypto';
 import { bearerToken, parseCookies } from '../common/http';
 import { InjectDb, type Db } from '../db/db.module';
 import { apiTokens, oauthGrants, sessions, users, workspaceMembers, workspaces, type UserRow } from '../db/schema';
+import { jevStatus } from '../jev/status';
 import { WorkspacesService } from '../workspace/workspaces.service';
 
 export interface AuthContext {
@@ -25,6 +26,7 @@ export function toUser(r: UserRow): User {
     name: r.name,
     timezone: r.timezone,
     defaultWorkspaceId: r.defaultWorkspaceId,
+    jev: jevStatus(r),
     createdAt: r.createdAt.toISOString(),
   };
 }

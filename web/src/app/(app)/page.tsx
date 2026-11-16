@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from '@/components/Icon';
+import { JevStrip } from '@/components/JevStrip';
 import { Spinner, tip } from '@/components/primitives';
 import { Page, ViewHeader } from '@/components/View';
 import { cx, longDateKo } from '@/lib/format';
@@ -103,6 +104,10 @@ export default function HomePage() {
       <div className={s.home}>
         <div className={s.reveal} style={stagger(0)}>
           <StatusCallout data={data} />
+        </div>
+
+        <div className={s.reveal} style={stagger(1)}>
+          <JevStrip todayCount={data.remaining} />
         </div>
 
         <div className={s.reveal} style={stagger(1)}>

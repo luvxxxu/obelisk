@@ -488,3 +488,11 @@ button.shareBtn {
   margin: 0 2px;
   background: var(--border-strong);
 }
+
+.todayActions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}

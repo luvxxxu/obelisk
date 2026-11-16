@@ -5,9 +5,10 @@
 - **단순한 모델** — 작업, 프로젝트, 날짜(시작·마감), 선행 작업, 고정 일정. 그게 전부입니다.
 - **지연 파급 예측** — 작업을 미루면 뒤따르는 작업이 며칠씩 밀리는지, 어떤 고정 일정(회의·출시일)과 충돌하는지, 프로젝트 완료일이 어떻게 바뀌는지 즉시 계산합니다. 미루기 메뉴, 상세 패널, 타임라인 드래그 어디에서든 적용 전에 미리 보여줍니다.
 - **파급 예측 대시보드** — 기한이 지난 작업은 빨라도 오늘 끝난다는 현실을 일정 전체에 반영해서 "지금 이미 밀리고 있는 일정", 하루만 늦어도 전체가 흔들리는 **핵심 작업**, **자꾸 미뤄지는 작업**을 보여줍니다.
+- **Jev 판단 보조** — TypeSafe의 판단 모델 Jev를 내 API 키로 연결하면 **우선순위를 자동으로 정하고**, 일이 몰리면 **무엇을 미룰지** 골라 줍니다. 새 작업의 프로젝트·우선순위·고정 여부와 선후 관계도 추천합니다. Jev는 의미만 판단하고 날짜·파급 계산은 지연 예측 엔진이 그대로 맡습니다.
 - **자연어 빠른 입력** — `기획서 초안 다음 주 수요일까지 #업무 !높음`, `워크숍 11/20~11/22 @고정`
 - **조직** — 개인 공간은 그대로 두고 여러 조직에 참여합니다. 프로젝트마다 멤버·팀별로 **보기 · 쓰기 · 관리** 권한을 나누고, 담당자와 활동 기록, 초대 링크를 지원합니다. 연결한 AI(MCP)도 계정 권한을 그대로 따릅니다.
-- **AI 완전 지원** — 모든 기능을 MCP 도구 23개 + 프롬프트 3개로 제공하고(OAuth 2.1 내장), 언제 어떻게 쓸지 알려주는 Agent Skill을 함께 배포합니다. Claude, ChatGPT, Claude Code, Codex에서 바로 연결할 수 있습니다.
+- **AI 완전 지원** — 모든 기능을 MCP 도구 26개 + 프롬프트 3개로 제공하고(OAuth 2.1 내장), 언제 어떻게 쓸지 알려주는 Agent Skill을 함께 배포합니다. Claude, ChatGPT, Claude Code, Codex에서 바로 연결할 수 있습니다.
 - **Dokploy 한 번에 배포** — `docker-compose.yml` 하나로 web + backend + Postgres + 매일 백업. 도메인은 web 하나만 연결하면 됩니다.
 
 ## 구조
@@ -15,7 +16,7 @@
 ```
 obelisk/
 ├─ packages/core   공용 TypeScript: 타입, zod 스키마, 지연 예측 엔진, 자연어 파서, 뷰 필터
-├─ backend         NestJS 12 on Bun — REST API, MCP 서버(/mcp), OAuth 2.1 인가 서버, Postgres(Drizzle)
+├─ backend         NestJS 12 on Bun — REST API, MCP 서버(/mcp), OAuth 2.1 인가 서버, Jev 연동, Postgres(Drizzle)
 ├─ web             Next.js 16 on Bun — CSS Modules만 사용 (외부 CSS 라이브러리 없음)
 ├─ skills/obelisk  Agent Skill (SKILL.md + references + REST 헬퍼 스크립트)
 └─ docker-compose.yml
@@ -29,6 +30,42 @@ obelisk/
                         ├─ /mcp         ├─► backend:4000 ──► db:5432
                         └─ /.well-known ┘
 Claude / ChatGPT ──► https://도메인/mcp  (OAuth: /.well-known → /oauth/authorize → /api/oauth/token)
+```
+
+## Jev 판단 보조
+
+[Jev](https://docs.typesafe.ai/introduction)는 TypeSafe의 판단 모델입니다. 글을 생성하지 않고, 상태(작업 설명)와 타입이 정해진 질문을 받아 **확률과 신뢰도가 붙은 답**을 0.2~0.5초 안에 돌려줍니다. Obelisk는 Jev에게 작업마다 작은 질문 세 개만 묻고, 날짜·파급·충돌 계산은 기존 지연 예측 엔진이 그대로 합니다. 둘을 합치는 가중치는 `packages/core/src/jev.ts`에 있고 테스트로 고정돼 있습니다.
+
+| Jev에게 묻는 것 | 형식 |
+|---|---|
+| 놓치면 무엇을 잃나 (언젠가 · 가벼운 일 · 꼭 해야 하는 일 · 손해가 큰 일) | Score 0–3 |
+| 며칠 미뤄도 괜찮은가 | Noul (예/아니오 확률) |
+| 다른 사람이 기다리는가 (내 후속 작업은 제외) | Noul |
+| 새 작업: 어느 프로젝트인가 · 고정 일정인가 | Choice + Noul |
+| 두 작업의 순서: 먼저 · 나중 · 무관 | Choice |
+
+### 기능
+
+| 기능 | 어디서 | 어떻게 정하나 |
+|---|---|---|
+| **우선순위 자동 판단** | 홈 Jev 추천 → 우선순위 정리, ⌘K | 중요도가 상한을 정하고, 마감 임박도가 그중 얼마를 지금 적용할지 정합니다. 하루 늦으면 다른 작업이 밀리거나 고정 일정과 부딪히는 작업은 가산점. 세 단계로 나눈 뒤 이유와 확신도를 함께 보여줍니다. |
+| **지금 할 일 하나** | 홈 Jev 추천 | 오늘 할 일 중 선행 작업이 다 끝나 바로 시작할 수 있는 것 가운데 점수가 가장 높은 작업. 진행 중인 일을 조금 더 우선합니다. |
+| **미룰 작업 고르기** | 홈, 오늘 화면, ⌘K | 하루 처리량(최근 14일 완료 페이스, 직접 조정 가능)을 넘는 날에서 ‘미뤄도 괜찮음 × 덜 중요함’ 순으로 고르고, 이미 여러 번 미룬 일·진행 중인 일·남이 기다리는 일은 뒤로 뺍니다. 옮길 날은 엔진으로 시뮬레이션해서 **고정 일정과 충돌하지 않고** 여유가 남는 가장 가까운 날을 고릅니다. 고정 일정과 다른 사람의 작업은 옮기지 않습니다. 적용은 연쇄 미루기로 하고 한 번에 되돌릴 수 있습니다. |
+| **새 작업 자동 분류** | 빠른 입력 | 적은 내용에서 빠진 프로젝트·우선순위·고정 여부를 칩으로 추천. `Tab`으로 모두 적용. |
+| **선후 관계 찾기** | 작업 상세 → Jev 연결 제안 | 같은 프로젝트에서 ‘먼저 끝나야 할 일’과 ‘이 작업을 기다릴 일’을 찾습니다. 이미 직·간접으로 이어진 작업은 빼고, 다른 프로젝트 작업은 확신 80% 이상일 때만 제안합니다. |
+| **MCP 도구** | Claude · ChatGPT · Claude Code | `suggest_priorities`, `suggest_postpone`, `suggest_dependencies` (읽기 전용, 적용은 기존 도구로) |
+
+### 연결과 자동 적용
+
+- **설정 → Jev**에서 각자 자기 TypeSafe API 키를 넣습니다. 저장 전에 키가 동작하는지 한 번 확인하고, 키는 AES-256-GCM으로 봉인해 DB에 둡니다(복호화 키는 `SECRET_KEY`, 없으면 DB 비밀번호에서 파생 — DB 덤프만으로는 키를 읽을 수 없습니다). 키 설정은 웹 세션에서만 바꿀 수 있습니다.
+- 기본은 **제안 후 확인**입니다. **확신이 높으면 바로 적용**을 켜면 확신도 80% 이상인 판단만 반영합니다: 새 작업의 프로젝트·우선순위·고정 여부, 그리고 우선순위가 **비어 있는** 작업. 직접 정한 우선순위는 덮어쓰지 않고, 실행 취소한 작업은 다시 건드리지 않습니다. 미루기와 선후 관계 연결은 언제나 확인을 받습니다.
+- 전송되는 것: 작업 제목, 메모 앞부분(360자), 날짜, 프로젝트 이름, 연결된 작업 제목. 이메일·멤버 이름은 보내지 않고, 조직에서는 그 사람이 볼 수 있는 작업만 보냅니다.
+- 비용: Jev는 입력 토큰만 과금합니다($0.042 / 100만 토큰). 작업 80개를 한 번 판단하는 데 약 2만 토큰(약 $0.001). 같은 날 내용이 바뀌지 않은 작업은 서버에 6시간 캐시해서 다시 묻지 않습니다.
+
+실제 Jev로 판단 품질 테스트(준비한 한국어 예문만 전송):
+
+```bash
+TYPESAFE_API_KEY=… OBELISK_LIVE_JEV=1 bun test backend/test/jev.test.ts
 ```
 
 ## 조직과 권한
@@ -160,6 +197,8 @@ pg_restore --clean --if-exists -d obelisk /backups/obelisk-20261115-030000.dump
 | `SIGNUP_MODE` | backend | `first`(기본) · `open` · `closed` |
 | `BACKUP_KEEP_DAYS` | backup | 백업 보관 일수, 기본 `14` |
 | `BACKEND_URL` | web (빌드 인자) | web이 API를 찾는 내부 주소, 기본 `http://backend:4000` |
+| `SECRET_KEY` | backend | (선택) 사용자 Jev 키를 봉인하는 비밀값. 없으면 DB 비밀번호에서 파생. 바꾸면 사용자가 키를 다시 넣어야 합니다 |
+| `JEV_MODEL` | backend | (선택) Jev 모델, 기본 `jev-latest` |
 
 ## AI 연결
 
@@ -183,6 +222,7 @@ MCP 주소: `https://도메인/mcp` (Streamable HTTP, stateless). 앱의 **설�
 | 조직 | `list_workspaces`, `list_members`, `get_activity` — 모든 도구에 선택 인자 `workspace` |
 | 쓰기 | `create_task`, `create_tasks`(키·의존성 포함 일괄 계획), `update_task`(담당자 포함), `complete_task`, `delete_task`, `add_dependency`, `remove_dependency`, `create_project`, `update_project`, `delete_project` |
 | 지연 예측 | `simulate_delay`, `postpone_task`(cascade), `get_forecast`, `get_bottlenecks` |
+| Jev 판단 | `suggest_priorities`, `suggest_postpone`, `suggest_dependencies` — 사용자가 Jev 키를 연결했을 때 |
 | 프롬프트 | `plan_my_day`, `break_down_goal`, `weekly_review` |
 
 모든 도구에 `readOnlyHint` / `destructiveHint` 등 annotation이 붙어 있어 클라이언트가 확인 절차를 알맞게 적용합니다. `search`/`fetch`는 ChatGPT 커넥터·딥 리서치 규격을 따릅니다.

@@ -34,6 +34,18 @@ Helper: `scripts/obelisk.sh METHOD PATH [JSON]`.
 | GET | `/api/workspaces/:id` | workspace, members, teams |
 | GET | `/api/workspaces/:id/activity?before=&limit=&projectId=&actorId=` | activity you may see (admins: everything but others' private tasks) |
 
+### Jev hints (needs the user's own TypeSafe key, set in the web app)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/jev/settings` | `{jev: {connected, hint, autoApply}}` |
+| POST | `/api/jev/priorities` | `{taskIds?}` → `{today, model, suggestions: [{taskId, current, suggested, score, confidence, reasons}], focus: {taskId, reasons} \| null}` (read-only) |
+| POST | `/api/jev/postpone` | `{scope: "today" \| "week", capacity?}` → `{plan: {capacity, overloaded, days, candidates: [{taskId, verdict: postpone \| could \| keep \| fixed, toDate, shiftDays, delayed, reasons}]}}` (read-only; apply with `/api/impact/postpone`) |
+| POST | `/api/jev/triage` | `{title, notes?, startDate?, dueDate?, projectId?}` → `{suggestion: {project?, priority, fixed}}` for a task about to be created |
+| POST | `/api/jev/dependencies` | `{taskId}` → `{blockedBy: [{taskId, probability}], blocks: […]}` (read-only) |
+
+Setting or removing the key (`PUT /api/jev/settings`) is web-session only. Without a key these return 400 with `code: "jev_not_connected"`.
+
 Sharing a project (`PUT /api/projects/:id/access`), moving it between workspaces, invites, roles and teams are web-session only — tokens get 403.
 
 Access levels: `view` (read), `edit` (create/change/delete tasks and links), `manage` (also rename, archive, delete, share). Roles: `owner`, `admin` (manage every project, members, teams), `member`.

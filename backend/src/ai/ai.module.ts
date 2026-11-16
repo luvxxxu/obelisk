@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { JevModule } from '../jev/jev.module';
 import { PlannerModule } from '../planner/planner.module';
 import {
   IntegrationController,
@@ -11,7 +12,7 @@ import { OAuthService } from './oauth.service';
 import { TokensService } from './tokens.service';
 
 @Module({
-  imports: [PlannerModule],
+  imports: [PlannerModule, JevModule],
   controllers: [McpController, WellKnownController, OAuthController, TokensController, IntegrationController],
   providers: [OAuthService, TokensService],
 })

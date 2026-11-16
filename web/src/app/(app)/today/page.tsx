@@ -9,6 +9,7 @@ import { QuickAdd } from '@/components/QuickAdd';
 import { EmptyState, Page, TaskGroup, ViewHeader } from '@/components/View';
 import { cx, longDateKo } from '@/lib/format';
 import { completedOn, useForecast, useTasks } from '@/lib/hooks';
+import { useJev } from '@/lib/jev';
 import { useApp } from '@/lib/store';
 import { setUi } from '@/lib/ui-state';
 import s from '../views.module.css';
@@ -17,6 +18,7 @@ export default function TodayPage() {
   const { today, user } = useApp();
   const tasks = useTasks();
   const fc = useForecast();
+  const jev = useJev();
 
   const { overdue, todays, done } = useMemo(() => {
     const tz = user?.timezone ?? 'UTC';
@@ -51,7 +53,23 @@ export default function TodayPage() {
         iconColor="var(--accent)"
         title="오늘"
         description={`${longDateKo(today)} · ${greeting}, ${user?.name}님`}
-        actions={progress}
+        actions={
+          progress || jev.connected ? (
+            <div className={s.todayActions}>
+              {progress}
+              {jev.connected && overdue.length + todays.length > 0 && (
+                <button
+                  type="button"
+                  className={buttonClass({ variant: 'outline', size: 'sm' })}
+                  onClick={() => setUi({ jev: { kind: 'postpone', scope: 'today' } })}
+                >
+                  <Icon name="sparkle" size={14} />
+                  미룰 작업 고르기
+                </button>
+              )}
+            </div>
+          ) : undefined
+        }
       />
 
       {risk > 0 && (

@@ -7,10 +7,11 @@ import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
 import { config } from './config';
 import { DbModule, runMigrations } from './db/db.module';
+import { JevModule } from './jev/jev.module';
 import { PlannerModule } from './planner/planner.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 
-@Module({ imports: [DbModule, WorkspaceModule, AuthModule, PlannerModule, AiModule] })
+@Module({ imports: [DbModule, WorkspaceModule, AuthModule, PlannerModule, JevModule, AiModule] })
 class AppModule {}
 
 /** Endpoints AI clients may call from a browser context (bearer-only, never cookies). */

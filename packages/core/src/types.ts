@@ -1,4 +1,5 @@
 import type { ISODate } from './dates';
+import type { JevStatus } from './jev';
 
 export type TaskStatus = 'todo' | 'doing' | 'done' | 'canceled';
 /** 0 = none, 1 = low, 2 = medium, 3 = high */
@@ -11,6 +12,8 @@ export interface User {
   timezone: string;
   /** Where REST and MCP calls land when they don't name a workspace. */
   defaultWorkspaceId: string | null;
+  /** Their own Jev (TypeSafe) connection for priority, postpone, triage and dependency hints. */
+  jev: JevStatus;
   createdAt: string;
 }
 

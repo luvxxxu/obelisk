@@ -16,11 +16,13 @@ import {
   type Priority,
   type Task,
   type TaskStatus,
+  type DependencySuggestion,
 } from '@obelisk/core';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { api } from '@/lib/api';
+import { fetchDependencySuggestions, jevMessage, useJev } from '@/lib/jev';
 import { cx, daysLabel, overdueLabel, relativeTime } from '@/lib/format';
 import { previewFor, requestDateChange } from '@/lib/reschedule';
 import {
@@ -43,6 +45,8 @@ import { Icon, type IconName } from './Icon';
 import { ImpactView } from './ImpactView';
 import { AutoTextarea, Avatar, Badge, ConfirmModal, isEnter, Popover, Separator, Switch, tip, ui, useDisclosure } from './primitives';
 import { Checkbox, shiftSpan } from './TaskRow';
+import { JevMark } from './JevDialogs';
+import js from './Jev.module.css';
 import s from './TaskDetail.module.css';
 
 const STATUSES: TaskStatus[] = ['todo', 'doing', 'done', 'canceled'];
@@ -396,6 +400,7 @@ function TaskDetailInner({ task }: { task: Task }) {
           task={task}
           mode="blocks"
         />
+        {active && !readOnly && <JevLinks task={task} />}
 
         {active && (task.dueDate || task.startDate) && !readOnly && <DelaySimulator task={task} dependents={dependents} />}
         </fieldset>
@@ -796,6 +801,91 @@ function DependencySection({
           ))}
         </div>
       </Popover>
+    </section>
+  );
+}
+
+/* ───────── Jev: likely "must finish first" / "waits for this" links */
+
+type JevLinkState =
+  | { status: 'idle' | 'loading' }
+  | { status: 'error'; error: string }
+  | { status: 'ready'; blockedBy: DependencySuggestion[]; blocks: DependencySuggestion[] };
+
+function JevLinks({ task }: { task: Task }) {
+  const jev = useJev();
+  const { tasks, deps } = useApp();
+  const [st, setSt] = useState<JevLinkState>({ status: 'idle' });
+  useEffect(() => setSt({ status: 'idle' }), [task.id]);
+  if (!jev.connected) return null;
+
+  const run = async () => {
+    setSt({ status: 'loading' });
+    try {
+      const r = await fetchDependencySuggestions(task.id);
+      setSt({ status: 'ready', blockedBy: r.blockedBy, blocks: r.blocks });
+    } catch (e) {
+      setSt({ status: 'error', error: jevMessage(e) });
+    }
+  };
+
+  const linked = (sg: DependencySuggestion) =>
+    sg.direction === 'blockedBy'
+      ? deps.some((d) => d.taskId === task.id && d.dependsOnId === sg.taskId)
+      : deps.some((d) => d.taskId === sg.taskId && d.dependsOnId === task.id);
+  const rows = st.status === 'ready' ? [...st.blockedBy, ...st.blocks].filter((sg) => tasks[sg.taskId] && !linked(sg)) : [];
+
+  return (
+    <section className={cx(s.section, js.links)} aria-label="Jev 연결 제안">
+      <div className={js.linksHead}>
+        <JevMark size="sm" />
+        <span className={js.linksTitle}>Jev 연결 제안</span>
+        {st.status !== 'loading' && (
+          <button type="button" className={`${ui.btn} ${ui.ghost} ${ui.xs}`} onClick={() => void run()}>
+            {st.status === 'idle' ? '선후 관계 찾기' : '다시 찾기'}
+          </button>
+        )}
+      </div>
+      {st.status === 'idle' && <p className={js.linksNote}>같은 프로젝트에서 먼저 끝나야 할 일과 이 작업을 기다릴 일을 찾아 연결을 제안해요.</p>}
+      {st.status === 'loading' && (
+        <p className={js.linksNote}>
+          <span className={js.pulse} aria-hidden="true" /> Jev가 살펴보는 중…
+        </p>
+      )}
+      {st.status === 'error' && <p className={js.linksError}>{st.error}</p>}
+      {st.status === 'ready' && rows.length === 0 && (
+        <p className={js.linksNote}>
+          {st.blockedBy.length + st.blocks.length > 0 ? '제안한 연결을 모두 반영했어요.' : '순서가 분명한 작업을 찾지 못했어요.'}
+        </p>
+      )}
+      {rows.length > 0 && (
+        <ul className={js.linkList}>
+          {rows.map((sg, i) => {
+            const other = tasks[sg.taskId]!;
+            return (
+              <li key={`${sg.direction}-${sg.taskId}`} className={js.linkRow} style={{ animationDelay: `${i * 40}ms` }}>
+                <span className={js.linkDir} data-dir={sg.direction}>
+                  <Icon name={sg.direction === 'blockedBy' ? 'lock' : 'link'} size={12} />
+                  {sg.direction === 'blockedBy' ? '먼저' : '다음'}
+                </span>
+                <button type="button" className={js.linkTitle} onClick={() => selectTask(other.id)}>
+                  <span className={js.num}>#{other.number}</span>
+                  <span className={js.title}>{other.title}</span>
+                </button>
+                <span className={js.linkP}>{Math.round(sg.probability * 100)}%</span>
+                <button
+                  type="button"
+                  className={`${ui.btn} ${ui.outline} ${ui.xs}`}
+                  onClick={() => void (sg.direction === 'blockedBy' ? addDependency(task.id, other.id) : addDependency(other.id, task.id))}
+                  {...tip(sg.direction === 'blockedBy' ? `#${other.number}이 끝나야 이 작업을 시작해요` : `이 작업이 끝나야 #${other.number}을 시작해요`, { side: 'top' })}
+                >
+                  연결
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }

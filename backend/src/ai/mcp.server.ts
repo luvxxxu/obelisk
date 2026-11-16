@@ -16,6 +16,7 @@ import {
   formatDaysKo,
   isoDate,
   isOverdue,
+  PRIORITY_LABEL_KO,
   PRIORITY_NAME,
   PROJECT_COLORS,
   selectView,
@@ -32,6 +33,7 @@ import {
 import { z } from 'zod';
 import type { AuthContext } from '../auth/auth.service';
 import { config } from '../config';
+import type { JevService } from '../jev/jev.service';
 import type { ImpactService } from '../planner/impact.service';
 import type { ProjectsService } from '../planner/projects.service';
 import type { TasksService } from '../planner/tasks.service';
@@ -82,6 +84,7 @@ export interface McpDeps {
   access: AccessService;
   workspaces: WorkspacesService;
   activity: ActivityService;
+  jev: JevService;
 }
 
 const INSTRUCTIONS = `Obelisk is the user's to-do and schedule planner — for themselves and for the organizations they belong to.
@@ -106,7 +109,13 @@ Good habits
 - Use create_tasks (with keys + blockedBy) to turn a goal into an ordered plan in one call.
 - Refer to tasks as "#12 Title". Accept task refs as "#12", "12", an id, or a unique title fragment.
 - Confirm before delete_task/delete_project.
-- In an organization, say which workspace you are working in when it isn't obvious.`;
+- In an organization, say which workspace you are working in when it isn't obvious.
+
+Jev hints (only when the user connected their own TypeSafe key in Obelisk → 설정 → Jev)
+- suggest_priorities: Jev judges what is at stake in each task; Obelisk adds deadlines and how much of the plan waits on it, and returns a suggested priority plus the one task to do now. Present the changes and apply them with update_task only after the user agrees.
+- suggest_postpone: when the day or week is overloaded, which tasks can safely wait and to which lighter day, with ripple already checked (no fixed date breaks). Apply each with postpone_task (toDate, cascade=true) after the user agrees.
+- suggest_dependencies: likely "must finish first" links for a task; add them with add_dependency after the user agrees.
+- If a tool says Jev is not connected, tell the user to add their key in Obelisk → 설정 → Jev, then continue without it.`;
 
 const PRESENT_CARDS = `
 
@@ -962,6 +971,148 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       return { ok: true, removed: `${code(`#${t.number}`)} ${esc(t.title)} ↚ ${code(`#${b.number}`)} ${esc(b.title)}` };
     },
     (r) => `연결을 끊었습니다 — ${r.removed}`,
+  );
+
+  // ───────────────────────────── Jev hints (the user's own TypeSafe key)
+
+  const JEV = { readOnlyHint: true, openWorldHint: true } as const;
+  const priorityWord = (p: Priority) => PRIORITY_NAME[p];
+
+  tool(
+    'suggest_priorities',
+    {
+      title: 'Suggest priorities (Jev)',
+      description:
+        "Jev (TypeSafe's decision model) rates what is at stake in each active task; Obelisk combines that with the due date and how many tasks wait on it into a suggested priority, plus the single task to start now. Read-only: apply changes with update_task after the user agrees. Needs the user's Jev key (Obelisk → 설정 → Jev).",
+      annotations: JEV,
+    },
+    { refs: z.array(ref).max(100).optional().describe('Only these tasks (default: every active task the user can edit)') },
+    async ({ refs }, c) => {
+      const ids = refs ? await Promise.all(refs.map(async (r) => (await deps.tasks.resolve(c.a, r)).id)) : undefined;
+      const res = await deps.jev.priorities(c.a, { taskIds: ids });
+      const active = await deps.tasks.listActive(c.a);
+      c.remember(active);
+      const byId = new Map(active.map((t) => [t.id, t]));
+      const row = (s: (typeof res.suggestions)[number]) => {
+        const t = byId.get(s.taskId)!;
+        return {
+          ref: `#${t.number}`,
+          title: t.title,
+          current: priorityWord(s.current),
+          suggested: priorityWord(s.suggested),
+          confidence: Math.round(s.confidence * 100) / 100,
+          reasons: s.reasons,
+        };
+      };
+      const focusTask = res.focus ? byId.get(res.focus.taskId) : undefined;
+      return {
+        today: res.today,
+        model: res.model,
+        focus: focusTask ? { ref: `#${focusTask.number}`, title: focusTask.title, reasons: res.focus!.reasons } : null,
+        changes: res.suggestions.filter((s) => s.suggested !== s.current).map(row),
+        unchanged: res.suggestions.filter((s) => s.suggested === s.current).length,
+      };
+    },
+    (r) => {
+      const lines: string[] = [];
+      if (r.focus) lines.push(`**지금 할 일** · ${code(r.focus.ref)} ${esc(r.focus.title)} — ${r.focus.reasons.join(' · ')}`, '');
+      if (!r.changes.length) lines.push(`우선순위를 바꿀 작업이 없어요 (${r.unchanged}개 확인).`);
+      else {
+        lines.push(`**우선순위 제안 ${r.changes.length}개** · 그대로 ${r.unchanged}개`);
+        for (const ch of r.changes) {
+          const ko = (p: string) => PRIORITY_LABEL_KO[PRIORITY_VALUE[p as keyof typeof PRIORITY_VALUE]];
+          lines.push(`- ${code(ch.ref)} ${esc(ch.title)} · ${ko(ch.current)} → **${ko(ch.suggested)}** · ${ch.reasons.join(' · ')} · 확신 ${Math.round(ch.confidence * 100)}%`);
+        }
+      }
+      return lines.join('\n');
+    },
+  );
+
+  tool(
+    'suggest_postpone',
+    {
+      title: 'Suggest what to postpone (Jev)',
+      description:
+        "When today (or the next 7 days) holds more than the user usually finishes, pick the tasks that can safely wait and the lighter day each can move to. Jev judges which tasks can wait; Obelisk's delay engine checks that no fixed date breaks and counts what moves along. Fixed tasks never move. Read-only: apply each with postpone_task (toDate, cascade=true) after the user agrees. Needs the user's Jev key.",
+      annotations: JEV,
+    },
+    {
+      scope: z.enum(['today', 'week']).default('today').describe('today, or the next 7 days'),
+      capacity: z.number().int().min(1).max(50).optional().describe('Tasks per day the user can handle (default: their recent pace)'),
+    },
+    async ({ scope, capacity }, c) => {
+      const plan = await deps.jev.postpone(c.a, { scope, capacity });
+      const active = await deps.tasks.listActive(c.a);
+      c.remember(active);
+      const byId = new Map(active.map((t) => [t.id, t]));
+      const row = (x: (typeof plan.candidates)[number]) => {
+        const t = byId.get(x.taskId)!;
+        return {
+          ref: `#${t.number}`,
+          title: t.title,
+          ...(x.toDate ? { toDate: x.toDate, shiftDays: x.shiftDays, alsoMoves: x.delayed } : {}),
+          reasons: x.reasons,
+        };
+      };
+      return {
+        today: plan.today,
+        scope: plan.scope,
+        capacityPerDay: plan.capacity,
+        capacitySource: plan.capacitySource,
+        overloaded: plan.overloaded,
+        days: plan.days,
+        postpone: plan.candidates.filter((x) => x.verdict === 'postpone').map(row),
+        couldWait: plan.candidates.filter((x) => x.verdict === 'could').map(row),
+        keep: plan.candidates.filter((x) => x.verdict === 'keep' || x.verdict === 'fixed').map(row),
+      };
+    },
+    (r) => {
+      const over = r.days.filter((d) => d.load > r.capacityPerDay);
+      const head = r.overloaded
+        ? `하루 ${r.capacityPerDay}개 기준으로 ${over.map((d) => `${d.date} ${d.load}개`).join(', ')} — 넘칩니다.`
+        : `하루 ${r.capacityPerDay}개 기준으로 여유가 있어요.`;
+      const line = (x: (typeof r.postpone)[number]) =>
+        `- ${code(x.ref)} ${esc(x.title)}${x.toDate ? ` → ${x.toDate}${x.alsoMoves ? ` (함께 ${x.alsoMoves}개 이동)` : ''}` : ''} · ${x.reasons.join(' · ')}`;
+      return [
+        head,
+        r.postpone.length ? `\n**미룰 작업 ${r.postpone.length}개**\n${r.postpone.map(line).join('\n')}` : '',
+        r.couldWait.length ? `\n미뤄도 되는 작업\n${r.couldWait.map(line).join('\n')}` : '',
+        r.keep.length ? `\n그대로 둘 작업\n${r.keep.map(line).join('\n')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+    },
+  );
+
+  tool(
+    'suggest_dependencies',
+    {
+      title: 'Suggest dependencies (Jev)',
+      description:
+        'Find tasks that likely must finish before this one (blockedBy) and tasks that should wait for it (blocks). Read-only: add the ones the user confirms with add_dependency. Needs the user\'s Jev key.',
+      annotations: JEV,
+    },
+    { ref },
+    async (a, c) => {
+      const t = await deps.tasks.resolve(c.a, a.ref);
+      const res = await deps.jev.dependencies(c.a, t.id);
+      const link = async (x: { taskId: string; probability: number }) => ({ ...(await c.link(x.taskId)), probability: Math.round(x.probability * 100) / 100 });
+      return {
+        task: { ref: `#${t.number}`, title: t.title },
+        blockedBy: await Promise.all(res.blockedBy.map(link)),
+        blocks: await Promise.all(res.blocks.map(link)),
+      };
+    },
+    (r) => {
+      const line = (x: { ref: string; title: string; probability: number }) => `- ${code(x.ref)} ${esc(x.title)} · ${Math.round(x.probability * 100)}%`;
+      if (!r.blockedBy.length && !r.blocks.length) return `${code(r.task.ref)} ${esc(r.task.title)} — 순서가 분명한 작업을 찾지 못했어요.`;
+      return [
+        r.blockedBy.length ? `**먼저 끝나야 할 작업**\n${r.blockedBy.map(line).join('\n')}` : '',
+        r.blocks.length ? `**이 작업을 기다릴 작업**\n${r.blocks.map(line).join('\n')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+    },
   );
 
   // ───────────────────────────── projects

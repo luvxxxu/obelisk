@@ -356,3 +356,89 @@ button.chip:focus-visible {
     animation: none;
   }
 }
+
+/* ───────── Jev suggestions (project / priority / fixed the text left open) */
+
+.jevRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0 0;
+  animation: in 0.2s var(--ease-out);
+}
+
+.jevLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 4px 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-violet-text);
+}
+
+.jevLabel[data-busy] svg {
+  animation: jev-spin 1.4s linear infinite;
+}
+
+@keyframes jev-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chips .jevChip,
+.jevRow .jevChip {
+  height: 24px;
+  gap: 5px;
+  padding: 0 7px 0 8px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px dashed color-mix(in srgb, var(--c-violet) 45%, var(--border));
+  background: transparent;
+  color: var(--text-2);
+  animation: in 0.2s var(--ease-out);
+  transition:
+    background-color 0.14s var(--ease),
+    color 0.14s var(--ease),
+    border-color 0.14s var(--ease),
+    transform 0.14s var(--ease-spring);
+}
+
+.jevRow .jevChip:hover {
+  color: var(--text);
+  border-style: solid;
+}
+
+.jevRow .jevChip[data-on] {
+  border-style: solid;
+  border-color: transparent;
+  background: var(--c-violet-bg);
+  color: var(--c-violet-text);
+}
+
+.jevRow .jevChip:active {
+  transform: scale(0.95);
+}
+
+.jevHint {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+.jevHint kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jevLabel[data-busy] svg {
+    animation: none;
+  }
+}
