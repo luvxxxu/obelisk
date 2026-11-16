@@ -39,6 +39,13 @@ function warnAboutConfig() {
   else if (!config.publicUrl.startsWith('https://'))
     log('WARNING: PUBLIC_URL is not https — session cookies are not Secure and Claude/ChatGPT connectors will refuse it');
   if (config.publicUrl.includes('example.com')) log('WARNING: PUBLIC_URL still uses the example domain');
+  const secretKey = process.env.SECRET_KEY?.trim() ?? '';
+  if (!secretKey)
+    log(
+      'WARNING: SECRET_KEY is not set — stored Jev keys are sealed with the database password, so that password alone opens them. ' +
+        'Set SECRET_KEY to a random value (openssl rand -base64 32); existing keys move over on the next start.',
+    );
+  else if (secretKey.length < 32) log('WARNING: SECRET_KEY is short — use at least 32 random characters (openssl rand -base64 32)');
 }
 
 async function bootstrap() {

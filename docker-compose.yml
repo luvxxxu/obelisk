@@ -5,7 +5,9 @@
 # Postgres and the API are never published to the host.
 #
 # Required env: PUBLIC_URL (e.g. https://obelisk.example.com), POSTGRES_PASSWORD.
-# Optional env: SIGNUP_MODE (first|open|closed, default first), BACKUP_KEEP_DAYS (default 14).
+# Recommended env: SECRET_KEY (openssl rand -base64 32) — seals users' Jev keys; without it only POSTGRES_PASSWORD protects them.
+# Optional env: SIGNUP_MODE (first|open|closed, default first), BACKUP_KEEP_DAYS (default 14),
+#               SECRET_KEY_PREVIOUS (the old SECRET_KEY while rotating).
 services:
   db:
     image: postgres:17-alpine
@@ -35,6 +37,7 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL to the public URL of the web app, e.g. https://obelisk.example.com}
       SIGNUP_MODE: ${SIGNUP_MODE:-first}
       SECRET_KEY: ${SECRET_KEY:-}
+      SECRET_KEY_PREVIOUS: ${SECRET_KEY_PREVIOUS:-}
       JEV_MODEL: ${JEV_MODEL:-}
     depends_on:
       db:

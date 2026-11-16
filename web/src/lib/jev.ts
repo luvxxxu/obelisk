@@ -24,7 +24,7 @@ import { api, ApiError } from './api';
 import { canEdit, getState, load, reschedule, setUser, updateTask, useApp } from './store';
 import { toast } from './toast';
 
-const OFF: JevStatus = { connected: false, hint: null, autoApply: false };
+const OFF: JevStatus = { connected: false, keyUnreadable: false, hint: null, autoApply: false };
 
 export function useJev(): JevStatus {
   return useApp().user?.jev ?? OFF;

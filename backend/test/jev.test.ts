@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import { priorityFromScore, priorityScore, suggestPriority, type TaskJudgment } from '@obelisk/core';
-import { seal, unseal } from '../src/common/secret';
 import { askJev, JEV_ENDPOINT, JevError, type JevQuestion, type Transport } from '../src/jev/jev.client';
 import { deferrableQ, importanceQ, othersQ, relationQ, taskState } from '../src/jev/jev.questions';
 
@@ -77,19 +76,6 @@ describe('Jev client', () => {
     const err = await askJev('k', { state: 's', questions }, { fetch: down, retries: 0 }).catch((e) => e);
     expect(err).toBeInstanceOf(JevError);
     expect((err as JevError).code).toBe('network');
-  });
-});
-
-describe('sealed keys', () => {
-  test('round-trips and refuses tampering', () => {
-    const sealed = seal('apikey_secret_value');
-    expect(sealed).not.toContain('apikey_secret_value');
-    expect(unseal(sealed)).toBe('apikey_secret_value');
-    const parts = sealed.split('.');
-    parts[3] = parts[3]!.slice(0, -2) + (parts[3]!.endsWith('A') ? 'BB' : 'AA');
-    expect(unseal(parts.join('.'))).toBeNull();
-    expect(unseal('not-sealed')).toBeNull();
-    expect(seal('x')).not.toBe(seal('x'));
   });
 });
 

@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, type OnApplicationBootstrap } from '@nestjs/common';
 import {
   addDays,
   canEditTask,
@@ -28,17 +28,17 @@ import {
   type TaskJudgment,
   type TriageSuggestion,
 } from '@obelisk/core';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import { sha256 } from '../common/crypto';
 import { rateLimiter } from '../common/rate-limit';
-import { seal, unseal } from '../common/secret';
+import { seal, sealingKeySource, unseal } from '../common/secret';
 import { InjectDb, type Db } from '../db/db.module';
 import { users, type UserRow } from '../db/schema';
 import { toPlanItem } from '../planner/mappers';
 import { ProjectsService } from '../planner/projects.service';
 import { TasksService } from '../planner/tasks.service';
 import type { Access } from '../workspace/access.service';
-import { jevStatus } from './status';
+import { jevKeyContext, jevStatus } from './status';
 import { askJev, JevError, type JevAnswer, type JevQuestion, type JevResult, type Transport } from './jev.client';
 import {
   deferrableQ,
@@ -118,7 +118,7 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
  * own TypeSafe key; calls only ever describe tasks that user can see.
  */
 @Injectable()
-export class JevService {
+export class JevService implements OnApplicationBootstrap {
   private readonly cache = new Map<string, { at: number; value: unknown }>();
   private readonly limiter = rateLimiter(90, 60_000);
   /** Tests replace the network. */
@@ -139,7 +139,7 @@ export class JevService {
       patch.jevKeyHint = null;
     } else if (input.apiKey !== undefined) {
       await this.verify(input.apiKey);
-      patch.jevKey = seal(input.apiKey);
+      patch.jevKey = seal(input.apiKey, jevKeyContext(user.id));
       patch.jevKeyHint = input.apiKey.slice(-4);
     }
     if (input.autoApply !== undefined) patch.jevAutoApply = input.autoApply;
@@ -174,14 +174,66 @@ export class JevService {
         400,
       );
     }
-    const key = unseal(user.jevKey);
-    if (!key) {
+    const opened = unseal(user.jevKey, jevKeyContext(user.id));
+    if (!opened) {
       throw new HttpException(
         { statusCode: 400, code: 'jev_key_unreadable', message: '저장된 Jev 키를 읽을 수 없어요. 설정 → Jev에서 키를 다시 입력하세요.' },
         400,
       );
     }
-    return key;
+    if (opened.stale) void this.reseal(user.id, user.jevKey, opened.value);
+    return opened.value;
+  }
+
+  // ───────────────────────────── key rotation
+
+  /**
+   * Seal again with the current key. Only replaces the exact value that was read, so a key the user
+   * changed in the meantime is never overwritten.
+   */
+  private async reseal(userId: string, was: string, plain: string): Promise<boolean> {
+    try {
+      const rows = await this.db
+        .update(users)
+        .set({ jevKey: seal(plain, jevKeyContext(userId)) })
+        .where(and(eq(users.id, userId), eq(users.jevKey, was)))
+        .returning({ id: users.id });
+      return rows.length > 0;
+    } catch (e) {
+      console.error('[jev] could not re-seal a stored key', e instanceof Error ? e.message : e);
+      return false;
+    }
+  }
+
+  /**
+   * At boot, move every stored key onto the current sealing key: v1 values, values sealed with the
+   * database password once SECRET_KEY is set, and values sealed with a SECRET_KEY_PREVIOUS. After a
+   * rotation has booted once, the previous key can be dropped from the environment.
+   */
+  async onApplicationBootstrap() {
+    try {
+      const rows = await this.db
+        .select({ id: users.id, jevKey: users.jevKey })
+        .from(users)
+        .where(isNotNull(users.jevKey));
+      let moved = 0;
+      let unreadable = 0;
+      for (const r of rows) {
+        const opened = unseal(r.jevKey!, jevKeyContext(r.id));
+        if (!opened) unreadable++;
+        else if (opened.stale && (await this.reseal(r.id, r.jevKey!, opened.value))) moved++;
+      }
+      const from = sealingKeySource === 'secret-key' ? 'SECRET_KEY' : 'the database password (set SECRET_KEY)';
+      if (moved) console.log(`[jev] re-sealed ${moved} stored key(s) with ${from}`);
+      if (unreadable) {
+        console.warn(
+          `[jev] ${unreadable} stored key(s) can't be opened with the configured keys — those users must enter them again. ` +
+            'If SECRET_KEY was changed, put the old value in SECRET_KEY_PREVIOUS and restart.',
+        );
+      }
+    } catch (e) {
+      console.error('[jev] could not check stored keys', e instanceof Error ? e.message : e);
+    }
   }
 
   private http(e: unknown): HttpException {
