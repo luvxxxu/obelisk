@@ -15,7 +15,7 @@
   padding: 0 8px;
   margin-left: -8px;
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-2);
   cursor: pointer;
@@ -23,8 +23,8 @@
   user-select: none;
   outline: none;
   transition:
-    background-color 0.15s var(--ease),
-    color 0.15s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .howSummary::-webkit-details-marker {
@@ -37,7 +37,8 @@
 }
 
 .howSummary:focus-visible {
-  box-shadow: var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .howSummary > svg:first-child {
@@ -46,7 +47,7 @@
 
 .howChevron {
   color: var(--text-3);
-  transition: transform 0.2s var(--ease);
+  transition: transform var(--dur) var(--ease);
 }
 
 .how[open] .howChevron {
@@ -61,12 +62,12 @@
   gap: 10px;
   max-width: 640px;
   margin: 8px 0 0;
-  padding: 14px 16px;
+  padding: var(--inset-sm);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--surface-2) 45%, var(--surface));
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
   color: var(--text-2);
 }
 
@@ -89,7 +90,7 @@
   border: 1px solid var(--border);
   border-radius: 50%;
   background: var(--surface);
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
@@ -155,7 +156,7 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -167,7 +168,7 @@
 }
 
 .heroTitle {
-  font-size: 18px;
+  font-size: var(--fs-xl);
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: -0.02em;
@@ -177,7 +178,7 @@
 
 .heroSub {
   margin-top: 4px;
-  font-size: 13.5px;
+  font-size: var(--fs-base);
   line-height: 1.55;
   color: var(--text-2);
 }
@@ -189,7 +190,7 @@
 }
 
 .stat {
-  padding: 16px 24px 18px;
+  padding: 16px 24px;
 }
 
 .stat + .stat {
@@ -203,7 +204,7 @@
 }
 
 .statUnit {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 500;
   letter-spacing: 0;
   color: var(--text-3);
@@ -231,8 +232,8 @@
 .heroNote {
   flex: 1 1 240px;
   min-width: 0;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
   color: var(--text-2);
 }
 
@@ -243,7 +244,7 @@
 }
 
 .sectionHead {
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .sectionTitle {
@@ -254,7 +255,7 @@
 
 .lead {
   margin-top: 4px;
-  font-size: 13px;
+  font-size: var(--fs-base);
   line-height: 1.55;
   color: var(--text-2);
 }
@@ -290,9 +291,9 @@
 .rootTitle {
   display: block;
   max-width: 100%;
-  font-size: 14.5px;
+  font-size: var(--fs-base);
   font-weight: 600;
-  line-height: 1.45;
+  line-height: 1.4;
   letter-spacing: -0.01em;
   text-align: left;
   color: var(--text);
@@ -310,7 +311,8 @@
 }
 
 .rootTitle:focus-visible {
-  box-shadow: var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .rootMeta {
@@ -318,7 +320,7 @@
   flex-wrap: wrap;
   gap: 2px 6px;
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -342,9 +344,9 @@
   align-items: center;
   gap: 6px;
   margin: 0 0 6px 30px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 500;
-  line-height: 1.45;
+  line-height: 1.4;
   color: var(--warn-text);
 }
 
@@ -367,7 +369,7 @@
   align-items: center;
   gap: 6px;
   padding: 0 0 4px 30px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
@@ -430,7 +432,8 @@
 }
 
 .rowBtn:focus-visible {
-  box-shadow: var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .titleText {
@@ -442,7 +445,7 @@
 
 .num {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 400;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
@@ -492,7 +495,7 @@
   }
 
   .heroTitle {
-    font-size: 16.5px;
+    font-size: var(--fs-lg);
   }
 
   .stats {
@@ -551,7 +554,7 @@
   .mobileMeta {
     display: block;
     margin-top: 2px;
-    font-size: 12px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
     overflow: hidden;
     text-overflow: ellipsis;

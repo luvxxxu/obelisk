@@ -128,7 +128,7 @@ export default function ForecastPage() {
       {roots.length > 0 && (
         <section className={s.section} aria-labelledby="fc-roots">
           <div className={s.sectionHead}>
-            <h2 className={cx(ui.sectionTitle, s.sectionTitle)} id="fc-roots">
+            <h2 className={cx(ui.pageSection, s.sectionTitle)} id="fc-roots">
               지금 밀리고 있는 일정
               <Badge tone="secondary">{roots.length}</Badge>
             </h2>
@@ -207,7 +207,7 @@ export default function ForecastPage() {
       {/* ── leverage */}
       <section className={s.section} aria-labelledby="fc-key">
         <div className={s.sectionHead}>
-          <h2 className={cx(ui.sectionTitle, s.sectionTitle)} id="fc-key">
+          <h2 className={cx(ui.pageSection, s.sectionTitle)} id="fc-key">
             핵심 작업
             {bottlenecks.length > 0 && <Badge tone="secondary">{bottlenecks.length}</Badge>}
           </h2>
@@ -287,7 +287,7 @@ export default function ForecastPage() {
       {chronic.length > 0 && (
         <section className={s.section} aria-labelledby="fc-chronic">
           <div className={s.sectionHead}>
-            <h2 className={cx(ui.sectionTitle, s.sectionTitle)} id="fc-chronic">
+            <h2 className={cx(ui.pageSection, s.sectionTitle)} id="fc-chronic">
               자꾸 미뤄지는 작업
               <Badge tone="secondary">{chronic.length}</Badge>
             </h2>

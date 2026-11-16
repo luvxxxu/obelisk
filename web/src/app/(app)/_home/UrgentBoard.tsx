@@ -3,8 +3,8 @@
 import { addDays, isOverdue, isToday, positionBetween, spread, type ProjectColor, type Task, type TaskStatus } from '@obelisk/core';
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { Icon } from '@/components/Icon';
-import { tip } from '@/components/primitives';
-import { overdueLabel, spanLabel } from '@/lib/format';
+import { tip, ui } from '@/components/primitives';
+import { cx, overdueLabel, spanLabel } from '@/lib/format';
 import { usePref, useTasks } from '@/lib/hooks';
 import { moveTasks, selectTask, toggleDone, useApp, type TaskMove } from '@/lib/store';
 import { toast } from '@/lib/toast';
@@ -289,7 +289,7 @@ export function UrgentBoard({ today, doneToday, onNew }: { today: string; doneTo
       tools={
         <button
           type="button"
-          className={s.dbChip}
+          className={cx(ui.btn, ui.ghost, ui.sm, s.dbChip)}
           onClick={toggleOrder}
           aria-label={`정렬: ${order === 'manual' ? '직접 정렬' : '긴급도순'}`}
           {...tip(order === 'manual' ? '긴급도순으로 보기' : '직접 정렬로 보기', {
@@ -381,7 +381,7 @@ function TaskCard({
           {date}
         </CardMeta>
       )}
-      {task.postponedCount >= 2 && !done && <CardMeta icon="postpone">{task.postponedCount}번 미룸</CardMeta>}
+      {task.postponedCount >= 2 && !done && <CardMeta icon="postpone">{task.postponedCount}회 미룸</CardMeta>}
     </BoardCard>
   );
 }

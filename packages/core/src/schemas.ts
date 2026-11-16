@@ -150,10 +150,35 @@ export const loginInput = z.object({
   password: z.string().min(1).max(200),
 });
 
+const widgetId = z.string().regex(/^[a-z][a-zA-Z0-9-]{0,39}$/);
+const widgetIds = z.array(widgetId).max(40);
+
+export const homeLayoutInput = z.object({
+  v: z.literal(1),
+  desktop: z.object({
+    items: z
+      .array(
+        z.object({
+          id: widgetId,
+          x: z.number().int().min(0).max(11),
+          y: z.number().int().min(0).max(1000),
+          w: z.number().int().min(1).max(12),
+          h: z.number().int().min(1).max(60),
+          fixed: z.boolean().optional(),
+        }),
+      )
+      .max(40),
+    hidden: widgetIds,
+  }),
+  mobile: z.object({ order: widgetIds, hidden: widgetIds }),
+});
+
 export const updateMeInput = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   timezone: timezone.optional(),
   defaultWorkspaceId: uuid.optional(),
+  /** null resets the home dashboard to its default layout. */
+  homeLayout: homeLayoutInput.nullable().optional(),
 });
 
 export const createTokenInput = z.object({

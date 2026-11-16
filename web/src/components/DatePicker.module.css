@@ -20,8 +20,8 @@
   background: var(--input-bg);
   box-shadow: var(--shadow-xs);
   transition:
-    border-color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease);
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .inputRow:focus-within {
@@ -41,7 +41,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text);
   outline: none;
 }
@@ -60,12 +60,12 @@
   border-radius: var(--radius-sm);
   background: var(--primary);
   color: var(--on-primary);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   white-space: nowrap;
   max-width: 60%;
   overflow: hidden;
-  animation: pop 0.14s var(--ease-out);
+  animation: pop var(--dur-fast) var(--ease-out);
 }
 
 .parsed:hover:not(:disabled) {
@@ -86,7 +86,7 @@
 
 .inputHint {
   padding: 6px 4px 0;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -112,14 +112,14 @@
   border-radius: var(--radius-sm);
   background: var(--bg);
   box-shadow: var(--shadow-xs);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text);
   outline: none;
   transition:
-    background-color 0.12s var(--ease),
-    border-color 0.12s var(--ease),
-    box-shadow 0.12s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .quickBtn svg {
@@ -132,6 +132,7 @@
 }
 
 .quickBtn:focus-visible {
+  outline: none;
   border-color: var(--ring-color);
   box-shadow: var(--ring);
 }
@@ -159,7 +160,7 @@
 
 .quickHint {
   margin-left: auto;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   font-weight: 400;
   color: var(--text-3);
 }
@@ -177,7 +178,7 @@
 
 .month {
   margin-right: auto;
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
@@ -188,7 +189,7 @@
   padding: 0 8px;
   margin-right: 2px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-2);
   outline: none;
@@ -201,9 +202,8 @@
 
 .thisMonth:focus-visible,
 .nav:focus-visible {
-  box-shadow:
-    0 0 0 1px var(--ring-color),
-    var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .nav {
@@ -218,8 +218,8 @@
   color: var(--text-2);
   outline: none;
   transition:
-    background-color 0.12s var(--ease),
-    color 0.12s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .nav:hover {
@@ -240,7 +240,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 400;
   color: var(--text-3);
 }
@@ -249,14 +249,14 @@
   position: relative;
   height: 34px;
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
   color: var(--text);
   outline: none;
   transition:
-    background-color 0.1s var(--ease),
-    color 0.1s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .day:hover:not(:disabled) {
@@ -264,10 +264,9 @@
 }
 
 .day:focus-visible {
+  outline: none;
   z-index: 1;
-  box-shadow:
-    0 0 0 1px var(--ring-color),
-    var(--ring);
+  box-shadow: var(--focus-ring);
 }
 
 .day:disabled {
@@ -319,9 +318,8 @@
 }
 
 .selected:focus-visible {
-  box-shadow:
-    0 0 0 1px var(--ring-color),
-    var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* ───────── clear */
@@ -334,14 +332,14 @@
   width: 100%;
   height: 32px;
   margin-top: 8px;
-  border-radius: var(--radius-sm);
-  font-size: 12.5px;
+  border-radius: var(--radius);
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-2);
   outline: none;
   transition:
-    background-color 0.12s var(--ease),
-    color 0.12s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .clear:hover {
@@ -350,9 +348,8 @@
 }
 
 .clear:focus-visible {
-  box-shadow:
-    0 0 0 1px var(--ring-color),
-    var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 @media (prefers-reduced-motion: reduce) {

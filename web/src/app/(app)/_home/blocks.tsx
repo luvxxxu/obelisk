@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import type { CSSProperties, KeyboardEventHandler, PointerEventHandler, ReactNode, Ref } from 'react';
 import { Icon, type IconName } from '@/components/Icon';
-import { tip } from '@/components/primitives';
+import { tip, ui } from '@/components/primitives';
 import { cx } from '@/lib/format';
 import { setUi } from '@/lib/ui-state';
 import s from '../home.module.css';
@@ -22,14 +22,6 @@ export function hueVars(hue: Hue): CSSProperties {
     '--hue-text': `var(--c-${hue}-text)`,
     '--hue-soft': `var(--c-${hue}-soft)`,
   } as CSSProperties;
-}
-
-export function H2({ children, id }: { children: ReactNode; id?: string }) {
-  return (
-    <h2 className={s.h2} id={id}>
-      {children}
-    </h2>
-  );
 }
 
 export function Tag({ hue = 'slate', children, dot = false }: { hue?: Hue; children: ReactNode; dot?: boolean }) {
@@ -77,16 +69,16 @@ export function Database({
         </div>
         <div className={s.dbTools}>
           {tools}
-          <button className={s.dbTool} onClick={() => setUi({ palette: true })} aria-label="검색" {...tip('검색', { side: 'bottom' })}>
+          <button className={ui.iconBtn} onClick={() => setUi({ palette: true })} aria-label="검색" {...tip('검색', { side: 'bottom' })}>
             <Icon name="search" size={16} />
           </button>
           {href && (
-            <Link href={href} className={s.dbTool} aria-label={hrefLabel ?? '전체 보기'} {...tip(hrefLabel ?? '전체 보기', { side: 'bottom' })}>
+            <Link href={href} className={ui.iconBtn} aria-label={hrefLabel ?? '전체 보기'} {...tip(hrefLabel ?? '전체 보기', { side: 'bottom' })}>
               <Icon name="maximize" size={15} />
             </Link>
           )}
           {onNew && (
-            <button className={s.dbNew} onClick={onNew}>
+            <button className={cx(ui.btn, ui.outline, ui.sm, s.dbNew)} onClick={onNew}>
               {newLabel}
             </button>
           )}

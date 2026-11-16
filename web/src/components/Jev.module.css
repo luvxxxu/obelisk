@@ -6,7 +6,7 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--c-violet-bg);
   color: var(--c-violet);
   flex-shrink: 0;
@@ -15,7 +15,7 @@
 .mark[data-size='sm'] {
   width: 20px;
   height: 20px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 /* ───────── priority pill + confidence */
@@ -23,12 +23,12 @@
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   height: 22px;
-  padding: 0 8px 0 7px;
-  border-radius: 999px;
+  padding: 0 8px 0 6px;
+  border-radius: var(--radius-full);
   border: 1px solid var(--border);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-2);
   white-space: nowrap;
 }
@@ -37,7 +37,7 @@
   border-color: color-mix(in srgb, var(--tone) 35%, var(--border));
   background: color-mix(in srgb, var(--tone) 9%, transparent);
   color: var(--text);
-  font-weight: 550;
+  font-weight: 600;
 }
 
 .pillDot {
@@ -51,7 +51,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   color: var(--text-3);
   min-width: 64px;
@@ -73,7 +73,7 @@
   border-radius: 2px;
   background: var(--text-3);
   transform-origin: left;
-  animation: grow 0.6s var(--ease-out) both;
+  animation: grow var(--dur-slow) var(--ease-out) both;
 }
 
 .conf[data-sure] {
@@ -95,7 +95,7 @@
 .body {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
 .footer {
@@ -107,7 +107,7 @@
 
 .footNote {
   margin-right: auto;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -117,11 +117,11 @@
   align-items: center;
   column-gap: 12px;
   row-gap: 2px;
-  padding: 12px 14px;
+  padding: var(--inset-sm);
   border-radius: var(--radius-lg);
   border: 1px solid color-mix(in srgb, var(--c-violet) 22%, var(--border));
   background: var(--c-violet-soft);
-  animation: rise 0.4s var(--ease-out) both;
+  animation: rise var(--dur-slow) var(--ease-out) both;
 }
 
 .focus .reasons {
@@ -131,8 +131,8 @@
 .focusLabel {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 12px;
+  gap: 4px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--c-violet-text);
   white-space: nowrap;
@@ -142,11 +142,11 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 16px;
+  padding: var(--inset-sm);
   border-radius: var(--radius-lg);
   background: var(--tint);
   color: var(--text-2);
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
 }
 
 .calm svg {
@@ -179,19 +179,19 @@
 }
 
 .groupTitle {
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
 }
 
 .groupCount {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
 .groupHint {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -216,7 +216,7 @@
   gap: 12px;
   padding: 10px 2px;
   border-bottom: 1px solid var(--border);
-  animation: rise 0.32s var(--ease-out) both;
+  animation: rise var(--dur-mid) var(--ease-out) both;
   transition: opacity var(--dur) var(--ease);
 }
 
@@ -253,7 +253,7 @@
   gap: 6px;
   min-width: 0;
   text-align: left;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text);
 }
 
@@ -264,7 +264,7 @@
 }
 
 .num {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -277,8 +277,8 @@
 }
 
 .reasons {
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
   color: var(--text-3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -301,7 +301,7 @@
   justify-content: center;
   width: 18px;
   height: 18px;
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   border: 1.5px solid var(--border-strong);
   color: transparent;
   transition:
@@ -344,7 +344,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text);
   white-space: nowrap;
 }
@@ -354,7 +354,7 @@
 }
 
 .moveDate {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -375,7 +375,7 @@
   align-items: center;
   gap: 10px;
   padding-bottom: 10px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
@@ -400,13 +400,13 @@
   gap: 12px;
   padding: 11px 2px;
   border-bottom: 1px solid var(--border);
-  animation: rise 0.3s var(--ease-out) both;
+  animation: rise var(--dur-mid) var(--ease-out) both;
 }
 
 .lists {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   transition: opacity var(--dur) var(--ease);
 }
 
@@ -429,7 +429,7 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
@@ -441,13 +441,13 @@
   min-width: 34px;
   text-align: center;
   color: var(--text);
-  font-weight: 550;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .stepSource {
   margin-left: 6px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -455,7 +455,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px 14px;
+  padding: var(--inset-sm);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
 }
@@ -468,7 +468,7 @@
 }
 
 .meterLabel {
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   color: var(--text-2);
 }
 
@@ -476,7 +476,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 18px;
+  font-size: var(--fs-xl);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -487,7 +487,7 @@
 
 .meterCap {
   margin-left: auto;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -498,7 +498,7 @@
 .meterTrack {
   position: relative;
   height: 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--surface-2);
   overflow: visible;
 }
@@ -507,8 +507,8 @@
 .meterAfter {
   position: absolute;
   inset: 0 auto 0 0;
-  border-radius: 4px;
-  transition: width 0.45s var(--ease-out);
+  border-radius: var(--radius-xs);
+  transition: width var(--dur-slow) var(--ease-out);
 }
 
 .meterBefore {
@@ -537,7 +537,7 @@
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
-  padding: 12px;
+  padding: var(--inset-sm);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
 }
@@ -547,14 +547,14 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  animation: rise 0.35s var(--ease-out) both;
+  animation: rise var(--dur-mid) var(--ease-out) both;
 }
 
 .loadBarBox {
   position: relative;
   width: 18px;
   height: 64px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--surface-2);
 }
 
@@ -564,8 +564,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  border-radius: 4px;
-  transition: height 0.45s var(--ease-out);
+  border-radius: var(--radius-xs);
+  transition: height var(--dur-slow) var(--ease-out);
 }
 
 .loadBefore {
@@ -603,14 +603,14 @@
 }
 
 .loadDay {
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   color: var(--text-3);
   white-space: nowrap;
 }
 
 .loadNum {
-  font-size: 12.5px;
-  font-weight: 550;
+  font-size: var(--fs-xs);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -661,7 +661,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 12px 12px 14px;
+  padding: 12px 12px 12px 16px; /* right side holds the close button */
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: var(--bg);
@@ -675,7 +675,7 @@
 .inviteText {
   flex: 1;
   min-width: 0;
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
@@ -689,11 +689,11 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .stripLabel {
-  font-size: 11.5px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--c-violet-text);
@@ -704,11 +704,11 @@
   flex-direction: column;
   gap: 1px;
   min-width: 0;
-  animation: rise 0.35s var(--ease-out) both;
+  animation: rise var(--dur-mid) var(--ease-out) both;
 }
 
 .stripFocus .taskName {
-  font-weight: 550;
+  font-weight: 600;
   flex-shrink: 1;
   min-width: 0;
 }
@@ -727,7 +727,7 @@
 
 .stripEmpty,
 .stripError {
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
@@ -755,11 +755,11 @@
   justify-content: center;
   min-width: 18px;
   height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
   background: var(--c-violet-bg);
   color: var(--c-violet-text);
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -796,7 +796,7 @@
 }
 
 .linksTitle {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-2);
 }
@@ -807,8 +807,8 @@
   align-items: center;
   gap: 8px;
   margin-top: 8px;
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: var(--fs-xs);
+  line-height: 1.55;
   color: var(--text-3);
 }
 
@@ -829,9 +829,9 @@
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
-  padding: 7px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--border);
-  animation: rise 0.3s var(--ease-out) both;
+  animation: rise var(--dur-mid) var(--ease-out) both;
 }
 
 .linkRow:last-child {
@@ -844,9 +844,9 @@
   gap: 4px;
   height: 20px;
   padding: 0 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--surface-2);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--text-2);
 }
 
@@ -856,7 +856,7 @@
   gap: 6px;
   min-width: 0;
   text-align: left;
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
   color: var(--text);
 }
 
@@ -867,7 +867,7 @@
 }
 
 .linkP {
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }

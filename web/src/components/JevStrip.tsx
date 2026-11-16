@@ -17,19 +17,20 @@ const DISMISS_KEY = 'obelisk:jev-invite-dismissed';
  * Home: "지금 할 일 하나" from Jev plus the two Jev actions. Without a key it is a one-line,
  * dismissible invitation to connect one.
  */
-export function JevStrip({ todayCount }: { todayCount: number }) {
+export function JevStrip({ todayCount, onDismiss }: { todayCount: number; /** On the home dashboard the ✕ hides the widget instead. */ onDismiss?: () => void }) {
   const jev = useJev();
   const app = useApp();
   const p = usePriorities(jev.connected);
-  const [dismissed, setDismissed] = useState(true);
+  const [dismissed, setDismissed] = useState(!onDismiss);
 
   useEffect(() => {
+    if (onDismiss) return setDismissed(false);
     try {
       setDismissed(localStorage.getItem(DISMISS_KEY) === '1');
     } catch {
       setDismissed(false);
     }
-  }, []);
+  }, [onDismiss]);
 
   if (!jev.connected) {
     if (dismissed) return null;
@@ -46,9 +47,10 @@ export function JevStrip({ todayCount }: { todayCount: number }) {
         <button
           type="button"
           className={ui.iconBtn}
-          aria-label="다시 보지 않기"
-          {...tip('다시 보지 않기', { side: 'top' })}
+          aria-label={onDismiss ? '홈에서 숨기기' : '다시 보지 않기'}
+          {...tip(onDismiss ? '홈에서 숨기기' : '다시 보지 않기', { side: 'top' })}
           onClick={() => {
+            if (onDismiss) return onDismiss();
             setDismissed(true);
             try {
               localStorage.setItem(DISMISS_KEY, '1');

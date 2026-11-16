@@ -45,7 +45,7 @@ div.footer {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
@@ -77,15 +77,15 @@ div.footer {
 }
 
 .rowTitle {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 500;
   line-height: 1.4;
   color: var(--text);
 }
 
 .rowDesc {
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
   color: var(--text-2);
 }
 

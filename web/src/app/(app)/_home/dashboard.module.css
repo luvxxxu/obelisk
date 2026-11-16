@@ -1,0 +1,474 @@
+/* Home dashboard — widget grid (desktop), stacked widgets (mobile) and edit mode.
+   Grid geometry lives in layout.ts (12 columns · 24px rows · 16px gutter); this file only paints it.
+   Each widget frame is a size container named `widget`, so the content inside responds to the
+   widget's own width instead of the page's. */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ───────── desktop grid */
+
+.grid {
+  position: relative;
+  min-width: 0;
+  transition: height var(--dur-mid) var(--ease-out);
+}
+
+/* column guides while editing: the 12 tracks, tinted */
+.grid[data-editing] {
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--tint) 0 var(--col),
+    transparent var(--col) calc(var(--col) + 16px)
+  );
+  border-radius: var(--radius-lg);
+}
+
+.widget {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 0;
+}
+
+/* while editing, each widget sits on a solid page-coloured plate so the column guides only show in the gaps */
+.grid[data-editing] .widget {
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  box-shadow: 0 0 0 6px var(--bg);
+  transition:
+    transform var(--dur-mid) var(--ease-out),
+    width var(--dur-mid) var(--ease-out),
+    height var(--dur-mid) var(--ease-out);
+}
+
+.grid .widget[data-lifted] {
+  z-index: 5;
+  transition: none;
+}
+
+.reveal {
+  height: 100%;
+  animation: dash-rise var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 45ms + 30ms);
+}
+
+@keyframes dash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* ───────── frame: heading + body */
+
+.frame {
+  container: widget / inline-size;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.head {
+  flex-shrink: 0;
+  padding-top: 8px; /* 16px gutter + 8px = room above a section heading */
+  margin-bottom: 12px;
+}
+
+.title {
+  margin: 0;
+}
+
+.lead {
+  margin-top: 4px;
+  font-size: var(--fs-base);
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.content {
+  min-width: 0;
+}
+
+/* Section widgets scroll their body; 4px of breathing room keeps card rings and focus rings unclipped. */
+.frame[data-scroll] .body {
+  margin: -4px;
+  padding: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-gutter: auto;
+}
+
+/* Cards ('bare') fill their box so a row of them shares one baseline. The box is never shorter than
+   the card's content (effectiveItems), so nothing here clips — and nothing may: a clip or mask on
+   this body would also cut the card's 1px ring, which is drawn just outside it. */
+.frame[data-chrome='bare'] .content {
+  height: 100%;
+}
+
+.frame[data-chrome='bare'] .content > * {
+  box-sizing: border-box;
+  height: 100%;
+}
+
+/* one synchronous read of the natural height (Frame.measure): no stretching */
+.frame[data-measuring] .content,
+.frame[data-measuring] .content > * {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+/* "more below" on a scrolling list — a soft fade instead of a hard cut (lists only) */
+.frame[data-scroll] .body[data-more] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}
+
+/* ───────── edit mode */
+
+.inert {
+  opacity: 0.62;
+  transition: opacity var(--dur) var(--ease);
+  user-select: none;
+}
+
+.overlay {
+  position: absolute;
+  inset: -6px;
+  border: 1px dashed var(--border-strong);
+  border-radius: calc(var(--radius-lg) + 6px);
+  cursor: grab;
+  touch-action: none;
+  animation: dash-fade var(--dur) var(--ease-out) both;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+
+@keyframes dash-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.overlay:hover {
+  border-style: solid;
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+
+.overlay:focus-visible {
+  outline: none;
+  border-style: solid;
+  border-color: var(--ring-color);
+  box-shadow: var(--ring);
+}
+
+.widget[data-lifted='move'] .overlay {
+  cursor: grabbing;
+  border-style: solid;
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  box-shadow: var(--shadow-lift);
+}
+
+.widget[data-lifted='move'] .inert {
+  opacity: 0.85;
+}
+
+.widget[data-lifted='resize'] .overlay {
+  border-style: solid;
+  border-color: var(--ring-color);
+}
+
+.chip {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 64px);
+  height: var(--control-xs);
+  padding: 0 8px 0 6px;
+  border-radius: var(--radius-sm);
+  background: var(--text);
+  color: var(--bg);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.chip svg:first-child {
+  opacity: 0.55;
+}
+
+.chipNote {
+  margin-left: 2px;
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--bg) 30%, transparent);
+  opacity: 0.7;
+}
+
+.emptyNote {
+  position: absolute;
+  inset: 40px 12px 12px;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.widget[data-empty] .overlay {
+  background: var(--tint);
+}
+
+.hideBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.hideBtn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.hideBtn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* resize grip: bottom-right corner */
+.handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 24px;
+  height: 24px;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.handle::after {
+  content: '';
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-3);
+  border-bottom: 2px solid var(--text-3);
+  border-bottom-right-radius: 3px;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.overlay:hover .handle::after,
+.handle:hover::after {
+  border-color: var(--text);
+}
+
+.handle:hover::after {
+  transform: translate(1px, 1px);
+}
+
+.placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  transition:
+    transform var(--dur) var(--ease-out),
+    width var(--dur) var(--ease-out),
+    height var(--dur) var(--ease-out);
+}
+
+/* ───────── mobile: stacked widgets */
+
+.stack {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stackItem {
+  grid-column: span 2;
+  min-width: 0;
+}
+
+.stackItem[data-span='1'] {
+  grid-column: span 1;
+}
+
+.stackItem[data-chrome='section']:not(:first-child) {
+  margin-top: 20px;
+}
+
+.stackItem[hidden] {
+  display: none;
+}
+
+.stackItem .head {
+  padding-top: 0;
+}
+
+/* ───────── mobile: edit list */
+
+.editList {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  transition: height var(--dur-mid) var(--ease-out);
+}
+
+.editRow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 52px;
+  padding: 0 6px 0 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  transition:
+    transform var(--dur-mid) var(--ease-out),
+    box-shadow var(--dur) var(--ease);
+}
+
+.editRow[data-lifted] {
+  z-index: 2;
+  box-shadow: var(--shadow-lift);
+  transition: box-shadow var(--dur) var(--ease);
+}
+
+.grip {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  cursor: grab;
+  touch-action: none;
+}
+
+.grip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.rowIcon {
+  display: inline-flex;
+  margin-right: 6px;
+  color: var(--text-3);
+}
+
+.rowName {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-base);
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowHint {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  margin-right: 4px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+/* ───────── edit bar (under the page header) */
+
+.editBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: var(--inset-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--tint);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  animation: dash-rise var(--dur) var(--ease-out) both;
+}
+
+.editBar > svg {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+.editBar strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.editHint {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.55;
+}
+
+.addMenu {
+  padding: 4px;
+}
+
+.addEmpty {
+  padding: 8px 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+
+.addIcon {
+  display: inline-flex;
+  color: var(--text-3);
+}

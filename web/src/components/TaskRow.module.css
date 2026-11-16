@@ -15,9 +15,9 @@
   cursor: pointer;
   outline: none;
   transition:
-    background-color 0.12s var(--ease),
-    box-shadow 0.12s var(--ease),
-    opacity 0.3s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    opacity var(--dur-mid) var(--ease);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -61,11 +61,11 @@
   background: transparent;
   cursor: pointer;
   transition:
-    background-color 0.15s var(--ease),
-    border-color 0.15s var(--ease),
-    color 0.15s var(--ease),
-    box-shadow 0.2s var(--ease),
-    transform 0.15s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    transform var(--dur-fast) var(--ease);
 }
 
 /* bigger touch / click target without changing the look (rows have room for it) */
@@ -110,7 +110,7 @@
   border-radius: 50%;
   background: var(--c);
   clip-path: inset(0 0 0 50%);
-  transition: opacity 0.15s var(--ease);
+  transition: opacity var(--dur-fast) var(--ease);
 }
 
 .check:hover {
@@ -155,17 +155,17 @@
 
 /* completion: a gentle pop, the tick draws in, a soft ring fades out */
 .check[data-animate='true'][data-done='true'] {
-  animation: pop 0.32s var(--ease-spring);
+  animation: pop var(--dur-mid) var(--ease-spring);
 }
 
 .check[data-animate='true'][data-done='true'] path {
-  animation: draw 0.28s var(--ease-out) 0.04s both;
+  animation: draw var(--dur-mid) var(--ease-out) 0.04s both;
 }
 
 .row .check[data-animate='true'][data-done='true']::before,
 .check[data-animate='true'][data-done='true']::before {
   inset: -1.5px;
-  animation: ring 0.5s var(--ease-out) both;
+  animation: ring var(--dur-slow) var(--ease-out) both;
 }
 
 @keyframes pop {
@@ -211,7 +211,7 @@
   flex: 1 1 0;
   min-width: 0;
   container-type: inline-size;
-  transition: opacity 0.3s var(--ease);
+  transition: opacity var(--dur-mid) var(--ease);
 }
 
 .content {
@@ -231,11 +231,11 @@
 
 .title {
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 20px;
   color: var(--text);
   overflow-wrap: anywhere;
-  transition: color 0.2s var(--ease);
+  transition: color var(--dur) var(--ease);
 }
 
 .noteIcon {
@@ -272,7 +272,7 @@
   align-items: center;
   gap: 4px 6px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -350,7 +350,7 @@
   min-width: 58px;
   margin: -4px -2px -4px 0;
   opacity: 0;
-  transition: opacity 0.12s var(--ease);
+  transition: opacity var(--dur-fast) var(--ease);
 }
 
 .row:hover .actions,
@@ -388,10 +388,10 @@
 .assignee {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
   max-width: 140px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-2);
 }
 

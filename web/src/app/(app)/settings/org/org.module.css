@@ -6,7 +6,7 @@
 }
 
 .panel {
-  animation: org-fade 0.22s var(--ease-out);
+  animation: org-fade var(--dur) var(--ease-out);
 }
 
 /* Card header with an action on the right (title/description stay left). */
@@ -32,9 +32,9 @@ div.headWrap {
 }
 
 .emptyLine {
-  padding: 4px var(--card-pad, 24px) 18px;
-  font-size: 13.5px;
-  line-height: 1.6;
+  padding: 4px var(--card-pad, 24px) 16px;
+  font-size: var(--fs-base);
+  line-height: 1.55;
   color: var(--text-3);
 }
 
@@ -72,7 +72,7 @@ div.headWrap {
   border: 0;
   outline: none;
   background: transparent;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text);
 }
 
@@ -91,8 +91,8 @@ div.headWrap {
   min-height: 56px;
   padding: 8px var(--card-pad, 24px);
   border-top: 1px solid var(--border);
-  transition: background-color 0.12s var(--ease);
-  animation: org-fade 0.2s var(--ease-out) both;
+  transition: background-color var(--dur-fast) var(--ease);
+  animation: org-fade var(--dur) var(--ease-out) both;
 }
 
 .person:hover {
@@ -112,7 +112,7 @@ span.personAvatar {
 }
 
 .personName {
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -120,7 +120,7 @@ span.personAvatar {
 }
 
 .personMeta {
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
@@ -136,7 +136,7 @@ span.personAvatar {
 .removeBtn {
   color: var(--text-3);
   opacity: 0;
-  transition: opacity 0.12s var(--ease);
+  transition: opacity var(--dur-fast) var(--ease);
 }
 
 .person:hover .removeBtn,
@@ -156,11 +156,11 @@ span.personAvatar {
 .roleText {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   height: 28px;
   padding: 0 8px;
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
   white-space: nowrap;
   flex-shrink: 0;
@@ -168,8 +168,8 @@ span.personAvatar {
 
 .roleBtn {
   transition:
-    background-color 0.12s var(--ease),
-    color 0.12s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .roleBtn:hover,
@@ -200,7 +200,7 @@ button.roleItem {
 }
 
 .roleItemHint {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   font-weight: 400;
 }
@@ -226,7 +226,7 @@ button.roleItem {
 
 .hint {
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
 }
 
 .inviteForm {
@@ -252,14 +252,14 @@ p.choiceHelp {
   padding: 6px 6px 6px 12px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  animation: org-pop 0.24s var(--ease-spring);
+  animation: org-pop var(--dur) var(--ease-spring);
 }
 
 .linkUrl {
   flex: 1;
   min-width: 0;
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   color: var(--text);
   overflow-wrap: anywhere;
   user-select: all;
@@ -284,7 +284,7 @@ span.stackAvatar:first-child {
 
 .stackMore {
   margin-left: 4px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   align-self: center;
 }
@@ -312,7 +312,7 @@ span.stackAvatar:first-child {
   padding: 6px 8px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.1s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease);
 }
 
 .pick:hover {
@@ -331,14 +331,14 @@ span.stackAvatar:first-child {
   justify-content: center;
   width: 16px;
   height: 16px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1.5px solid var(--border-strong);
   color: transparent;
   flex-shrink: 0;
   transition:
-    background-color 0.12s var(--ease),
-    border-color 0.12s var(--ease),
-    color 0.12s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .pick[data-on='true'] .pickBox {
@@ -348,12 +348,12 @@ span.stackAvatar:first-child {
 }
 
 .pick:has(input:focus-visible) .pickBox {
-  box-shadow: var(--ring);
+  box-shadow: var(--focus-ring);
 }
 
 .footCount {
   margin-right: auto;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
@@ -371,7 +371,7 @@ select.actorSelect {
   width: auto;
   height: 28px;
   padding: 0 28px 0 10px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   margin-left: auto;
 }
 
@@ -384,7 +384,7 @@ select.actorSelect {
 }
 
 .dayLabel {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-3);
   margin: 4px 0 6px;
@@ -411,8 +411,8 @@ select.actorSelect {
   position: relative;
   display: flex;
   gap: 12px;
-  padding: 7px 0;
-  animation: org-fade 0.2s var(--ease-out) both;
+  padding: 8px 0;
+  animation: org-fade var(--dur) var(--ease-out) both;
 }
 
 .entryIcon {
@@ -436,7 +436,7 @@ select.actorSelect {
 }
 
 .entryText {
-  font-size: 13.5px;
+  font-size: var(--fs-base);
   line-height: 1.55;
   color: var(--text-2);
   overflow-wrap: anywhere;
@@ -444,7 +444,7 @@ select.actorSelect {
 
 .entryText strong {
   color: var(--text);
-  font-weight: 550;
+  font-weight: 600;
 }
 
 .subject {
@@ -461,7 +461,7 @@ select.actorSelect {
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -473,7 +473,7 @@ select.actorSelect {
 
 span.viaBadge {
   height: 18px;
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   color: var(--text-2);
 }
 
@@ -498,7 +498,7 @@ span.viaBadge {
 .dangerStack {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
 @keyframes org-fade {

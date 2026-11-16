@@ -12,7 +12,7 @@
   border-right: 1px solid var(--border);
   overflow: hidden;
   color: var(--text-2);
-  font-size: 14px;
+  font-size: var(--fs-base);
   user-select: none;
 }
 
@@ -34,9 +34,9 @@
   min-width: 0;
   height: 30px;
   padding: 0 6px 0 4px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   color: var(--text);
-  transition: background-color 0.12s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease);
 }
 
 .brand:hover {
@@ -49,14 +49,14 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   background: var(--text);
   color: var(--bg-sidebar);
   flex-shrink: 0;
 }
 
 .brandName {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -75,13 +75,13 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   color: var(--text-3);
   flex-shrink: 0;
   transition:
-    background-color 0.12s var(--ease),
-    color 0.12s var(--ease),
-    opacity 0.12s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
 }
 
 .topBtn:hover,
@@ -127,17 +127,17 @@
   width: 100%;
   height: 32px;
   padding: 0 6px 0 10px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   border: 1px solid var(--border);
   background: light-dark(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.03));
   color: var(--text-3);
-  font-size: 14px;
+  font-size: var(--fs-base);
   text-align: left;
   white-space: nowrap;
   transition:
-    background-color 0.12s var(--ease),
-    border-color 0.12s var(--ease),
-    color 0.12s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .search:hover {
@@ -179,16 +179,16 @@
   height: 30px;
   min-width: 30px;
   padding: 0 7px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--text-2);
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 500;
   white-space: nowrap;
   transition:
-    background-color 0.2s var(--ease),
-    color 0.2s var(--ease),
-    padding 0.32s var(--ease-out),
-    gap 0.32s var(--ease-out);
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease),
+    padding var(--dur-mid) var(--ease-out),
+    gap var(--dur-mid) var(--ease-out);
 }
 
 .switch[data-expanded='true'] {
@@ -203,8 +203,8 @@
   opacity: 0;
   overflow: hidden;
   transition:
-    max-width 0.32s var(--ease-out),
-    opacity 0.2s var(--ease);
+    max-width var(--dur-mid) var(--ease-out),
+    opacity var(--dur) var(--ease);
 }
 
 .switch[data-expanded='true'] .switchLabel {
@@ -257,7 +257,7 @@
   align-items: center;
   height: 26px;
   padding: 0 4px 0 8px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-3);
   white-space: nowrap;
@@ -274,9 +274,9 @@
   color: var(--text-3);
   opacity: 0;
   transition:
-    opacity 0.12s var(--ease),
-    background-color 0.12s var(--ease),
-    color 0.12s var(--ease);
+    opacity var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .section:hover .sectionAction,
@@ -312,16 +312,16 @@
   height: 30px;
   min-width: 0;
   padding: 0 8px 0 4px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   color: var(--text-2);
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 500;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
   transition:
-    background-color 0.1s var(--ease),
-    color 0.1s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .item:hover {
@@ -375,7 +375,7 @@
 .count {
   margin-left: auto;
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
@@ -385,12 +385,12 @@
 .count[data-tone='warn'] {
   min-width: 18px;
   height: 18px;
-  padding: 0 5px;
-  border-radius: 4px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11.5px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
 }
 
@@ -409,7 +409,7 @@
   min-width: 0;
   border: 0;
   background: transparent;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text);
 }
 
@@ -433,7 +433,7 @@
   padding: 6px 8px;
   border-radius: var(--radius);
   text-align: left;
-  transition: background-color 0.1s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease);
 }
 
 .event:hover,
@@ -456,7 +456,7 @@
 }
 
 .eventTitle {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 500;
   color: var(--text);
   overflow: hidden;
@@ -465,8 +465,8 @@
 }
 
 .eventMeta {
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
   color: var(--text-3);
   white-space: normal;
 }
@@ -489,7 +489,7 @@
   display: block;
   padding: 4px 8px 4px 21px;
   border-radius: var(--radius);
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -509,12 +509,12 @@
   display: flex;
   gap: 10px;
   padding: 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: light-dark(#ffffff, rgba(255, 255, 255, 0.025));
   transition:
-    background-color 0.12s var(--ease),
-    border-color 0.12s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
 }
 
 .aiCard:hover {
@@ -537,14 +537,14 @@
 }
 
 .aiTitle {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text);
 }
 
 .aiBody {
-  font-size: 12.5px;
-  line-height: 1.45;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
   color: var(--text-3);
 }
 
@@ -553,7 +553,7 @@
   align-items: center;
   gap: 4px;
   margin-top: 6px;
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text);
 }
@@ -579,7 +579,7 @@
   padding: 0 8px 0 4px;
   border-radius: var(--radius);
   color: var(--text);
-  transition: background-color 0.12s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease);
 }
 
 .account:hover,
@@ -595,14 +595,14 @@
 .avatar {
   width: 22px;
   height: 22px;
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   background: var(--c-orange-bg);
   color: var(--c-orange-text);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   line-height: 1;
 }
@@ -610,13 +610,13 @@
 .avatar[data-size='lg'] {
   width: 32px;
   height: 32px;
-  border-radius: 7px;
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-base);
 }
 
 .accountName {
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -640,11 +640,11 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 .userName {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
   color: var(--text);
   overflow: hidden;
@@ -653,7 +653,7 @@
 }
 
 .userEmail {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -665,8 +665,8 @@
 }
 
 .themeRow button {
-  gap: 5px;
-  font-size: 12.5px;
+  gap: 6px;
+  font-size: var(--fs-sm);
   padding: 0 6px;
 }
 
@@ -686,7 +686,7 @@
 
 .emptyNote {
   padding: 4px 10px 6px 38px;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--fs-xs);
+  line-height: 1.55;
   color: var(--text-3);
 }

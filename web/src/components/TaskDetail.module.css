@@ -25,10 +25,10 @@
   display: inline-flex;
   align-items: center;
   height: 22px;
-  padding: 0 7px;
+  padding: 0 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   line-height: 1;
   color: var(--text-2);
@@ -41,12 +41,12 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
 .topLabel {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-2);
 }
@@ -96,13 +96,13 @@
 }
 
 .missingTitle {
-  font-size: 15px;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--text);
 }
 
 .missingBody {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
@@ -128,9 +128,9 @@
   border: 1px solid transparent;
   border-radius: var(--radius);
   transition:
-    background-color 0.15s var(--ease),
-    border-color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .titleField:hover {
@@ -145,10 +145,10 @@
 
 .titleField .title {
   display: block;
-  font-size: 20px;
+  font-size: var(--fs-2xl);
   font-weight: 600;
   line-height: 1.4;
-  letter-spacing: -0.022em;
+  letter-spacing: -0.02em;
   color: var(--text);
 }
 
@@ -181,7 +181,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
   white-space: nowrap;
 }
@@ -215,9 +215,8 @@
 }
 
 .hint:focus-visible {
-  box-shadow:
-    0 0 0 1px var(--ring-color),
-    var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .propValue {
@@ -239,15 +238,15 @@
   padding: 0 8px;
   margin-left: -9px;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  font-size: 13.5px;
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
   color: var(--text);
   white-space: nowrap;
   outline: none;
   transition:
-    background-color 0.15s var(--ease),
-    border-color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .trigger:hover,
@@ -256,6 +255,7 @@
 }
 
 .trigger:focus-visible {
+  outline: none;
   border-color: var(--ring-color);
   box-shadow: var(--ring);
 }
@@ -275,7 +275,7 @@
 }
 
 .triggerMeta {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -298,7 +298,7 @@
   color: var(--text-3);
   opacity: 0;
   margin-left: -2px;
-  transition: opacity 0.15s var(--ease);
+  transition: opacity var(--dur-fast) var(--ease);
 }
 
 .trigger:hover .chev,
@@ -319,7 +319,7 @@
 
 .switchText {
   margin-left: 4px;
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   min-width: 0;
   overflow: hidden;
@@ -347,9 +347,9 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.4;
   color: var(--text);
 }
 
@@ -365,9 +365,9 @@
   min-width: 20px;
   height: 18px;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--surface-2);
-  font-size: 11.5px;
+  font-size: var(--fs-2xs);
   font-weight: 500;
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
@@ -396,8 +396,8 @@
   box-shadow: var(--shadow-xs);
   cursor: text;
   transition:
-    border-color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease);
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .notesField:focus-within {
@@ -408,8 +408,8 @@
 .notesField .notes {
   display: block;
   min-height: 66px;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--fs-base);
+  line-height: 1.55;
   color: var(--text);
 }
 
@@ -419,7 +419,7 @@
   padding: 10px 12px;
   border: 1px dashed var(--border);
   border-radius: var(--radius);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
@@ -438,7 +438,7 @@
   gap: 10px;
   min-height: 40px;
   padding: 0 6px 0 12px;
-  transition: background-color 0.12s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease);
 }
 
 .dep + .dep {
@@ -457,7 +457,7 @@
   flex: 1;
   min-width: 0;
   text-align: left;
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -473,9 +473,8 @@
 }
 
 .depTitle:focus-visible {
-  box-shadow:
-    0 0 0 1px var(--ring-color),
-    var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .depDone .depTitle {
@@ -485,14 +484,14 @@
 
 .depNum {
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   margin-right: 6px;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 
 .depDate {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -510,9 +509,9 @@
   flex-shrink: 0;
   outline: none;
   transition:
-    opacity 0.12s var(--ease),
-    background-color 0.12s var(--ease),
-    color 0.12s var(--ease);
+    opacity var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .dep:hover .depRemove,
@@ -521,9 +520,8 @@
 }
 
 .depRemove:focus-visible {
-  box-shadow:
-    0 0 0 1px var(--ring-color),
-    var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .depRemove:hover {
@@ -560,7 +558,7 @@
   height: 100%;
   border: 0;
   background: transparent;
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
   color: var(--text);
   outline: none;
 }
@@ -573,7 +571,7 @@
 .noResult {
   padding: 20px 8px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
@@ -611,7 +609,7 @@
 }
 
 .simTitle {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
   line-height: 1.4;
   color: var(--text);
@@ -619,7 +617,7 @@
 
 .simSub {
   margin-top: 2px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.55;
   color: var(--text-2);
 }
@@ -641,16 +639,16 @@
   border-radius: var(--radius-sm);
   background: var(--bg);
   box-shadow: var(--shadow-xs);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
   outline: none;
   transition:
-    background-color 0.15s var(--ease),
-    border-color 0.15s var(--ease),
-    color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .simBtn:hover {
@@ -659,6 +657,7 @@
 }
 
 .simBtn:focus-visible {
+  outline: none;
   border-color: var(--ring-color);
   box-shadow: var(--ring);
 }
@@ -673,7 +672,7 @@
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
-  animation: grow 0.2s var(--ease-out);
+  animation: grow var(--dur) var(--ease-out);
 }
 
 @keyframes grow {
@@ -698,7 +697,7 @@
   flex-wrap: wrap;
   align-items: center;
   margin-top: 20px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
@@ -727,7 +726,7 @@
 
   .switchText {
     white-space: normal;
-    line-height: 1.35;
+    line-height: 1.4;
   }
 
   .simActions > * {
@@ -791,7 +790,7 @@ span.assigneeAvatar {
 }
 
 .memberMeta {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
@@ -800,7 +799,7 @@ span.assigneeAvatar {
 
 .cmdEmpty {
   padding: 10px 8px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
@@ -829,7 +828,7 @@ span.assigneeAvatar {
   display: flex;
   gap: 10px;
   padding: 6px 0;
-  animation: activity-in 0.24s var(--ease-out) both;
+  animation: activity-in var(--dur) var(--ease-out) both;
 }
 
 .activityItem:nth-child(2) {
@@ -859,32 +858,32 @@ span.activityAvatar {
 }
 
 .activityText {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
   color: var(--text-2);
   overflow-wrap: anywhere;
 }
 
 .activityText strong {
   color: var(--text);
-  font-weight: 550;
+  font-weight: 600;
 }
 
 .activityMeta {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
 .activityVia {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 .activityMore {
   align-self: flex-start;
   margin: 2px 0 0 30px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   border-radius: var(--radius-sm);
   padding: 2px 4px;

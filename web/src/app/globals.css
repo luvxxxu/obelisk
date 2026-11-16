@@ -8,6 +8,21 @@
    Every token is a light-dark() pair; `color-scheme` (system, or data-theme) picks the side.
    Per-colour tokens: --c-<name> (ink/icon), --c-<name>-bg (tag), --c-<name>-text (tag text),
    --c-<name>-soft (faint block tint).
+
+   Scales — every module picks from these; no raw px / seconds for type, radius or motion:
+     type     --fs-2xs 11 · xs 12 · sm 13 · base 14 · md 15 · lg 16 · xl 18 · 2xl 20 · 3xl 30 · display 40
+              weights 400 / 500 / 600 / 700 · line-height 1 / 1.25 (headings) / 1.4 (UI) / 1.55 (prose)
+     control  --control-xs 24 · sm 28 · (default) 32 · lg 36   (buttons, inputs, rows, icon buttons)
+     radius   --radius-xs 4 (tags) · sm 6 (rows, small controls) · (default) 8 (controls, cards-in-cards)
+              · lg 12 (cards, popovers, dialogs) · xl 16 (sheets) · full (pills)
+     motion   --dur-fast (hover, press) · --dur (menus, toggles) · --dur-mid (panels, layout)
+              · --dur-slow (page/block entrances); --ease for state, --ease-out for entrances
+     focus    boxed controls: var(--focus-ring) · everything else: the global 2px outline
+     spacing  2px grid below 16 (2 4 6 8 10 12 14), 4px grid from 16 up (16 20 24 28 32 40 48 …).
+              Odd values only for optical alignment (an icon nudged onto a text line, a 1px overlap).
+     inset    bordered panels: --inset-sm 12/16 (callouts, alerts, strips) · --inset 16 (tiles, hero callout)
+              · --inset-lg 20 (cards). Every panel keeps ≥ 16px sideways so stacked panels share a left edge.
+              Small labels (badge, count, kbd, tag): 0 6px with a 4px icon gap; buttons: 6px gap.
    ───────────────────────────────────────────────────────────────────────────── */
 
 :root {
@@ -16,6 +31,29 @@
   --font-sans: -apple-system, BlinkMacSystemFont, 'Pretendard Variable', Pretendard, 'Apple SD Gothic Neo',
     'Noto Sans KR', 'Segoe UI Variable Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: 'SFMono-Regular', ui-monospace, Menlo, Consolas, 'JetBrains Mono', monospace;
+
+  /* type scale */
+  --fs-2xs: 11px; /* kbd, counts, overlines */
+  --fs-xs: 12px; /* meta, captions, tags */
+  --fs-sm: 13px; /* secondary UI: sidebar, dense rows, small buttons */
+  --fs-base: 14px; /* body, task titles, controls */
+  --fs-md: 15px; /* card / block titles, page lead */
+  --fs-lg: 16px; /* emphasised headline, touch-size inputs */
+  --fs-xl: 18px; /* dialog titles */
+  --fs-2xl: 20px; /* page sections */
+  --fs-3xl: 30px; /* figures; page title on phones */
+  --fs-display: 40px; /* page title */
+
+  /* panel insets */
+  --inset-sm: 12px 16px;
+  --inset: 16px;
+  --inset-lg: 20px;
+
+  /* control heights */
+  --control-xs: 24px;
+  --control-sm: 28px;
+  --control: 32px;
+  --control-lg: 36px;
 
   /* surfaces — pure */
   --bg: light-dark(#ffffff, #000000);
@@ -70,6 +108,7 @@
   /* focus */
   --ring-color: light-dark(rgba(0, 0, 0, 0.45), rgba(255, 255, 255, 0.5));
   --ring: 0 0 0 3px light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.12));
+  --focus-ring: 0 0 0 1px var(--ring-color), var(--ring); /* the one focus look for boxed controls */
   --selection: light-dark(rgba(37, 99, 235, 0.16), rgba(96, 165, 250, 0.3));
 
   /* elevation — a hairline ring does the work on pure bases; the drop only reads in light */
@@ -90,15 +129,17 @@
   --radius: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
+  --radius-full: 999px;
 
   /* motion */
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --dur-fast: 0.14s;
-  --dur: 0.22s;
-  --dur-slow: 0.5s;
+  --dur-fast: 0.14s; /* hover, press, colour */
+  --dur: 0.2s; /* menus, toggles, small moves */
+  --dur-mid: 0.32s; /* panels, layout shifts */
+  --dur-slow: 0.5s; /* page / block entrances */
 
   /* layout */
   --sidebar-w: 248px;
@@ -184,7 +225,7 @@
 }
 
 ::view-transition-new(root) {
-  animation: theme-reveal 0.55s var(--ease-in-out);
+  animation: theme-reveal var(--dur-slow) var(--ease-in-out);
 }
 
 @keyframes theme-reveal {
@@ -221,8 +262,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--fs-base);
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -328,7 +369,7 @@ textarea:focus-visible,
 
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 3px solid transparent;
   background-clip: content-box;
 }
@@ -353,12 +394,12 @@ textarea:focus-visible,
 
 kbd {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   font-weight: 500;
   line-height: 1;
   min-width: 20px;
   height: 20px;
-  padding: 0 5px;
+  padding: 0 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -376,6 +417,14 @@ kbd {
 html[data-dragging],
 html[data-dragging] * {
   cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* A home widget is being resized (home dashboard edit mode). */
+html[data-resizing],
+html[data-resizing] * {
+  cursor: nwse-resize !important;
   user-select: none !important;
   -webkit-user-select: none !important;
 }

@@ -14,7 +14,32 @@ export interface User {
   defaultWorkspaceId: string | null;
   /** Their own Jev (TypeSafe) connection for priority, postpone, triage and dependency hints. */
   jev: JevStatus;
+  /** Their own arrangement of the home dashboard; null = the default layout. */
+  homeLayout: HomeLayout | null;
   createdAt: string;
+}
+
+/**
+ * Home dashboard arrangement, saved per user.
+ * Desktop: widgets on a 12-column grid (x, w in columns; y, h in grid rows).
+ * Mobile: a single column, so only the order matters.
+ * Widgets in neither the list nor `hidden` (added in a later release) are appended.
+ */
+export interface HomeLayout {
+  v: 1;
+  desktop: { items: HomeLayoutItem[]; hidden: string[] };
+  mobile: { order: string[]; hidden: string[] };
+}
+
+export interface HomeLayoutItem {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  /** Last height in rows. Unless `fixed`, the widget follows its content and this is only a starting value. */
+  h: number;
+  /** The user set the height by hand; list widgets then scroll inside it (cards still never cut content). */
+  fixed?: boolean;
 }
 
 export interface ProjectGrant {

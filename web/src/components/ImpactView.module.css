@@ -19,7 +19,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 12px 14px;
+  padding: var(--inset-sm);
   border: 1px solid color-mix(in srgb, var(--tone) 28%, var(--border));
   border-radius: var(--radius-lg);
   background: var(--tone-soft);
@@ -48,9 +48,9 @@
 }
 
 .summaryTitle {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 600;
-  line-height: 1.45;
+  line-height: 1.4;
   letter-spacing: -0.01em;
   color: var(--tone-text);
 }
@@ -60,14 +60,14 @@
   flex-wrap: wrap;
   gap: 2px 12px;
   margin-top: 4px;
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   color: var(--text-2);
 }
 
 .stat {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   white-space: nowrap;
 }
 
@@ -110,7 +110,7 @@
   gap: 8px;
   min-height: 40px;
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 
 .slip + .slip {
@@ -137,7 +137,7 @@
   align-items: center;
   gap: 4px;
   margin-left: auto;
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -161,9 +161,9 @@
   gap: 10px;
   padding: 6px 8px 6px calc(var(--indent) + 26px);
   border-radius: var(--radius-sm);
-  font-size: 13px;
-  animation: fadeIn 0.2s var(--ease-out) both;
-  transition: background-color 0.12s var(--ease);
+  font-size: var(--fs-sm);
+  animation: fadeIn var(--dur) var(--ease-out) both;
+  transition: background-color var(--dur-fast) var(--ease);
 }
 
 .item:hover {
@@ -235,7 +235,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
   line-height: 22px;
   color: var(--text);
   border-radius: var(--radius-xs);
@@ -253,9 +253,8 @@
 }
 
 .title:focus-visible {
-  box-shadow:
-    0 0 0 1px var(--ring-color),
-    var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .item[data-kind='root'] .title {
@@ -269,7 +268,7 @@
 
 .num {
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 400;
   margin-right: 6px;
   font-variant-numeric: tabular-nums;
@@ -280,7 +279,7 @@
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -315,7 +314,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   line-height: 1;
   color: var(--text);
@@ -332,7 +331,7 @@
   }
 
   .dates {
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     line-height: 18px;
   }
 
@@ -350,7 +349,7 @@
     width: 100%;
     margin-left: 0;
     padding-left: 16px;
-    font-size: 12px;
+    font-size: var(--fs-xs);
   }
 }
 

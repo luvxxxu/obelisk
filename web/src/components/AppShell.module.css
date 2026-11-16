@@ -11,7 +11,7 @@
   height: 100dvh;
   overflow: hidden;
   background: var(--bg);
-  transition: grid-template-columns 0.22s var(--ease-out);
+  transition: grid-template-columns var(--dur) var(--ease-out);
 }
 
 .shell[data-collapsed='true'] {
@@ -42,7 +42,7 @@
 
 /* Each page fades and rises in on navigation (the wrapper is keyed by pathname). */
 .route {
-  animation: route-in 0.38s var(--ease-out) both;
+  animation: route-in var(--dur-mid) var(--ease-out) both;
 }
 
 @keyframes route-in {
@@ -83,12 +83,12 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   color: var(--text-2);
   flex-shrink: 0;
   transition:
-    background-color 0.12s var(--ease),
-    color 0.12s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .topBtn:hover {
@@ -115,7 +115,7 @@
   padding: 0;
   list-style: none;
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--fs-base);
   white-space: nowrap;
 }
 
@@ -138,7 +138,7 @@
   padding: 0 6px;
   border-radius: var(--radius-sm);
   color: var(--text);
-  transition: background-color 0.12s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease);
 }
 
 .crumbLink:hover {
@@ -151,7 +151,7 @@
   justify-content: center;
   width: 18px;
   height: 18px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--text);
   color: var(--bg);
   flex-shrink: 0;
@@ -183,7 +183,7 @@
 
 .topDate {
   margin-right: 8px;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text-3);
   white-space: nowrap;
 }
@@ -191,15 +191,15 @@
 .topText {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   height: 28px;
   padding: 0 8px 0 6px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 500;
   white-space: nowrap;
-  transition: background-color 0.12s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease);
 }
 
 .topText:hover {
@@ -236,7 +236,7 @@
   height: 100%;
   border-left: 1px solid var(--border);
   background: var(--surface);
-  animation: panelIn 0.24s var(--ease-out);
+  animation: panelIn var(--dur) var(--ease-out);
   overflow: hidden;
 }
 
@@ -297,7 +297,7 @@
     width: min(300px, 86vw);
     z-index: 45;
     transform: translateX(-102%);
-    transition: transform 0.26s var(--ease-out);
+    transition: transform var(--dur-mid) var(--ease-out);
     box-shadow: var(--shadow-xl);
   }
 
@@ -311,7 +311,7 @@
     inset: 0;
     z-index: 44;
     background: var(--overlay);
-    animation: fade 0.2s var(--ease);
+    animation: fade var(--dur) var(--ease);
   }
 
   .topbar {
@@ -338,8 +338,8 @@
     color: var(--on-primary);
     box-shadow: var(--shadow-lg);
     transition:
-      transform 0.15s var(--ease),
-      background-color 0.15s var(--ease);
+      transform var(--dur-fast) var(--ease),
+      background-color var(--dur-fast) var(--ease);
   }
 
   .fab:active {
@@ -347,7 +347,7 @@
   }
 
   .fab:focus-visible {
-    outline-offset: 3px;
+    outline-offset: 2px;
   }
 }
 
@@ -388,7 +388,7 @@
   max-width: 360px;
   padding: 0 24px;
   text-align: center;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text-2);
 }
 

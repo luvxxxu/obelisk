@@ -24,7 +24,7 @@
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow-sm);
-  animation: enter 0.24s var(--ease-out);
+  animation: enter var(--dur) var(--ease-out);
 }
 
 .card[data-size='wide'] {
@@ -51,7 +51,7 @@
 .logoTile {
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -67,17 +67,17 @@
 }
 
 .title {
-  font-size: 20px;
+  font-size: var(--fs-2xl);
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.4;
   letter-spacing: -0.02em;
   text-wrap: balance;
   word-break: keep-all;
 }
 
 .description {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--fs-base);
+  line-height: 1.55;
   color: var(--text-2);
   text-wrap: balance;
   word-break: keep-all;
@@ -132,8 +132,8 @@
 /* ───────── footer link */
 
 .footer {
-  font-size: 13.5px;
-  line-height: 1.5;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
   text-align: center;
   color: var(--text-2);
 }
@@ -145,7 +145,7 @@
   text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
   text-underline-offset: 4px;
   border-radius: var(--radius-xs);
-  transition: text-decoration-color 0.15s var(--ease);
+  transition: text-decoration-color var(--dur-fast) var(--ease);
 }
 
 .footerLink:hover {
@@ -163,7 +163,7 @@
 .clientTile {
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -171,7 +171,7 @@
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text);
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   line-height: 1;
 }
@@ -215,7 +215,7 @@
 
 .sectionLabel {
   margin-bottom: 8px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   line-height: 1.4;
   color: var(--text-3);
@@ -269,14 +269,14 @@
 }
 
 .scopeTitle {
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 500;
   line-height: 1.4;
 }
 
 .scopeDetail {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
   color: var(--text-2);
   word-break: keep-all;
   overflow-wrap: anywhere;
@@ -289,8 +289,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: var(--fs-xs);
+  line-height: 1.55;
   color: var(--text-3);
 }
 

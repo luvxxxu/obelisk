@@ -14,8 +14,8 @@
   border-radius: var(--radius);
   text-align: left;
   transition:
-    border-color 0.12s var(--ease),
-    background-color 0.12s var(--ease);
+    border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
 }
 
 .target:hover {
@@ -27,7 +27,8 @@
 }
 
 .target:focus-visible {
-  box-shadow: var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .targetText {
@@ -38,7 +39,7 @@
 }
 
 .targetName {
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -46,7 +47,7 @@
 }
 
 .targetMeta {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -57,8 +58,8 @@
   border: 1.5px solid var(--border-strong);
   flex-shrink: 0;
   transition:
-    border-width 0.15s var(--ease-spring),
-    border-color 0.15s var(--ease);
+    border-width var(--dur-fast) var(--ease-spring),
+    border-color var(--dur-fast) var(--ease);
 }
 
 .target[data-selected='true'] .radio {
@@ -70,13 +71,13 @@
   padding: 12px 14px 12px 28px;
   border-radius: var(--radius);
   background: var(--surface-2);
-  font-size: 13px;
-  line-height: 1.7;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
   color: var(--text-2);
 }
 
 .empty {
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text-2);
-  line-height: 1.6;
+  line-height: 1.55;
 }

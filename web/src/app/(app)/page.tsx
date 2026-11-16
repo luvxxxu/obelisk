@@ -2,6 +2,8 @@
 
 import {
   changesFromReport,
+  type HomeLayout,
+  type User,
   diffDays,
   formatRelativeKo,
   formatShortKo,
@@ -12,14 +14,15 @@ import {
 } from '@obelisk/core';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Icon, type IconName } from '@/components/Icon';
 import { JevStrip } from '@/components/JevStrip';
-import { Spinner, tip } from '@/components/primitives';
+import { Popover, Spinner, tip, ui, useDisclosure } from '@/components/primitives';
 import { Page, ViewHeader } from '@/components/View';
 import { cx, longDateKo } from '@/lib/format';
 import { useTasks } from '@/lib/hooks';
-import { createProject, reschedule, selectTask, toggleDone, useApp } from '@/lib/store';
+import { api } from '@/lib/api';
+import { createProject, reschedule, selectTask, setUser, toggleDone, useApp } from '@/lib/store';
 import { toast } from '@/lib/toast';
 import { setUi } from '@/lib/ui-state';
 import {
@@ -31,11 +34,13 @@ import {
   Column,
   ColumnAdd,
   Database,
-  H2,
   ListRow,
   NewPageBox,
   Tag,
 } from './_home/blocks';
+import { Dashboard, type DashMode } from './_home/Dashboard';
+import d from './_home/dashboard.module.css';
+import { clampItem, defaultLayout, firstFit, MOBILE_MAX, normalize, sameLayout, settle, type WidgetDef } from './_home/layout';
 import { stagger, useCountUp } from './_home/motion';
 import { UrgentBoard } from './_home/UrgentBoard';
 import { useHomeData, type HomeData, type ProjectRow, type RootRisk } from './_home/useHomeData';
@@ -49,10 +54,48 @@ const IMPACT_CAP = 4;
 
 const isActive = (t: Task) => t.status === 'todo' || t.status === 'doing';
 
+const tile = (id: string, name: string, icon: IconName, x: number, y: number, w = 3, h = 6): WidgetDef => ({
+  id,
+  name,
+  icon,
+  chrome: 'bare',
+  min: { w: 2, h: 5 },
+  desktop: { x, y, w, h },
+  mobileHalf: true,
+});
+
 /**
- * Home — a Notion-style workspace page on pure black/white.
- * Status callout → 5 summary tiles → 지연 파급 (ripple of each overdue task) + 주의할 작업
- * → 급한 업무 board · 다가오는 일정 list → 진행 상황 (projects board).
+ * Every block on the home page is a widget people can move, resize and hide (편집 mode).
+ * The array order is the default mobile order; `desktop` is the default place on the 12-column grid.
+ */
+const WIDGETS: WidgetDef[] = [
+  { id: 'status', name: '지금 상황', icon: 'gauge', chrome: 'bare', min: { w: 4, h: 4 }, desktop: { x: 0, y: 0, w: 9, h: 6 } },
+  { id: 'jev', name: 'Jev 추천', icon: 'sparkle', chrome: 'bare', min: { w: 4, h: 3 }, desktop: { x: 0, y: 6, w: 12, h: 3 } },
+  tile('tile-today', '오늘 남은 작업', 'sun', 0, 9),
+  tile('tile-overdue', '기한 지남', 'alertCircle', 3, 9),
+  tile('tile-delayed', '밀리는 작업', 'ripple', 6, 9),
+  tile('tile-conflicts', '고정 일정 충돌', 'pin', 9, 9),
+  tile('tile-finish', '전체 완료 예상', 'flag', 9, 0),
+  {
+    id: 'ripple',
+    name: '지연 파급',
+    icon: 'ripple',
+    chrome: 'section',
+    lead: '기한 지난 작업이 뒤따르는 일정을 얼마나 밀어내는지 미리 계산했어요.',
+    min: { w: 4, h: 8 },
+    desktop: { x: 0, y: 15, w: 8, h: 20 },
+  },
+  { id: 'watch', name: '주의할 작업', icon: 'target', chrome: 'bare', min: { w: 3, h: 6 }, desktop: { x: 8, y: 15, w: 4, h: 20 } },
+  { id: 'urgent', name: '급한 업무', icon: 'bolt', chrome: 'section', min: { w: 4, h: 10 }, desktop: { x: 0, y: 35, w: 6, h: 22 } },
+  { id: 'upcoming', name: '다가오는 일정', icon: 'calendar', chrome: 'section', min: { w: 3, h: 8 }, desktop: { x: 6, y: 35, w: 6, h: 22 } },
+  { id: 'projects', name: '진행 상황', icon: 'folder', chrome: 'section', min: { w: 4, h: 10 }, desktop: { x: 0, y: 57, w: 12, h: 20 } },
+];
+const DEFAULT_LAYOUT = defaultLayout(WIDGETS);
+
+/**
+ * Home — a dashboard of widgets on pure black/white.
+ * Status callout · Jev · 5 summary tiles · 지연 파급 · 주의할 작업 · 급한 업무 · 다가오는 일정 · 진행 상황,
+ * each placed, sized and hidden per user (saved on the account, separately for wide and narrow screens).
  */
 export default function HomePage() {
   const data = useHomeData();
@@ -97,83 +140,250 @@ export default function HomePage() {
 
   const projectOf = (id: string | null) => (id ? app.projects.find((p) => p.id === id) : undefined);
 
+  /* ── layout: saved on the account; `draft` is non-null while editing */
+  const user = app.user;
+  const saved = useMemo(() => normalize(user?.homeLayout, WIDGETS), [user?.homeLayout]);
+  const [draft, setDraft] = useState<HomeLayout | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const editing = draft !== null;
+  const layout = draft ?? saved;
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const width = useWidth(wrapRef);
+  const mode: DashMode = width < MOBILE_MAX ? 'mobile' : 'desktop';
+  const clearFocus = useCallbackStable(() => setFocusId(null));
+
+  const persist = async (next: HomeLayout, done?: string) => {
+    if (!user) return;
+    const value = sameLayout(next, DEFAULT_LAYOUT) ? null : next;
+    setUser({ ...user, homeLayout: value }); // optimistic
+    try {
+      const res = await api<{ user: User }>('PATCH', '/api/auth/me', { homeLayout: value });
+      setUser(res.user);
+      if (done) toast.success(done);
+    } catch (e) {
+      setUser(user);
+      toast.error(`홈 배치를 저장하지 못했어요 · ${(e as Error).message}`);
+    }
+  };
+
+  const finishEdit = () => {
+    const next = draft;
+    setDraft(null);
+    if (next && !sameLayout(next, saved)) void persist(next, '홈 배치를 저장했어요');
+  };
+
+  const hideEverywhere = (id: string) => {
+    const next: HomeLayout = {
+      v: 1,
+      desktop: { items: settle(saved.desktop.items.filter((i) => i.id !== id)), hidden: [...saved.desktop.hidden, id] },
+      mobile: { order: saved.mobile.order.filter((x) => x !== id), hidden: [...saved.mobile.hidden, id] },
+    };
+    void persist(next);
+    toast.show('Jev 추천을 홈에서 숨겼어요. 홈 편집 → 위젯 추가에서 다시 켤 수 있어요.');
+  };
+
+  const hidden = mode === 'desktop' ? layout.desktop.hidden : layout.mobile.hidden;
+  const addBack = (id: string) => {
+    if (!draft) return;
+    const def = WIDGETS.find((w) => w.id === id)!;
+    if (mode === 'desktop') {
+      const added = firstFit(draft.desktop.items, clampItem({ id, ...def.desktop }, def));
+      setDraft({
+        ...draft,
+        desktop: { items: settle([...draft.desktop.items, added]), hidden: draft.desktop.hidden.filter((x) => x !== id) },
+      });
+    } else {
+      setDraft({ ...draft, mobile: { order: [...draft.mobile.order, id], hidden: draft.mobile.hidden.filter((x) => x !== id) } });
+    }
+    setFocusId(id);
+  };
+
+  const resetMode = () => {
+    if (!draft) return;
+    setDraft(mode === 'desktop' ? { ...draft, desktop: DEFAULT_LAYOUT.desktop } : { ...draft, mobile: DEFAULT_LAYOUT.mobile });
+  };
+
+  const render = (id: string): ReactNode => {
+    switch (id) {
+      case 'status':
+        return <StatusCallout data={data} />;
+      case 'jev':
+        return <JevStrip todayCount={data.remaining} onDismiss={() => hideEverywhere('jev')} />;
+      case 'tile-today':
+      case 'tile-overdue':
+      case 'tile-delayed':
+      case 'tile-conflicts':
+      case 'tile-finish':
+        return <SummaryTile data={data} kind={id} />;
+      case 'ripple':
+        return <RippleBoard data={data} />;
+      case 'watch':
+        return <WatchList data={data} chronic={chronic} />;
+      case 'urgent':
+        return <UrgentBoard today={today} doneToday={data.doneToday} onNew={newTask} />;
+      case 'upcoming':
+        return (
+          <Database icon="calendar" title="이번 주" href="/upcoming" hrefLabel="예정 보기" onNew={newTask} newLabel="새 일정">
+            {upcoming.length ? (
+              <div className={s.list}>
+                {upcoming.slice(0, LIST_CAP).map(({ task, date }) => {
+                  const project = projectOf(task.projectId);
+                  return (
+                    <ListRow
+                      key={task.id}
+                      icon={task.fixed ? 'pin' : 'fileText'}
+                      iconColor={task.fixed ? 'var(--c-red)' : undefined}
+                      title={task.title}
+                      onOpen={() => selectTask(task.id)}
+                    >
+                      {project && <Tag hue={project.color}>{project.name}</Tag>}
+                      <span className={s.rowDate}>{formatRelativeKo(date, today)}</span>
+                    </ListRow>
+                  );
+                })}
+                {upcoming.length > LIST_CAP && (
+                  <ListRow
+                    icon="calendar"
+                    title={`외 ${upcoming.length - LIST_CAP}개 · 예정에서 모두 보기`}
+                    onOpen={() => router.push('/upcoming')}
+                    muted
+                  />
+                )}
+              </div>
+            ) : (
+              <NewPageBox label="새 일정" onClick={newTask} />
+            )}
+          </Database>
+        );
+      case 'projects':
+        return <ProjectsBoard groups={projectGroups} today={today} />;
+      default:
+        return null;
+    }
+  };
+
+  const actions = editing ? (
+    <>
+      <AddWidget defs={WIDGETS} hidden={hidden} onAdd={addBack} />
+      <button className={cx(ui.btn, ui.ghost, ui.sm)} onClick={resetMode} {...tip('지금 편집 중인 화면의 배치를 처음 상태로', { side: 'bottom' })}>
+        <Icon name="undo" size={14} />
+        기본 배치로
+      </button>
+      <button className={cx(ui.btn, ui.ghost, ui.sm)} onClick={() => setDraft(null)}>
+        취소
+      </button>
+      <button className={cx(ui.btn, ui.primary, ui.sm)} onClick={finishEdit}>
+        완료
+      </button>
+    </>
+  ) : (
+    <button className={cx(ui.btn, ui.ghost, ui.sm, s.editBtn)} onClick={() => setDraft(saved)} disabled={!user}>
+      <Icon name="layout" size={15} />
+      홈 편집
+    </button>
+  );
+
   return (
     <Page wide>
-      <ViewHeader icon="home" title="홈" description={`${longDateKo(today)} · ${greeting}${name ? `, ${name}님` : ''}`} />
+      <ViewHeader
+        icon="home"
+        title="홈"
+        description={`${longDateKo(today)} · ${greeting}${name ? `, ${name}님` : ''}`}
+        actions={actions}
+      />
 
-      <div className={s.home}>
-        <div className={s.reveal} style={stagger(0)}>
-          <StatusCallout data={data} />
+      {editing && (
+        <div className={d.editBar} role="note">
+          <Icon name="layout" size={16} />
+          <p className={d.editHint}>
+            <strong>{mode === 'desktop' ? '넓은 화면 배치' : '좁은 화면 배치'}</strong>
+            {' · '}
+            {mode === 'desktop'
+              ? '위젯을 끌어 옮기고 오른쪽 아래 모서리로 크기를 바꿔요. 높이는 내용에 맞춰 자동으로 정해지고, 직접 끌면 그 높이로 고정돼요(모서리를 두 번 누르면 다시 자동). 키보드는 방향키로 이동, Shift+방향키로 크기 조절.'
+              : '손잡이를 끌거나 화살표로 순서를 바꿔요. 넓은 화면 배치와 따로 저장돼요.'}
+          </p>
         </div>
+      )}
 
-        <div className={s.reveal} style={stagger(1)}>
-          <JevStrip todayCount={data.remaining} />
-        </div>
-
-        <div className={s.reveal} style={stagger(1)}>
-          <SummaryTiles data={data} />
-        </div>
-
-        <section className={cx(s.section, s.reveal)} style={stagger(2)} aria-labelledby="ripple-title">
-          <div className={s.sectionHead}>
-            <H2 id="ripple-title">지연 파급</H2>
-            <p className={s.sectionLead}>기한 지난 작업이 뒤따르는 일정을 얼마나 밀어내는지 미리 계산했어요.</p>
-          </div>
-          <div className={s.rippleGrid}>
-            <RippleBoard data={data} />
-            <WatchList data={data} chronic={chronic} />
-          </div>
-        </section>
-
-        <div className={cx(s.columns, s.reveal)} style={stagger(3)}>
-          <section className={s.col}>
-            <H2>급한 업무</H2>
-            <UrgentBoard today={today} doneToday={data.doneToday} onNew={newTask} />
-          </section>
-
-          <section className={s.col}>
-            <H2>다가오는 일정</H2>
-            <Database icon="calendar" title="이번 주" href="/upcoming" hrefLabel="예정 보기" onNew={newTask} newLabel="새 일정">
-              {upcoming.length ? (
-                <div className={s.list}>
-                  {upcoming.slice(0, LIST_CAP).map(({ task, date }) => {
-                    const project = projectOf(task.projectId);
-                    return (
-                      <ListRow
-                        key={task.id}
-                        icon={task.fixed ? 'pin' : 'fileText'}
-                        iconColor={task.fixed ? 'var(--c-red)' : undefined}
-                        title={task.title}
-                        onOpen={() => selectTask(task.id)}
-                      >
-                        {project && <Tag hue={project.color}>{project.name}</Tag>}
-                        <span className={s.rowDate}>{formatRelativeKo(date, today)}</span>
-                      </ListRow>
-                    );
-                  })}
-                  {upcoming.length > LIST_CAP && (
-                    <ListRow
-                      icon="calendar"
-                      title={`외 ${upcoming.length - LIST_CAP}개 · 예정에서 모두 보기`}
-                      onOpen={() => router.push('/upcoming')}
-                      muted
-                    />
-                  )}
-                </div>
-              ) : (
-                <NewPageBox label="새 일정" onClick={newTask} />
-              )}
-            </Database>
-          </section>
-        </div>
-
-        <section className={cx(s.section, s.reveal)} style={stagger(4)}>
-          <H2>진행 상황</H2>
-          <ProjectsBoard groups={projectGroups} today={today} />
-        </section>
+      <div ref={wrapRef} className={s.home}>
+        {width > 0 && (
+          <Dashboard
+            mode={mode}
+            width={width}
+            defs={WIDGETS}
+            layout={layout}
+            editing={editing}
+            render={render}
+            onChange={setDraft}
+            focusId={focusId}
+            onFocused={clearFocus}
+          />
+        )}
       </div>
     </Page>
   );
+}
+
+/** "위젯 추가": hidden widgets for the layout being edited. */
+function AddWidget({ defs, hidden, onAdd }: { defs: WidgetDef[]; hidden: string[]; onAdd: (id: string) => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const menu = useDisclosure();
+  const items = defs.filter((w) => hidden.includes(w.id));
+  return (
+    <>
+      <button ref={ref} className={cx(ui.btn, ui.outline, ui.sm)} onClick={menu.toggle} aria-expanded={menu.open} aria-haspopup="menu">
+        <Icon name="plus" size={14} />
+        위젯 추가
+        {items.length > 0 && <span className={s.addCount}>{items.length}</span>}
+      </button>
+      <Popover anchor={ref} open={menu.open} onClose={menu.close} align="end" width={232}>
+        <div className={d.addMenu} role="menu">
+          {items.length ? (
+            items.map((w) => (
+              <button
+                key={w.id}
+                role="menuitem"
+                className={ui.menuItem}
+                onClick={() => {
+                  menu.close();
+                  onAdd(w.id);
+                }}
+              >
+                <span className={d.addIcon}>
+                  <Icon name={w.icon} size={15} />
+                </span>
+                {w.name}
+              </button>
+            ))
+          ) : (
+            <p className={d.addEmpty}>숨긴 위젯이 없어요. 위젯의 눈 모양 버튼으로 숨길 수 있어요.</p>
+          )}
+        </div>
+      </Popover>
+    </>
+  );
+}
+
+/** Content-box width of an element, measured before paint and kept current. */
+function useWidth(ref: RefObject<HTMLElement | null>): number {
+  const [w, setW] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const read = () => setW(Math.floor(el.getBoundingClientRect().width));
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return w;
+}
+
+/** A callback whose identity never changes but always calls the latest closure. */
+function useCallbackStable(fn: () => void): () => void {
+  const ref = useRef(fn);
+  ref.current = fn;
+  return useCallback(() => ref.current(), []);
 }
 
 /** Largest shift among tasks pushed by overdue work (the overdue tasks themselves don't count). */
@@ -245,12 +455,12 @@ function StatusCallout({ data }: { data: HomeData }) {
       </div>
       <div className={s.statusActions}>
         {canApply && (
-          <button className={s.btnPrimary} onClick={() => void applyAll()} disabled={busy}>
+          <button className={cx(ui.btn, ui.primary)} onClick={() => void applyAll()} disabled={busy}>
             {busy ? <Spinner /> : <Icon name="bolt" size={15} />}
             오늘 기준으로 재조정
           </button>
         )}
-        <Link href={level === 'ok' ? '/today' : '/forecast'} className={s.btnGhost}>
+        <Link href={level === 'ok' ? '/today' : '/forecast'} className={cx(ui.btn, ui.ghost, s.statusLink)}>
           {level === 'ok' ? '오늘 보기' : '파급 예측'}
           <Icon name="arrowRight" size={14} />
         </Link>
@@ -261,50 +471,59 @@ function StatusCallout({ data }: { data: HomeData }) {
 
 /* ───────────────────────── summary tiles */
 
-function SummaryTiles({ data }: { data: HomeData }) {
+type TileKind = 'tile-today' | 'tile-overdue' | 'tile-delayed' | 'tile-conflicts' | 'tile-finish';
+
+function SummaryTile({ data, kind }: { data: HomeData; kind: TileKind }) {
   const { remaining, doneToday, doing, overdue, oldestOverdue, delayed, conflicts, fc, today, fixed } = data;
   const { finishFrom, finishTo } = fc.summary;
-  const maxShiftDays = maxDownstreamShift(data);
-  const finishShift = finishFrom && finishTo && finishFrom !== finishTo ? diffDays(finishTo, finishFrom) : 0;
-  const totalToday = remaining + doneToday.length;
-  const pct = totalToday ? Math.round((doneToday.length / totalToday) * 100) : 0;
-  const nextFixed = fixed.find((f) => f.conflict) ?? fixed[0];
-
-  return (
-    <div className={s.tiles}>
-      <Tile href="/today" icon="sun" label="오늘 남은 작업" value={remaining} unit="개" index={0}>
-        <span className={s.tileMeta}>
-          완료 {doneToday.length}개{doing > 0 ? ` · 진행 중 ${doing}개` : ''}
-        </span>
-        <span className={s.tileTrack} aria-hidden="true">
-          <span className={s.tileBar} style={{ width: `${pct}%` }} />
-        </span>
-      </Tile>
-      <Tile href="/today" icon="alertCircle" label="기한 지남" value={overdue.length} unit="개" tone={overdue.length ? 'danger' : undefined} index={1}>
-        <span className={s.tileMeta}>{overdue.length ? `가장 오래된 작업 ${oldestOverdue}일 지남` : '밀린 작업이 없어요'}</span>
-      </Tile>
-      <Tile href="/forecast" icon="ripple" label="밀리는 작업" value={delayed} unit="개" tone={delayed ? 'warn' : undefined} index={2}>
-        <span className={s.tileMeta}>{delayed ? `최대 ${maxShiftDays}일 늦어져요` : '영향받는 일정 없음'}</span>
-      </Tile>
-      <Tile href="/forecast" icon="pin" label="고정 일정 충돌" value={conflicts} unit="개" tone={conflicts ? 'danger' : undefined} index={3}>
-        <span className={s.tileMeta}>
-          {nextFixed ? `${nextFixed.conflict ? '위험 ' : '다음 '}${formatRelativeKo(nextFixed.date, today)} · ${nextFixed.task.title}` : '30일 안에 고정 일정 없음'}
-        </span>
-      </Tile>
-      <Tile
-        href="/forecast"
-        icon="flag"
-        label="전체 완료 예상"
-        text={finishTo ? formatShortKo(finishTo) : '—'}
-        tone={finishShift > 0 ? 'warn' : undefined}
-        index={4}
-      >
-        <span className={s.tileMeta}>
-          {finishShift > 0 ? `원래보다 ${finishShift}일 늦어져요` : finishTo ? `${Math.max(0, diffDays(finishTo, today))}일 남음 · 계획대로` : '날짜 있는 작업이 없어요'}
-        </span>
-      </Tile>
-    </div>
-  );
+  switch (kind) {
+    case 'tile-today': {
+      const totalToday = remaining + doneToday.length;
+      const pct = totalToday ? Math.round((doneToday.length / totalToday) * 100) : 0;
+      return (
+        <Tile href="/today" icon="sun" label="오늘 남은 작업" value={remaining} unit="개">
+          <span className={s.tileMeta}>
+            완료 {doneToday.length}개{doing > 0 ? ` · 진행 중 ${doing}개` : ''}
+          </span>
+          <span className={s.tileTrack} aria-hidden="true">
+            <span className={s.tileBar} style={{ width: `${pct}%` }} />
+          </span>
+        </Tile>
+      );
+    }
+    case 'tile-overdue':
+      return (
+        <Tile href="/today" icon="alertCircle" label="기한 지남" value={overdue.length} unit="개" tone={overdue.length ? 'danger' : undefined}>
+          <span className={s.tileMeta}>{overdue.length ? `가장 오래된 작업 ${oldestOverdue}일 지남` : '밀린 작업이 없어요'}</span>
+        </Tile>
+      );
+    case 'tile-delayed':
+      return (
+        <Tile href="/forecast" icon="ripple" label="밀리는 작업" value={delayed} unit="개" tone={delayed ? 'warn' : undefined}>
+          <span className={s.tileMeta}>{delayed ? `최대 ${maxDownstreamShift(data)}일 늦어져요` : '영향받는 일정 없음'}</span>
+        </Tile>
+      );
+    case 'tile-conflicts': {
+      const nextFixed = fixed.find((f) => f.conflict) ?? fixed[0];
+      return (
+        <Tile href="/forecast" icon="pin" label="고정 일정 충돌" value={conflicts} unit="개" tone={conflicts ? 'danger' : undefined}>
+          <span className={s.tileMeta}>
+            {nextFixed ? `${nextFixed.conflict ? '위험 ' : '다음 '}${formatRelativeKo(nextFixed.date, today)} · ${nextFixed.task.title}` : '30일 안에 고정 일정 없음'}
+          </span>
+        </Tile>
+      );
+    }
+    case 'tile-finish': {
+      const finishShift = finishFrom && finishTo && finishFrom !== finishTo ? diffDays(finishTo, finishFrom) : 0;
+      return (
+        <Tile href="/forecast" icon="flag" label="전체 완료 예상" text={finishTo ? formatShortKo(finishTo) : '—'} tone={finishShift > 0 ? 'warn' : undefined}>
+          <span className={s.tileMeta}>
+            {finishShift > 0 ? `원래보다 ${finishShift}일 늦어져요` : finishTo ? `${Math.max(0, diffDays(finishTo, today))}일 남음 · 계획대로` : '날짜 있는 작업이 없어요'}
+          </span>
+        </Tile>
+      );
+    }
+  }
 }
 
 function Tile({
@@ -315,7 +534,6 @@ function Tile({
   text,
   unit,
   tone,
-  index,
   children,
 }: {
   href: string;
@@ -325,12 +543,11 @@ function Tile({
   text?: string;
   unit?: string;
   tone?: 'danger' | 'warn';
-  index: number;
   children?: ReactNode;
 }) {
   const n = useCountUp(value ?? 0);
   return (
-    <Link href={href} className={s.tile} data-tone={tone} style={stagger(index)}>
+    <Link href={href} className={s.tile} data-tone={tone}>
       <span className={s.tileLabel}>
         <Icon name={icon} size={15} />
         {label}
@@ -515,7 +732,7 @@ function WatchList({ data, chronic }: { data: HomeData; chronic: Task[] }) {
                     {t.title}
                   </span>
                   <span className={s.watchSlack} data-tight="true">
-                    {t.postponedCount}번 미룸
+                    {t.postponedCount}회 미룸
                   </span>
                 </button>
               </li>

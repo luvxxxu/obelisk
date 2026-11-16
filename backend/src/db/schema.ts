@@ -1,3 +1,4 @@
+import type { HomeLayout } from '@obelisk/core';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -38,6 +39,8 @@ export const users = pgTable('users', {
   jevKeyHint: text('jev_key_hint'),
   /** Apply high-confidence Jev judgments without asking. */
   jevAutoApply: boolean('jev_auto_apply').notNull().default(false),
+  /** Home dashboard arrangement (core HomeLayout); null = default layout. */
+  homeLayout: jsonb('home_layout').$type<HomeLayout>(),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 

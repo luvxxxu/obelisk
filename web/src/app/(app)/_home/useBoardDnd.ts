@@ -337,7 +337,7 @@ function speed(distToEdge: number): number {
   return Math.round(MAX_SCROLL * t * t);
 }
 
-function scrollParent(el: HTMLElement | null): HTMLElement | null {
+export function scrollParent(el: HTMLElement | null): HTMLElement | null {
   for (let n = el?.parentElement; n; n = n.parentElement) {
     const oy = getComputedStyle(n).overflowY;
     if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight) return n;

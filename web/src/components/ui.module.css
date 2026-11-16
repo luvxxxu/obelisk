@@ -4,7 +4,7 @@
    Tokens live in app/globals.css. Colour only for meaning (data-tone).
 
    BUTTONS (combine .btn + one variant + optional size)
-     .btn            base: 32px tall, radius 6, 14px/500, gap 6, focus ring. Alone = plain text button
+     .btn            base: --control (32px) tall, --radius, 14px/500, gap 6, focus ring. Alone = plain text button
      .primary        monochrome filled (black on light, white on dark) — the one main action
      .secondary      muted filled (--surface-2)
      .outline        1px border on page bg, hover muted
@@ -12,31 +12,31 @@
      .danger         filled red, white text (destructive confirm)
      .dangerGhost    red text, hover red tint (destructive in menus/rows)
      .link           text link look (underline on hover); also usable on <a> without .btn
-     .xs / .sm / .lg 24 / 28 / 36px heights
+     .xs / .sm / .lg 24 / 28 / 36px heights (≤ 28px tall controls use --radius-sm, taller ones --radius)
      .icon           square icon-only button (32; with .sm 28, .xs 24, .lg 36)
      .block          full width
      .iconBtn        standalone compact 28px ghost icon button (muted icon); [data-active='true'] = pressed
      inside a button: <kbd> is auto-tinted (e.g. "새 작업  N")
 
    FORMS
-     .input          36px text field / <select> (auto chevron) / <textarea class=input> (multi-line box)
+     .input          32px text field / <select> (auto chevron) / <textarea class=input> (multi-line box)
                      [aria-invalid='true'] = red border + ring
      .textarea       borderless auto-growing textarea (AutoTextarea)
      .label          13px/500 field label
      .field          vertical stack (label · control · .help) with 8px gap
-     .help           12.5px muted helper text under a field
+     .help           12px muted helper text under a field
      .switch         toggle (role=switch + aria-checked) — use <Switch>
 
    MENUS / POPOVERS
-     .popover        floating panel (bg surface, border, radius 10, shadow-md, padding 4) — use <Popover>
-     .menuItem       32px row; :hover / [data-active='true'] highlighted; [data-selected='true'] = current;
+     .popover        floating panel (bg surface, hairline ring, --radius-lg, shadow-md, padding 6) — use <Popover>
+     .menuItem       28px row (--radius-sm, concentric with the popover); :hover / [data-active='true'] highlighted; [data-selected='true'] = current;
                      [data-tone='danger'] = destructive
      .menuHint       right-aligned shortcut / meta text inside .menuItem
      .menuSep        1px divider
      .menuTitle      12px/500 muted group label inside a menu
 
    TABS / SEGMENTED
-     .segmented / .tabs     muted pill container (36px; [data-size='sm'] = 32px; [data-full='true'] = stretch)
+     .segmented / .tabs     muted pill container (32px; [data-size='sm'] = 28px; [data-full='true'] = stretch)
      .segment / .tab        trigger; active when aria-pressed='true' | aria-selected='true' | data-active='true'
 
    DIALOG
@@ -54,7 +54,7 @@
      .cardAction     top-right slot in header (button / link / badge)
      .cardContent    body
      .cardFooter     bottom row (flex, gap 8)
-     .stat           KPI block helper: .statLabel (13/500 muted) · .statValue (28/600 tabular) · .statMeta (12 muted)
+     .stat           KPI block helper: .statLabel (13/500 muted) · .statValue (30/600 tabular) · .statMeta (12 muted)
 
    DATA DISPLAY
      .badge          small label; data-tone = default (filled) | secondary (muted, also the default) |
@@ -62,7 +62,7 @@
      .chip           pill-ish muted meta chip (legacy, task meta)
      .dot            8px circle (project colour via style, or data-tone = danger|warn|ok|info|muted)
      .avatar         32px rounded square initial; [data-size='sm'] 24px, [data-size='lg'] 40px
-     .progress       track (6px; [data-size='sm'] 4px, [data-size='lg'] 8px; data-tone on track tints bar)
+     .progress       track (4px; [data-size='sm'] 3px, [data-size='lg'] 6px; data-tone on track tints bar)
      .progressBar    the fill — set style={{ width: '40%' }}
      .skeleton       pulsing placeholder block (set width/height)
      .spinner        16px rotating ring (currentColor)
@@ -74,7 +74,8 @@
                      For overflow-clipped places use the JS layer instead: tip(label) / data-tip (see primitives)
 
    TYPE HELPERS
-     .sectionTitle   15px/600 heading for a page section
+     .pageSection    20px/700 heading for a top-level section of a page (홈 · 파급 예측)
+     .sectionTitle   15px/600 heading for a block inside a section or card
      .muted          text-2 colour · .subtle text-3 colour · .tabular tabular numbers · .truncate ellipsis
    ═════════════════════════════════════════════════════════════════════════════ */
 
@@ -86,23 +87,23 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 32px;
+  height: var(--control);
   padding: 0 12px;
   border: 1px solid transparent;
   border-radius: var(--radius);
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 500;
   line-height: 1;
   white-space: nowrap;
   color: var(--text);
   outline: none;
   transition:
-    background-color 0.15s var(--ease),
-    border-color 0.15s var(--ease),
-    color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease),
-    opacity 0.15s var(--ease),
-    transform 0.12s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
   user-select: none;
   flex-shrink: 0;
 }
@@ -127,7 +128,7 @@
   height: 18px;
   min-width: 18px;
   padding: 0 4px;
-  font-size: 10.5px;
+  font-size: var(--fs-2xs);
   background: color-mix(in srgb, currentColor 10%, transparent);
   border-color: transparent;
   color: inherit;
@@ -204,7 +205,7 @@
   text-decoration: underline;
   text-decoration-color: transparent;
   text-underline-offset: 4px;
-  transition: text-decoration-color 0.15s var(--ease);
+  transition: text-decoration-color var(--dur-fast) var(--ease);
 }
 
 .link:hover {
@@ -218,41 +219,41 @@
 }
 
 .xs {
-  height: 24px;
-  padding: 0 7px;
+  height: var(--control-xs);
+  padding: 0 8px;
   gap: 4px;
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   border-radius: var(--radius-sm);
 }
 
 .sm {
-  height: 28px;
+  height: var(--control-sm);
   padding: 0 10px;
   gap: 6px;
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
+  border-radius: var(--radius-sm);
 }
 
 .lg {
-  height: 36px;
+  height: var(--control-lg);
   padding: 0 16px;
-  font-size: 14px;
 }
 
 .icon {
-  width: 32px;
+  width: var(--control);
   padding: 0;
 }
 
 .xs.icon {
-  width: 24px;
+  width: var(--control-xs);
 }
 
 .sm.icon {
-  width: 28px;
+  width: var(--control-sm);
 }
 
 .lg.icon {
-  width: 36px;
+  width: var(--control-lg);
 }
 
 .block {
@@ -264,15 +265,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--control-sm);
+  height: var(--control-sm);
   border-radius: var(--radius-sm);
   color: var(--text-3);
   outline: none;
   transition:
-    background-color 0.15s var(--ease),
-    color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
   flex-shrink: 0;
 }
 
@@ -282,9 +283,8 @@
 }
 
 .iconBtn:focus-visible {
-  box-shadow:
-    0 0 0 1px var(--ring-color),
-    var(--ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .iconBtn[data-active='true'] {
@@ -302,17 +302,17 @@
 .input {
   width: 100%;
   min-width: 0;
-  height: 32px;
+  height: var(--control);
   padding: 0 10px;
   border-radius: var(--radius);
   border: 1px solid var(--input);
   background: var(--input-bg);
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text);
   outline: none;
   transition:
-    border-color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease);
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .input:focus,
@@ -364,15 +364,15 @@ textarea.input {
   resize: none;
   border: 0;
   background: transparent;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--fs-base);
+  line-height: 1.55;
   padding: 0;
   outline: none;
 }
 
 .label {
   display: block;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   line-height: 1.4;
   color: var(--text);
@@ -391,8 +391,8 @@ textarea.input {
 }
 
 .help {
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: var(--fs-xs);
+  line-height: 1.55;
   color: var(--text-3);
 }
 
@@ -407,10 +407,10 @@ textarea.input {
   background: var(--surface);
   color: var(--text);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   padding: 6px;
-  animation: pop 0.14s var(--ease-out);
+  animation: pop var(--dur-fast) var(--ease-out);
   transform-origin: top center;
 }
 
@@ -426,15 +426,15 @@ textarea.input {
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 28px;
+  min-height: var(--control-sm);
   padding: 4px 8px;
-  border-radius: var(--radius);
-  font-size: 14px;
-  line-height: 1.35;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-base);
+  line-height: 1.4;
   text-align: left;
   color: var(--text);
   outline: none;
-  transition: background-color 0.1s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease);
   user-select: none;
 }
 
@@ -476,7 +476,7 @@ textarea.input {
 .menuHint {
   margin-left: auto;
   padding-left: 12px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.04em;
   color: var(--text-3);
   white-space: nowrap;
@@ -491,7 +491,7 @@ textarea.input {
 
 .menuTitle {
   padding: 6px 8px 4px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-3);
   overflow: hidden;
@@ -508,10 +508,10 @@ textarea.input {
   gap: 4px;
   height: 20px;
   padding: 0 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid transparent;
-  font-size: 12px;
-  font-weight: 450;
+  font-size: var(--fs-xs);
+  font-weight: 500;
   line-height: 1;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -566,9 +566,9 @@ textarea.input {
   gap: 4px;
   height: 20px;
   padding: 0 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 450;
+  border-radius: var(--radius-xs);
+  font-size: var(--fs-xs);
+  font-weight: 500;
   color: var(--c-slate-text);
   background: var(--c-slate-bg);
   white-space: nowrap;
@@ -611,7 +611,7 @@ textarea.input {
   border-radius: var(--radius);
   background: var(--surface-3);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   line-height: 1;
   flex-shrink: 0;
@@ -622,14 +622,14 @@ textarea.input {
   width: 24px;
   height: 24px;
   border-radius: var(--radius-sm);
-  font-size: 11px;
+  font-size: var(--fs-2xs);
 }
 
 .avatar[data-size='lg'] {
   width: 40px;
   height: 40px;
-  border-radius: 10px;
-  font-size: 15px;
+  border-radius: var(--radius);
+  font-size: var(--fs-md);
 }
 
 /* ───────── switch */
@@ -639,12 +639,12 @@ textarea.input {
   display: inline-flex;
   width: 32px;
   height: 18px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 1px solid transparent;
   background: var(--input);
   box-shadow: var(--shadow-xs);
   outline: none;
-  transition: background-color 0.16s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease);
   flex-shrink: 0;
 }
 
@@ -658,7 +658,7 @@ textarea.input {
   border-radius: 50%;
   background: var(--bg);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  transition: transform 0.18s var(--ease);
+  transition: transform var(--dur) var(--ease);
 }
 
 :global(:root[data-theme='dark']) .switch:not([aria-checked='true'])::after {
@@ -681,6 +681,7 @@ textarea.input {
 }
 
 .switch:focus-visible {
+  outline: none;
   border-color: var(--ring-color);
   box-shadow: var(--ring);
 }
@@ -691,10 +692,10 @@ textarea.input {
 .tabs {
   display: inline-flex;
   align-items: center;
-  height: 32px;
+  height: var(--control);
   padding: 2px;
   gap: 2px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--surface-2);
   color: var(--text-2);
   max-width: 100%;
@@ -709,7 +710,7 @@ textarea.input {
 
 .segmented[data-size='sm'],
 .tabs[data-size='sm'] {
-  height: 28px;
+  height: var(--control-sm);
 }
 
 .segmented[data-full='true'],
@@ -731,17 +732,17 @@ textarea.input {
   gap: 6px;
   height: 100%;
   padding: 0 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   white-space: nowrap;
   color: var(--text-2);
   outline: none;
   transition:
-    background-color 0.15s var(--ease),
-    color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .segment:hover,
@@ -751,6 +752,7 @@ textarea.input {
 
 .segment:focus-visible,
 .tab:focus-visible {
+  outline: none;
   border-color: var(--ring-color);
   box-shadow: var(--ring);
 }
@@ -777,7 +779,7 @@ textarea.input {
   align-items: flex-start;
   justify-content: center;
   padding: 12vh 16px 16px;
-  animation: fade 0.16s var(--ease);
+  animation: fade var(--dur-fast) var(--ease);
 }
 
 @keyframes fade {
@@ -796,10 +798,10 @@ textarea.input {
   background: var(--surface);
   color: var(--text);
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xl);
   overflow: hidden;
-  animation: rise 0.2s var(--ease-out);
+  animation: rise var(--dur) var(--ease-out);
 }
 
 @keyframes rise {
@@ -818,16 +820,16 @@ textarea.input {
 }
 
 .modalTitle {
-  font-size: 18px;
+  font-size: var(--fs-xl);
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.25;
   letter-spacing: -0.02em;
   min-width: 0;
 }
 
 .modalDescription {
   padding: 6px 24px 0;
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1.55;
   color: var(--text-2);
 }
@@ -873,7 +875,7 @@ textarea.input {
   }
 
   .modalHeader {
-    padding: 18px 16px 0 20px;
+    padding: 20px 16px 0 20px;
   }
 
   .modalDescription {
@@ -899,7 +901,7 @@ textarea.input {
 /* ───────── card */
 
 .card {
-  --card-pad: 20px;
+  --card-pad: 20px; /* = --inset-lg; a plain length because headers/footers compute with it */
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -914,9 +916,9 @@ textarea.input {
   outline: none;
   text-align: left;
   transition:
-    background-color 0.15s var(--ease),
-    border-color 0.15s var(--ease),
-    box-shadow 0.15s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .interactive:hover {
@@ -925,6 +927,7 @@ textarea.input {
 }
 
 .interactive:focus-visible {
+  outline: none;
   border-color: var(--ring-color);
   box-shadow: var(--ring);
 }
@@ -943,11 +946,11 @@ textarea.input {
 }
 
 .cardTitle {
-  font-size: 15px;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--text);
-  line-height: 1.35;
-  letter-spacing: -0.012em;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -955,8 +958,8 @@ textarea.input {
 }
 
 .cardDescription {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
   color: var(--text-2);
 }
 
@@ -1002,7 +1005,7 @@ textarea.input {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-2);
 }
@@ -1013,17 +1016,17 @@ textarea.input {
 }
 
 .statValue {
-  font-size: 28px;
+  font-size: var(--fs-3xl);
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.25;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 
 .statMeta {
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
   color: var(--text-3);
 }
 
@@ -1033,7 +1036,7 @@ textarea.input {
   position: relative;
   width: 100%;
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--surface-3);
   overflow: hidden;
   flex-shrink: 0;
@@ -1053,7 +1056,7 @@ textarea.input {
   width: 0;
   border-radius: inherit;
   background: var(--primary);
-  transition: width 0.4s var(--ease-out);
+  transition: width var(--dur-slow) var(--ease-out);
 }
 
 .progress[data-tone='ok'] {
@@ -1139,12 +1142,12 @@ textarea.input {
 
 .kbd {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   font-weight: 500;
   line-height: 1;
   min-width: 20px;
   height: 20px;
-  padding: 0 5px;
+  padding: 0 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1159,7 +1162,7 @@ textarea.input {
 .kbdGroup {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 /* ───────── table */
@@ -1174,13 +1177,13 @@ textarea.input {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
   caption-side: bottom;
 }
 
 .tr {
   border-bottom: 1px solid var(--border);
-  transition: background-color 0.12s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease);
 }
 
 .table tbody .tr:last-child {
@@ -1196,7 +1199,7 @@ textarea.input {
   padding: 0 8px;
   text-align: left;
   vertical-align: middle;
-  font-size: 12.5px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-2);
   white-space: nowrap;
@@ -1215,12 +1218,12 @@ textarea.input {
   align-items: start;
   column-gap: 12px;
   row-gap: 2px;
-  padding: 14px 16px;
+  padding: var(--inset-sm);
   border: 1px solid transparent;
   border-radius: var(--radius-lg);
   background: var(--callout);
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 
 .alert > svg {
@@ -1243,11 +1246,11 @@ textarea.input {
 
 .alertTitle {
   font-weight: 500;
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
 .alertDescription {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   line-height: 1.55;
   color: var(--text-2);
 }
@@ -1301,21 +1304,21 @@ textarea.input {
   left: 50%;
   bottom: calc(100% + 6px);
   transform: translate(-50%, 2px);
-  padding: 5px 9px;
+  padding: 6px 10px;
   border-radius: var(--radius-sm);
   background: var(--primary);
   color: var(--on-primary);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
-  line-height: 1.3;
+  line-height: 1.25;
   letter-spacing: 0;
   white-space: nowrap;
   box-shadow: var(--shadow-md);
   pointer-events: none;
   opacity: 0;
   transition:
-    opacity 0.12s var(--ease),
-    transform 0.12s var(--ease);
+    opacity var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
 }
 
 .tooltip[data-tooltip][data-side='bottom']::after {
@@ -1381,13 +1384,13 @@ textarea.input {
   border-radius: var(--radius-sm);
   background: var(--primary);
   color: var(--on-primary);
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
-  line-height: 1.3;
+  line-height: 1.25;
   letter-spacing: 0;
   box-shadow: var(--shadow-md);
   pointer-events: none;
-  animation: tipIn 0.12s var(--ease-out);
+  animation: tipIn var(--dur-fast) var(--ease-out);
 }
 
 @keyframes tipIn {
@@ -1405,7 +1408,7 @@ textarea.input {
   height: 18px;
   min-width: 18px;
   padding: 0 4px;
-  font-size: 10.5px;
+  font-size: var(--fs-2xs);
   background: color-mix(in srgb, var(--on-primary) 14%, transparent);
   border-color: transparent;
   color: inherit;
@@ -1413,11 +1416,19 @@ textarea.input {
 
 /* ───────── type helpers */
 
+.pageSection {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
 .sectionTitle {
-  font-size: 15px;
+  font-size: var(--fs-md);
   font-weight: 600;
-  line-height: 1.35;
-  letter-spacing: -0.012em;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
   color: var(--text);
 }
 

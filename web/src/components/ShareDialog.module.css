@@ -10,7 +10,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  transition: opacity 0.15s var(--ease);
+  transition: opacity var(--dur-fast) var(--ease);
 }
 
 .body[data-busy='true'] {
@@ -34,8 +34,8 @@
   border-radius: var(--radius);
   background: var(--bg);
   transition:
-    border-color 0.12s var(--ease),
-    box-shadow 0.12s var(--ease);
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .adderField:focus-within {
@@ -55,7 +55,7 @@
   border: 0;
   outline: none;
   background: transparent;
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text);
 }
 
@@ -69,18 +69,18 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
-  animation: share-in 0.14s var(--ease-out);
+  animation: share-in var(--dur-fast) var(--ease-out);
 }
 
 .none {
   padding: 8px;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
 .addHint {
   margin-left: auto;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   white-space: nowrap;
 }
@@ -102,7 +102,7 @@
   min-height: 48px;
   padding: 6px 0;
   border-top: 1px solid var(--border);
-  animation: share-in 0.18s var(--ease-out) both;
+  animation: share-in var(--dur) var(--ease-out) both;
 }
 
 .row:first-child {
@@ -120,7 +120,7 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   box-shadow: inset 0 0 0 1px var(--border-strong);
   flex-shrink: 0;
@@ -134,7 +134,7 @@ span.avatar {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  font-size: 11px;
+  font-size: var(--fs-2xs);
 }
 
 .who {
@@ -146,7 +146,7 @@ span.avatar {
 }
 
 .whoName {
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -154,7 +154,7 @@ span.avatar {
 }
 
 .whoMeta {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
@@ -166,7 +166,7 @@ span.avatar {
 }
 
 .fixedLevel {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
   padding: 0 8px;
   white-space: nowrap;
@@ -189,12 +189,12 @@ span.avatar {
   border-radius: var(--radius-sm);
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
   cursor: pointer;
   transition:
-    background-color 0.12s var(--ease),
-    color 0.12s var(--ease);
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .select:hover:not(:disabled),
@@ -219,7 +219,7 @@ span.avatar {
 
 .footNote {
   margin-right: auto;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 

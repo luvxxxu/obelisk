@@ -240,7 +240,7 @@ export function ConfirmModal({
         </>
       }
     >
-      <div style={{ color: 'var(--text-2)', fontSize: 14, lineHeight: 1.6 }}>{body}</div>
+      <div style={{ color: 'var(--text-2)', fontSize: 'var(--fs-base)', lineHeight: 1.55 }}>{body}</div>
     </Modal>
   );
 }
