@@ -1,0 +1,202 @@
+/* Home widget "다른 공간": one card per other space, three counts and the next thing up.
+   The space colour (--space) only marks the card's corner swatch; everything else stays black/white. */
+
+.wrap {
+  container: spaces / inline-size;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: var(--inset);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  animation: space-rise var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 45ms + 30ms);
+  transition:
+    box-shadow var(--dur-fast) var(--ease),
+    transform var(--dur) var(--ease);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-1px);
+}
+
+.card:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@keyframes space-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.swatch {
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: var(--radius-full);
+  background: var(--space);
+  flex-shrink: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.statNum {
+  font-size: var(--fs-2xl);
+  font-weight: 650;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.statLabel {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.stat[data-zero] .statNum {
+  color: var(--text-4);
+}
+
+.stat[data-tone='danger'] .statNum,
+.stat[data-tone='danger'] .statLabel {
+  color: var(--danger-text);
+}
+
+.next {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  min-height: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+
+.nextWhen {
+  flex-shrink: 0;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+
+.nextWhen[data-tone='danger'] {
+  color: var(--danger-text);
+}
+
+.nextTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.nextNone {
+  color: var(--text-3);
+}
+
+.more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.more:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  min-height: 64px;
+  padding: 0 4px;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: var(--inset);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.emptyMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+.emptyTitle {
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+.emptyBody {
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}

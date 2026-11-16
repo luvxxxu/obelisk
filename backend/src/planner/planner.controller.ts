@@ -17,6 +17,7 @@ import {
   updateTaskInput,
   VIEW_NAMES,
   type Bootstrap,
+  type Overview,
 } from '@obelisk/core';
 import type { Request } from 'express';
 import { z } from 'zod';
@@ -87,6 +88,25 @@ export class PlannerController {
       projects,
       tasks,
       dependencies: deps.filter((d) => ids.has(d.taskId) && ids.has(d.dependsOnId)),
+    };
+  }
+
+  /**
+   * 모아보기: the caller's own work across every space they belong to, ignoring the open one.
+   * Each space is read with that space's own permissions, exactly as if it were open.
+   */
+  @Get('overview')
+  async overview(@Auth() auth: AuthContext): Promise<Overview> {
+    const today = todayIn(auth.user.timezone);
+    const spaces = await this.workspaces.listFor(auth.user.id);
+    const parts = await Promise.all(
+      spaces.map(async (w) => this.tasks.overview(await this.access.forWorkspace(auth, w.id), today)),
+    );
+    return {
+      today,
+      spaces,
+      tasks: parts.flatMap((p) => p.tasks),
+      projects: parts.flatMap((p) => p.projects),
     };
   }
 

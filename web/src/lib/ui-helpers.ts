@@ -21,6 +21,7 @@ export interface PageMeta {
 
 export const PAGE_META: Record<string, PageMeta> = {
   '/': { label: '홈', icon: 'home' },
+  '/overview': { label: '모아보기', icon: 'grid' },
   '/today': { label: '오늘', icon: 'sun' },
   '/inbox': { label: '인박스', icon: 'inbox' },
   '/upcoming': { label: '예정', icon: 'calendar' },
