@@ -20,7 +20,10 @@ import { isToday } from './views';
 
 /** The signed-in user's Jev connection (their own TypeSafe API key). */
 export interface JevStatus {
+  /** A key is stored and this server can open it. */
   connected: boolean;
+  /** A key is stored but can't be opened any more (the server's secret changed): enter it again. */
+  keyUnreadable: boolean;
   /** Last characters of the key, to tell keys apart. */
   hint: string | null;
   /** Apply high-confidence judgments without asking (new tasks, unset priorities). */

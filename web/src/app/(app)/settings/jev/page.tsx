@@ -75,6 +75,10 @@ export default function JevSettingsPage() {
                 <Badge tone="ok">
                   <Icon name="check" size={12} strokeWidth={2.6} /> 연결됨
                 </Badge>
+              ) : jev.keyUnreadable ? (
+                <Badge tone="danger">
+                  <Icon name="alert" size={12} strokeWidth={2.2} /> 다시 입력 필요
+                </Badge>
               ) : (
                 <Badge tone="outline">연결 안 됨</Badge>
               )}
@@ -84,11 +88,20 @@ export default function JevSettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className={j.content}>
-            {jev.connected && (
+            {jev.keyUnreadable && (
+              <div className={ui.alert} data-tone="danger" role="alert">
+                <Icon name="alert" size={16} />
+                <div className={ui.alertTitle}>저장된 키(…{jev.hint ?? ''})를 열 수 없어요</div>
+                <div className={ui.alertDescription}>
+                  서버의 암호화 키(SECRET_KEY)가 바뀌었거나 다른 서버의 데이터를 옮겨 오면 이렇게 돼요. 아래에 키를 다시 입력하면 바로 다시 연결돼요.
+                </div>
+              </div>
+            )}
+            {(jev.connected || jev.keyUnreadable) && (
               <div className={j.keyRow}>
                 <Icon name="key" size={15} />
                 <span className={j.keyMask}>•••• •••• {jev.hint ?? ''}</span>
-                <span className={j.keyNote}>서버에 암호화해서 저장돼 있어요</span>
+                <span className={j.keyNote}>{jev.keyUnreadable ? '열 수 없는 키' : '서버에 암호화해서 저장돼 있어요'}</span>
                 <button type="button" className={cx(ui.btn, ui.dangerGhost, ui.sm)} onClick={disconnect.toggle}>
                   연결 해제
                 </button>
@@ -96,7 +109,7 @@ export default function JevSettingsPage() {
             )}
             <div className={ui.field}>
               <label className={ui.label} htmlFor="jev-key">
-                {jev.connected ? '다른 키로 바꾸기' : 'TypeSafe API 키'}
+                {jev.connected ? '다른 키로 바꾸기' : jev.keyUnreadable ? 'TypeSafe API 키 다시 입력' : 'TypeSafe API 키'}
               </label>
               <div className={j.inputRow}>
                 <input
@@ -117,7 +130,7 @@ export default function JevSettingsPage() {
                 </button>
                 <button type="button" className={cx(ui.btn, ui.primary)} disabled={!key.trim() || busy} onClick={() => void connect()}>
                   {busy ? <span className={ui.spinner} /> : <Icon name="link" size={15} />}
-                  {jev.connected ? '바꾸기' : '연결'}
+                  {jev.connected ? '바꾸기' : jev.keyUnreadable ? '다시 연결' : '연결'}
                 </button>
               </div>
               <p className={ui.help}>

@@ -32,6 +32,27 @@ export function JevStrip({ todayCount, onDismiss }: { todayCount: number; /** On
     }
   }, [onDismiss]);
 
+  // A stored key this server can't open any more: say so plainly — retrying would never help.
+  if (jev.keyUnreadable) {
+    return (
+      <div className={cx(s.strip, s.invite)} role="alert">
+        <JevMark />
+        <p className={s.inviteText}>
+          <strong>Jev 키를 다시 입력해 주세요.</strong> 저장된 키{jev.hint ? `(…${jev.hint})` : ''}를 이 서버의 암호화 키로 열 수 없어요.
+        </p>
+        <Link href="/settings/jev" className={cx(ui.btn, ui.outline, ui.sm)}>
+          키 다시 입력
+          <Icon name="arrowRight" size={13} />
+        </Link>
+        {onDismiss && (
+          <button type="button" className={ui.iconBtn} aria-label="홈에서 숨기기" {...tip('홈에서 숨기기', { side: 'top' })} onClick={onDismiss}>
+            <Icon name="x" size={14} />
+          </button>
+        )}
+      </div>
+    );
+  }
+
   if (!jev.connected) {
     if (dismissed) return null;
     return (
