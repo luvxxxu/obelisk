@@ -129,6 +129,7 @@ export function CommandPalette() {
           ]
         : []),
       { id: 'home', label: '홈', icon: 'home', keys: ['G', 'H'], group: '이동', run: go('/') },
+      { id: 'overview', label: '모아보기', hint: '모든 공간의 내 일', icon: 'grid', keys: ['G', 'O'], group: '이동', run: go('/overview') },
       { id: 'today', label: '오늘', icon: 'sun', keys: ['G', 'T'], group: '이동', run: go('/today') },
       { id: 'upcoming', label: '예정', icon: 'calendar', keys: ['G', 'U'], group: '이동', run: go('/upcoming') },
       { id: 'inbox', label: '인박스', icon: 'inbox', keys: ['G', 'I'], group: '이동', run: go('/inbox') },
@@ -369,6 +370,7 @@ function shortcutSections(mod: string): { title: string; rows: ShortcutRow[] }[]
         title: '페이지 이동',
         rows: [
           { label: '홈', combos: [['G', 'H']], seq: true },
+          { label: '모아보기', combos: [['G', 'O']], seq: true },
           { label: '오늘', combos: [['G', 'T']], seq: true },
           { label: '예정', combos: [['G', 'U']], seq: true },
           { label: '인박스', combos: [['G', 'I']], seq: true },

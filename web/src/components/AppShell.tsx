@@ -65,6 +65,7 @@ function useShortcuts() {
       if (Date.now() - gPressed.current < 900) {
         const dest: Record<string, string> = {
           h: '/',
+          o: '/overview',
           t: '/today',
           u: '/upcoming',
           i: '/inbox',

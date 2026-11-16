@@ -1,14 +1,22 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
+  addDays,
   atLeast,
+  canEditTask,
   compareDone,
   compareTasks,
+  inOverview,
   matchesView,
+  OVERVIEW_DAYS,
+  OVERVIEW_FIXED_DAYS,
   wouldCreateCycle,
   type BulkCreateTasksInput,
   type CreateTaskInput,
   type Dependency,
   type ISODate,
+  type OverviewProject,
+  type OverviewTask,
+  type ProjectColor,
   type ReorderTasksInput,
   type RescheduleInput,
   type Task,
@@ -154,6 +162,38 @@ export class TasksService {
     }
     out.sort(wantsClosed ? compareDone : compareTasks);
     return out.slice(0, Math.min(f.limit ?? 200, 1000));
+  }
+
+  /**
+   * 모아보기 rows for one space: the caller's own work (all of a personal space, what is assigned to
+   * them in an organization) that is overdue, due soon, in progress or a fixed date within the horizon.
+   * Visibility is the usual taskScope, so a task assigned to them in a project they can't see stays hidden.
+   */
+  async overview(a: Access, today: ISODate): Promise<{ tasks: OverviewTask[]; projects: OverviewProject[] }> {
+    const until = addDays(today, Math.max(OVERVIEW_DAYS, OVERVIEW_FIXED_DAYS));
+    const conds = [
+      a.taskScope(),
+      inArray(tasks.status, ACTIVE),
+      // Earliest date within the horizon (start <= due), or in progress whatever its dates.
+      or(eq(tasks.status, 'doing'), sql`coalesce(${tasks.startDate}, ${tasks.dueDate}) <= ${until}`)!,
+    ];
+    if (a.kind === 'org') conds.push(eq(tasks.assigneeId, a.userId));
+    const rows = await this.db
+      .select()
+      .from(tasks)
+      .where(and(...conds));
+    const list = rows.map(toTask).filter((t) => inOverview(t, a.kind, a.userId, today));
+    const ids = [...new Set(list.map((t) => t.projectId).filter((id): id is string => !!id))];
+    const projectRows = ids.length
+      ? await this.db
+          .select({ id: projects.id, workspaceId: projects.workspaceId, name: projects.name, color: projects.color })
+          .from(projects)
+          .where(inArray(projects.id, ids))
+      : [];
+    return {
+      tasks: list.map((t) => ({ ...t, editable: canEditTask(t, a) })),
+      projects: projectRows.map((p) => ({ ...p, color: p.color as ProjectColor })),
+    };
   }
 
   /** Links between tasks the caller can both see. Hidden tasks leave no trace. */

@@ -67,6 +67,20 @@ export function WorkspaceSwitcher({ onNavigate }: { onNavigate: () => void }) {
       </button>
       <Popover anchor={ref} open={menu.open} onClose={menu.close} width={296} className={s.menu}>
         <div className={s.account}>{app.user?.email}</div>
+        {app.workspaces.length > 1 && (
+          <>
+            <button className={cx(ui.menuItem, s.item)} onClick={() => go('/overview')}>
+              <span className={s.mark} data-size="sm" data-kind="all" aria-hidden="true">
+                <Icon name="grid" size={12} strokeWidth={2} />
+              </span>
+              <span className={s.itemText}>
+                <span className={s.itemName}>모아보기</span>
+                <span className={s.itemMeta}>모든 공간에서 내가 할 일</span>
+              </span>
+            </button>
+            <div className={ui.menuSep} />
+          </>
+        )}
         <div role="menu" aria-label="공간">
           {app.workspaces.map((w) => {
             const current = w.id === ws?.id;

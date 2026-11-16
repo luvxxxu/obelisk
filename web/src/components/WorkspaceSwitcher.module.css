@@ -81,6 +81,12 @@
   box-shadow: inset 0 0 0 1.5px var(--text);
 }
 
+/* 모아보기: every space at once — a quiet tile rather than a space's own mark. */
+.mark[data-kind='all'] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
 /* ───────── menu */
 
 .menu {

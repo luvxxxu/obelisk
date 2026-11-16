@@ -191,6 +191,24 @@ check((await bob.status('POST', '/api/impact/postpone', { taskId: t2.id, days: 3
 const t3After = (await ann.api('GET', `/api/tasks/${t3.id}`)).task;
 check(t3After.dueDate === day(5), 'the read-only task did not move');
 
+// ───────────────────────────── 모아보기 (every space at once)
+
+console.log('overview across spaces');
+const { task: t4 } = await ann.api('POST', '/api/tasks', { title: '출시 체크', projectId: p3.id, dueDate: day(1), assigneeId: bobUser.id });
+const bobHome = new Browser('bob-personal');
+bobHome.cookie = bob.cookie; // same session, personal space open (his default is the org he was invited to)
+bobHome.workspace = 'personal';
+const { task: own } = await bobHome.api('POST', '/api/tasks', { title: 'Bob 개인 할 일', dueDate: day(0) });
+const ovBob = await bob.api('GET', '/api/overview');
+const ovIds = new Set(ovBob.tasks.map((t: any) => t.id));
+check(ovBob.spaces.length === 2 && ovBob.spaces[0].kind === 'personal', 'lists every space, personal first');
+check(ovIds.has(own.id) && ovIds.has(t1.id), 'personal tasks and org tasks assigned to me are in');
+check(!ovIds.has(t2.id) && !ovIds.has(t3.id), "unassigned org tasks are not");
+check(ovBob.tasks.find((t: any) => t.id === t4.id)?.editable === false, 'an assigned task in a view-only project is read-only');
+check(ovBob.tasks.find((t: any) => t.id === t1.id)?.editable === true, 'an assigned task in an editable project is editable');
+const ovAnn = await ann.api('GET', '/api/overview');
+check(!ovAnn.tasks.some((t: any) => t.id === t1.id || t.id === own.id), "others' assignments and personal tasks never show");
+
 // ───────────────────────────── roles
 
 console.log('roles');

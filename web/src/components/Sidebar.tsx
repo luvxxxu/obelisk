@@ -98,7 +98,13 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
     };
   }, [app]);
 
-  const switcher: NavItem[] = [page('/'), page('/inbox', { count: data.inbox }), page('/upcoming')];
+  // 모아보기 gathers every space, so it only earns a place once there is more than one.
+  const switcher: NavItem[] = [
+    page('/'),
+    ...(app.workspaces.length > 1 ? [page('/overview')] : []),
+    page('/inbox', { count: data.inbox }),
+    page('/upcoming'),
+  ];
   const activeSwitch = switcher.find((n) => pathname === n.href)?.href ?? null;
 
   const org = app.workspace?.kind === 'org';
