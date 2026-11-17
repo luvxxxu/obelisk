@@ -1,0 +1,54 @@
+/* Copy field (read-only input + button) and copyable code block — AI connection and webhook settings. */
+
+.copyRow {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+input.copyInput {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  text-overflow: ellipsis;
+  background: var(--surface);
+}
+
+.copyBtn {
+  min-width: 84px;
+}
+
+.code {
+  position: relative;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.codePre {
+  margin: 0;
+  padding: 12px 48px 12px 14px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.codePre code {
+  font-family: inherit;
+}
+
+button.codeCopy {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.codeCopy[data-copied='true'] {
+  color: var(--ok);
+}

@@ -20,6 +20,13 @@ export const config = {
   oauthRefreshDays: 90,
   migrationsDir: process.env.MIGRATIONS_DIR ?? resolve(import.meta.dir, '../drizzle'),
   skillsDir: process.env.SKILLS_DIR ?? resolve(import.meta.dir, '../../skills'),
+  /**
+   * Let outgoing webhooks reach private/loopback addresses (a LAN receiver, local testing).
+   * Off in production unless WEBHOOK_ALLOW_PRIVATE=true, so a webhook can't probe the server's network.
+   */
+  webhookAllowPrivate: process.env.WEBHOOK_ALLOW_PRIVATE
+    ? process.env.WEBHOOK_ALLOW_PRIVATE === 'true'
+    : process.env.NODE_ENV !== 'production',
 };
 
 export const SESSION_COOKIE = 'obelisk_session';

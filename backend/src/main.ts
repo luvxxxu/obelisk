@@ -9,9 +9,10 @@ import { config } from './config';
 import { DbModule, runMigrations } from './db/db.module';
 import { JevModule } from './jev/jev.module';
 import { PlannerModule } from './planner/planner.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 
-@Module({ imports: [DbModule, WorkspaceModule, AuthModule, PlannerModule, JevModule, AiModule] })
+@Module({ imports: [DbModule, WorkspaceModule, AuthModule, PlannerModule, JevModule, AiModule, WebhooksModule] })
 class AppModule {}
 
 /** Endpoints AI clients may call from a browser context (bearer-only, never cookies). */
@@ -62,6 +63,8 @@ async function bootstrap() {
   app.set('trust proxy', 1);
   app.useBodyParser('json', { limit: '2mb' });
   app.useBodyParser('urlencoded', { extended: false, limit: '64kb' });
+  // Incoming webhooks accept a plain-text line ("보고서 내일 !높음").
+  app.useBodyParser('text', { limit: '64kb' });
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (PUBLIC_CORS.some((r) => r.test(req.path))) {

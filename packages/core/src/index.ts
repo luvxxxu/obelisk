@@ -9,3 +9,4 @@ export * from './access';
 export * from './activity';
 export * from './jev';
 export * from './overview';
+export * from './webhooks';

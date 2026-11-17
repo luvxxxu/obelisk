@@ -12,7 +12,8 @@ import { WorkspacesService } from '../workspace/workspaces.service';
 
 export interface AuthContext {
   user: UserRow;
-  via: 'session' | 'api_token' | 'oauth';
+  /** `webhook` = an incoming webhook acting as the person who made it (never reaches the guards). */
+  via: 'session' | 'api_token' | 'oauth' | 'webhook';
   /** Session or token id, used e.g. for logout */
   credentialId: string;
   /** The OAuth app or API token name — shown in the activity log ("via Claude"). */

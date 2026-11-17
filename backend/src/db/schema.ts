@@ -1,4 +1,4 @@
-import type { HomeLayout } from '@obelisk/core';
+import type { HomeLayout, WebhookPayload } from '@obelisk/core';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -258,7 +258,7 @@ export const activity = pgTable(
       .references(() => workspaces.id, { onDelete: 'cascade' }),
     actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
     actorName: text('actor_name').notNull(),
-    via: text('via', { enum: ['session', 'api_token', 'oauth', 'system'] }).notNull(),
+    via: text('via', { enum: ['session', 'api_token', 'oauth', 'webhook', 'system'] }).notNull(),
     client: text('client'),
     action: text('action').notNull(),
     projectId: uuid('project_id'),
@@ -272,6 +272,101 @@ export const activity = pgTable(
     index('activity_task_idx').on(t.taskId, t.createdAt),
     index('activity_project_idx').on(t.projectId, t.createdAt),
   ],
+);
+
+// ───────────────────────────── webhooks
+
+export const WEBHOOK_FORMATS = ['json', 'slack', 'discord'] as const;
+export const DELIVERY_STATUSES = ['pending', 'success', 'failed'] as const;
+
+/** Outgoing: activity events and schedule alerts POSTed to a URL (Slack, Discord or any JSON receiver). */
+export const webhooks = pgTable(
+  'webhooks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    url: text('url').notNull(),
+    format: text('format', { enum: WEBHOOK_FORMATS }).notNull().default('json'),
+    /** Subscribed event keys (core WEBHOOK_EVENT_KEYS). */
+    events: jsonb('events').$type<string[]>().notNull(),
+    /** Only these projects' events; null = every project. */
+    projectIds: jsonb('project_ids').$type<string[] | null>(),
+    /** Local hour schedule alerts start going out, in `timezone`. */
+    alertHour: smallint('alert_hour').notNull().default(9),
+    timezone: text('timezone').notNull().default('Asia/Seoul'),
+    /** HMAC signing secret, sealed (common/secret.ts) with "webhook-secret:<id>" as context. */
+    secret: text('secret').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    /** Set when the server turns a webhook off after repeated failures. */
+    disabledReason: text('disabled_reason'),
+    /** Consecutive deliveries that failed for good; reset by a success. */
+    failureCount: integer('failure_count').notNull().default(0),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('webhooks_workspace_idx').on(t.workspaceId)],
+);
+
+/** Outbox + history: queued in the same transaction as the change, sent and retried by a worker. */
+export const webhookDeliveries = pgTable(
+  'webhook_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    webhookId: uuid('webhook_id')
+      .notNull()
+      .references(() => webhooks.id, { onDelete: 'cascade' }),
+    event: text('event').notNull(),
+    /** Schedule alerts: "<event>:<task id>:<date>", so each goes out once a day. */
+    dedupeKey: text('dedupe_key'),
+    payload: jsonb('payload').$type<WebhookPayload>().notNull(),
+    status: text('status', { enum: DELIVERY_STATUSES }).notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: smallint('max_attempts').notNull().default(6),
+    /** When the worker may pick it up next (also its lease while a send is in flight). */
+    nextAttemptAt: ts('next_attempt_at').notNull().defaultNow(),
+    lastAttemptAt: ts('last_attempt_at'),
+    responseStatus: integer('response_status'),
+    responseBody: text('response_body'),
+    error: text('error'),
+    durationMs: integer('duration_ms'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('webhook_deliveries_due_idx').on(t.status, t.nextAttemptAt),
+    index('webhook_deliveries_webhook_idx').on(t.webhookId, t.createdAt),
+    uniqueIndex('webhook_deliveries_dedupe_idx').on(t.webhookId, t.dedupeKey),
+  ],
+);
+
+/** Incoming: a secret URL that creates (and optionally changes) tasks as the person who made it. */
+export const incomingWebhooks = pgTable(
+  'incoming_webhooks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    /** The hook acts as this person, with their current permissions. */
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    hint: text('hint').notNull(),
+    /** New tasks go here (null = inbox); when set, it is also the only project the hook may change. */
+    projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
+    allowUpdates: boolean('allow_updates').notNull().default(true),
+    useCount: integer('use_count').notNull().default(0),
+    lastUsedAt: ts('last_used_at'),
+    lastError: text('last_error'),
+    lastErrorAt: ts('last_error_at'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('incoming_webhooks_workspace_idx').on(t.workspaceId)],
 );
 
 // ───────────────────────────── AI access
@@ -343,6 +438,9 @@ export type TaskRow = typeof tasks.$inferSelect;
 export type ProjectRow = typeof projects.$inferSelect;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type ActivityRow = typeof activity.$inferSelect;
+export type WebhookRow = typeof webhooks.$inferSelect;
+export type WebhookDeliveryRow = typeof webhookDeliveries.$inferSelect;
+export type IncomingWebhookRow = typeof incomingWebhooks.$inferSelect;
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 export type AccessLevel = (typeof ACCESS_LEVELS)[number];
 export type MemberAccess = (typeof MEMBER_ACCESS)[number];

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Code, CopyField } from '@/components/Copy';
 import { Icon } from '@/components/Icon';
 import {
   Card,
@@ -40,74 +41,6 @@ interface GrantRow {
 }
 
 type Client = 'claude' | 'chatgpt' | 'claude-code' | 'codex' | 'other';
-
-function copy(text: string, what = '복사했어요') {
-  void navigator.clipboard?.writeText(text);
-  toast.show(what);
-}
-
-/** Display-only "copied" flash for copy buttons. */
-function useFlash(ms = 1600): [boolean, () => void] {
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    if (!on) return;
-    const t = window.setTimeout(() => setOn(false), ms);
-    return () => window.clearTimeout(t);
-  }, [on, ms]);
-  return [on, () => setOn(true)];
-}
-
-/** Copyable code block (shell command / config). */
-function Code({ children }: { children: string }) {
-  const [copied, flash] = useFlash();
-  return (
-    <div className={s.code}>
-      <pre className={s.codePre}>
-        <code>{children}</code>
-      </pre>
-      <button
-        type="button"
-        className={cx(ui.iconBtn, s.codeCopy)}
-        onClick={() => {
-          copy(children);
-          flash();
-        }}
-        aria-label="복사"
-        data-copied={copied}
-      >
-        <Icon name={copied ? 'check' : 'copy'} size={14} />
-      </button>
-    </div>
-  );
-}
-
-/** Read-only value + copy button (shadcn "copy link" pattern). */
-function CopyField({ value, label, done }: { value: string; label: string; done: string }) {
-  const [copied, flash] = useFlash();
-  return (
-    <div className={s.copyRow}>
-      <input
-        className={cx(ui.input, s.copyInput)}
-        value={value}
-        readOnly
-        aria-label={label}
-        spellCheck={false}
-        onFocus={(e) => e.currentTarget.select()}
-      />
-      <button
-        type="button"
-        className={cx(ui.btn, ui.outline, s.copyBtn)}
-        onClick={() => {
-          copy(value, done);
-          flash();
-        }}
-      >
-        <Icon name={copied ? 'check' : 'copy'} size={14} />
-        {copied ? '복사됨' : '복사'}
-      </button>
-    </div>
-  );
-}
 
 const FEATURES: [string, string][] = [
   ['get_overview', '오늘 할 일·기한 지남·위험 요약'],

@@ -78,7 +78,7 @@ export interface InvitePreview {
   alreadyMember?: boolean;
 }
 
-export type ActivityVia = 'session' | 'api_token' | 'oauth' | 'system';
+export type ActivityVia = 'session' | 'api_token' | 'oauth' | 'webhook' | 'system';
 
 export interface ActivityEntry {
   id: string;

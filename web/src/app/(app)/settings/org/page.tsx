@@ -875,7 +875,7 @@ function ActivityTab() {
                             )}
                             {via && (
                               <Badge tone="outline" className={s.viaBadge}>
-                                <Icon name={e.via === 'oauth' ? 'sparkle' : 'key'} size={11} /> {via}
+                                <Icon name={e.via === 'oauth' ? 'sparkle' : e.via === 'webhook' ? 'link' : 'key'} size={11} /> {via}
                               </Badge>
                             )}
                           </p>

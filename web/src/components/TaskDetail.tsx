@@ -1147,7 +1147,7 @@ function TaskActivity({ task }: { task: Task }) {
                     <>
                       {' · '}
                       <span className={s.activityVia}>
-                        <Icon name={e.via === 'oauth' ? 'sparkle' : 'key'} size={11} />
+                        <Icon name={e.via === 'oauth' ? 'sparkle' : e.via === 'webhook' ? 'link' : 'key'} size={11} />
                         {via}
                       </span>
                     </>

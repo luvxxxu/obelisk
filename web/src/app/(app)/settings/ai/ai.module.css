@@ -29,24 +29,6 @@
   color: var(--text);
 }
 
-/* ───────── copy field (read-only input + button) */
-
-.copyRow {
-  display: flex;
-  gap: 8px;
-  min-width: 0;
-}
-
-input.copyInput {
-  font-family: var(--font-mono);
-  font-size: var(--fs-sm);
-  text-overflow: ellipsis;
-}
-
-.copyBtn {
-  min-width: 84px;
-}
-
 /* ───────── features */
 
 .features {
@@ -147,44 +129,6 @@ input.copyInput {
 
 .steps b {
   font-weight: 600;
-}
-
-/* ───────── code block with copy button */
-
-.code {
-  position: relative;
-  margin-top: 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-2);
-}
-
-.codePre {
-  margin: 0;
-  padding: 12px 48px 12px 14px;
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  line-height: 1.55;
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.codePre code {
-  font-family: inherit;
-}
-
-button.codeCopy {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow: var(--shadow-xs);
-}
-
-.codeCopy[data-copied='true'] {
-  color: var(--ok);
 }
 
 /* ───────── skill install list */
@@ -307,10 +251,6 @@ td.emptyCell {
 .revealBody {
   margin-top: 10px;
   min-width: 0;
-}
-
-.reveal input.copyInput {
-  background: var(--surface);
 }
 
 @media (max-width: 640px) {

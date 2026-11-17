@@ -185,5 +185,6 @@ export function activityKind(action: string): 'task' | 'project' | 'member' | 't
 export function viaLabelKo(via: ActivityEntry['via'], client: string | null): string | null {
   if (via === 'oauth') return client ? `${client} 통해` : 'AI 앱 통해';
   if (via === 'api_token') return client ? `API 토큰 “${client}”` : 'API 토큰';
+  if (via === 'webhook') return client ? `웹훅 “${client}” 통해` : '웹훅 통해';
   return null;
 }

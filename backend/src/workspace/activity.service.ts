@@ -40,9 +40,18 @@ function toEntry(r: ActivityRow): ActivityEntry {
   };
 }
 
+/** Runs inside the transaction that recorded the entry (webhooks queue their deliveries here). */
+export type ActivityListener = (conn: Conn, row: ActivityRow) => Promise<void>;
+
 @Injectable()
 export class ActivityService {
+  private readonly listeners: ActivityListener[] = [];
+
   constructor(@InjectDb() private readonly db: Db) {}
+
+  onRecord(listener: ActivityListener) {
+    this.listeners.push(listener);
+  }
 
   async record(conn: Conn, a: Access, input: ActivityInput) {
     await this.recordIn(conn, a, a.workspaceId, input);
@@ -50,18 +59,22 @@ export class ActivityService {
 
   /** Same, into another workspace (moving a project writes to both). */
   async recordIn(conn: Conn, a: Pick<Access, 'user' | 'via' | 'client'>, workspaceId: string, input: ActivityInput) {
-    await conn.insert(activity).values({
-      workspaceId,
-      actorId: a.user.id,
-      actorName: a.user.name,
-      via: a.via,
-      client: a.client,
-      action: input.action,
-      projectId: input.projectId ?? null,
-      taskId: input.taskId ?? null,
-      subject: input.subject ?? '',
-      data: input.data ?? {},
-    });
+    const [row] = await conn
+      .insert(activity)
+      .values({
+        workspaceId,
+        actorId: a.user.id,
+        actorName: a.user.name,
+        via: a.via,
+        client: a.client,
+        action: input.action,
+        projectId: input.projectId ?? null,
+        taskId: input.taskId ?? null,
+        subject: input.subject ?? '',
+        data: input.data ?? {},
+      })
+      .returning();
+    for (const listener of this.listeners) await listener(conn, row!);
   }
 
   /** A task's own history. The caller must already have checked that they can see the task. */

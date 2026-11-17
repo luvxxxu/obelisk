@@ -17,6 +17,7 @@ export function SettingsNav() {
     ...(workspace?.kind === 'org' ? [{ href: '/settings/org', label: '조직', icon: 'building' as IconName }] : []),
     { href: '/settings/ai', label: 'AI 연결', icon: 'sparkle' },
     { href: '/settings/jev', label: 'Jev', icon: 'target' },
+    { href: '/settings/webhooks', label: '웹훅', icon: 'link' },
   ];
   return (
     <nav className={cx(ui.tabs, s.subnav)} aria-label="설정 메뉴">
