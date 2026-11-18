@@ -25,8 +25,11 @@ import {
   formatDaysKo,
   formatRelativeKo,
   formatShortKo,
+  formatTimeKo,
+  formatTimeRangeKo,
   type ImpactKind,
   type ISODate,
+  type ISOTime,
   type ProjectColor,
   type TaskStatus,
 } from '@obelisk/core';
@@ -49,7 +52,10 @@ export interface TaskOut {
   project: string | null;
   projectColor?: ProjectColor;
   startDate: ISODate | null;
+  /** "HH:MM" (24h, the user's time zone) on the start date; null = the whole day. */
+  startTime: ISOTime | null;
   dueDate: ISODate | null;
+  dueTime: ISOTime | null;
   fixed: boolean;
   /** Assignee's name. */
   assignee?: string;
@@ -191,13 +197,23 @@ export function spanLabel(span: string | null): string {
   return a === b || !b ? formatShortKo(a) : `${formatShortKo(a)} – ${formatShortKo(b)}`;
 }
 
-/** Date phrase for a task line. */
-export function whenLabel(t: Pick<TaskOut, 'startDate' | 'dueDate'>, today: ISODate): string {
-  const { startDate: s, dueDate: d } = t;
-  if (s && d && s !== d) return `${formatShortKo(s)} – ${formatShortKo(d)}`;
-  if (d) return formatRelativeKo(d, today);
-  if (s) return `${formatRelativeKo(s, today)} 시작`;
+const at = (time: ISOTime | null | undefined) => (time ? ` ${formatTimeKo(time)}` : '');
+
+/** Date (and time) phrase for a task line: "내일 오후 3:00", "금요일 오전 10:00 – 11:30", "11/20 (금) – 11/22 (일) 오후 6:00". */
+export function whenLabel(t: Pick<TaskOut, 'startDate' | 'dueDate' | 'startTime' | 'dueTime'>, today: ISODate): string {
+  const { startDate: s, dueDate: d, startTime: st, dueTime: dt } = t;
+  if (s && d && s !== d) return `${formatShortKo(s)}${at(st)} – ${formatShortKo(d)}${at(dt)}`;
+  if (s && d && st && dt) return `${formatRelativeKo(d, today)} ${formatTimeRangeKo(st, dt)}`;
+  if (s && d && st) return `${formatRelativeKo(s, today)}${at(st)} 시작`;
+  if (d) return `${formatRelativeKo(d, today)}${at(dt)}`;
+  if (s) return `${formatRelativeKo(s, today)}${at(st)} 시작`;
   return '';
+}
+
+/** "3일 지남", or "마감 오후 3:00 지남" for a time that passed today. */
+function lateLabel(t: Pick<TaskOut, 'dueDate' | 'dueTime'>, today: ISODate): string {
+  const days = diffDays(today, t.dueDate!);
+  return days > 0 ? `${days}일 지남` : `마감${at(t.dueTime)} 지남`;
 }
 
 export function taskLine(t: TaskOut, today: ISODate, opts: { project?: boolean } = {}): string {
@@ -206,7 +222,7 @@ export function taskLine(t: TaskOut, today: ISODate, opts: { project?: boolean }
   if (t.project && opts.project !== false) meta.push(esc(t.project));
   const when = whenLabel(t, today);
   if (when) meta.push(when);
-  if (t.overdue && t.dueDate) meta.push(`**${diffDays(today, t.dueDate)}일 지남**`);
+  if (t.overdue && t.dueDate) meta.push(`**${lateLabel(t, today)}**`);
   if (t.assignee) meta.push(`@${esc(t.assignee)}`);
   if (t.fixed) meta.push('🔒 고정');
   if ((t.postponedCount ?? 0) >= 2) meta.push(`↻ ${t.postponedCount}회 미룸`);
@@ -250,7 +266,8 @@ const PRIO_RANK: Record<PriorityName, number> = { high: 3, medium: 2, low: 1, no
 
 /** Priority first, then in progress, then the earlier deadline (the card uses the same rule). */
 export function byImportance(a: TaskOut, b: TaskOut): number {
-  const day = (t: TaskOut) => t.dueDate ?? t.startDate ?? '9999-12-31';
+  const day = (t: TaskOut) =>
+    t.dueDate ? `${t.dueDate}T${t.dueTime ?? '24:00'}` : t.startDate ? `${t.startDate}T${t.startTime ?? '00:00'}` : '9999-12-31';
   return (
     PRIO_RANK[b.priority] - PRIO_RANK[a.priority] ||
     Number(b.status === 'doing') - Number(a.status === 'doing') ||
@@ -275,7 +292,7 @@ export function dayGroups(tasks: TaskOut[], today: ISODate): { key: string; labe
   for (const t of tasks) {
     const first = t.startDate ?? t.dueDate;
     if (!ACTIVE(t)) put('done', '완료', 1e6, t);
-    else if (t.dueDate && t.dueDate < today) put('overdue', '기한 지남', -2, t);
+    else if (t.dueDate && (t.dueDate < today || t.overdue)) put('overdue', '기한 지남', -2, t);
     else if (!first) put('none', '날짜 없음', 1e5 + 1, t);
     else if (t.status === 'doing' || first <= today) put('today', '오늘', -1, t);
     else {
@@ -334,8 +351,9 @@ export function mdTaskDetail(t: TaskOut, today: ISODate, heading?: string): stri
   if (t.priority !== 'none') meta.push(`우선순위 ${PRIORITY_KO[t.priority]}`);
   meta.push(t.project ? esc(t.project) : '인박스');
   const when = whenLabel(t, today);
-  if (when) meta.push(t.startDate && t.dueDate && t.startDate !== t.dueDate ? when : `${when}${t.dueDate ? ' 마감' : ''}`);
-  if (t.overdue && t.dueDate) meta.push(`**${diffDays(today, t.dueDate)}일 지남**`);
+  const span = !!t.startDate && !!t.dueDate && (t.startDate !== t.dueDate || !!t.startTime);
+  if (when) meta.push(span || !t.dueDate ? when : `${when} 마감`);
+  if (t.overdue && t.dueDate) meta.push(`**${lateLabel(t, today)}**`);
   if (t.assignee) meta.push(`담당 ${esc(t.assignee)}`);
   if (t.fixed) meta.push('🔒 고정 일정');
   if (t.postponedCount) meta.push(`↻ ${t.postponedCount}회 미룸`);

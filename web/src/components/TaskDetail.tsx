@@ -6,12 +6,14 @@ import {
   diffDays,
   formatRelativeKo,
   formatShortKo,
+  formatTimeKo,
   PRIORITY_LABEL_KO,
   STATUS_LABEL_KO,
   viaLabelKo,
   wouldCreateCycle,
   type ActivityEntry,
   type ISODate,
+  type ISOTime,
   type ProjectAccessInfo,
   type Priority,
   type Task,
@@ -23,7 +25,8 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { api } from '@/lib/api';
 import { fetchDependencySuggestions, jevMessage, useJev } from '@/lib/jev';
-import { cx, daysLabel, overdueLabel, relativeTime } from '@/lib/format';
+import { useClock } from '@/lib/clock';
+import { cx, dateTone, daysLabel, dueSoonLabel, overdueLabel, relativeTime } from '@/lib/format';
 import { previewFor, requestDateChange } from '@/lib/reschedule';
 import {
   addDependency,
@@ -40,7 +43,7 @@ import {
   useApp,
 } from '@/lib/store';
 import { toast } from '@/lib/toast';
-import { DatePickerPanel } from './DatePicker';
+import { DatePickerPanel, TimePickerPanel } from './DatePicker';
 import { Icon, type IconName } from './Icon';
 import { ImpactView } from './ImpactView';
 import { AutoTextarea, Avatar, Badge, ConfirmModal, isEnter, Popover, Separator, Switch, tip, ui, useDisclosure } from './primitives';
@@ -191,22 +194,30 @@ function TaskDetailInner({ task }: { task: Task }) {
   const dependents = deps.filter((d) => d.dependsOnId === task.id).map((d) => tasks[d.taskId]).filter(Boolean) as Task[];
   const active = task.status === 'todo' || task.status === 'doing';
 
-  const setStart = (d: ISODate | null) => {
+  const setStart = (d: ISODate | null, time?: ISOTime) => {
     let due = task.dueDate;
     if (d && due && d > due) {
       const len = task.startDate ? diffDays(due, task.startDate) : 0;
       due = addDays(d, len);
     }
-    requestDateChange(task.id, { startDate: d, dueDate: due });
+    requestDateChange(task.id, { startDate: d, dueDate: due, ...(time ? { startTime: time } : {}) });
   };
-  const setDue = (d: ISODate | null) => {
+  const setDue = (d: ISODate | null, time?: ISOTime) => {
     let start = task.startDate;
     if (d && start && start > d) start = d;
     if (!d) start = task.startDate;
-    requestDateChange(task.id, { startDate: start, dueDate: d });
+    requestDateChange(task.id, { startDate: start, dueDate: d, ...(time ? { dueTime: time } : {}) });
   };
+  const setStartTime = (t: ISOTime | null) =>
+    requestDateChange(task.id, { startDate: task.startDate, dueDate: task.dueDate, startTime: t });
+  const setDueTime = (t: ISOTime | null) =>
+    requestDateChange(task.id, { startDate: task.startDate, dueDate: task.dueDate, dueTime: t });
 
-  const dueOverdue = active && !!task.dueDate && task.dueDate < today;
+  // A due time makes "overdue" and "due soon" minute-precise, so only then does the panel tick.
+  const now = useClock(!!task.dueTime);
+  const dueOverdue = active && dateTone(task, today, now) === 'overdue' && !!task.dueDate;
+  const dueSoon = active && !dueOverdue && now.date === today ? dueSoonLabel(task, now) : null;
+  const sameDay = !!task.startDate && task.startDate === task.dueDate;
 
   return (
     <div className={s.panel}>
@@ -327,20 +338,21 @@ function TaskDetailInner({ task }: { task: Task }) {
             />
           </Prop>
 
-          <Prop icon="calendar" label="시작일">
+          <Prop icon="calendar" label="시작">
             <DateField
-              label="시작"
+              label="시작일"
               placeholder="시작일 설정"
               value={task.startDate}
               today={today}
               onChange={setStart}
               range={[task.startDate, task.dueDate]}
             />
+            {task.startDate && <TimeField label="시작 시각" value={task.startTime} onChange={setStartTime} />}
           </Prop>
 
-          <Prop icon="calendarClock" label="마감일">
+          <Prop icon="calendarClock" label="마감">
             <DateField
-              label="마감"
+              label="마감일"
               placeholder="마감일 설정"
               value={task.dueDate}
               today={today}
@@ -348,7 +360,17 @@ function TaskDetailInner({ task }: { task: Task }) {
               range={[task.startDate, task.dueDate]}
               overdue={dueOverdue}
             />
-            {dueOverdue && task.dueDate && <Badge tone="danger">{overdueLabel(task.dueDate, today)}</Badge>}
+            {task.dueDate && (
+              <TimeField
+                label="마감 시각"
+                value={task.dueTime}
+                onChange={setDueTime}
+                min={sameDay ? task.startTime : null}
+                overdue={dueOverdue}
+              />
+            )}
+            {dueOverdue && task.dueDate && <Badge tone="danger">{overdueLabel(task.dueDate, today, task.dueTime, now)}</Badge>}
+            {dueSoon && <Badge tone="warn">{dueSoon}</Badge>}
           </Prop>
 
           <Prop icon="folder" label="프로젝트">
@@ -528,7 +550,7 @@ function DateField({
   placeholder: string;
   value: ISODate | null;
   today: ISODate;
-  onChange: (d: ISODate | null) => void;
+  onChange: (d: ISODate | null, time?: ISOTime) => void;
   range: [ISODate | null, ISODate | null];
   overdue?: boolean;
 }) {
@@ -559,9 +581,58 @@ function DateField({
           today={today}
           rangeStart={range[0]}
           rangeEnd={range[1]}
-          onPick={(v) => {
+          onPick={(v, time) => {
             d.close();
-            onChange(v);
+            onChange(v, time);
+          }}
+        />
+      </Popover>
+    </>
+  );
+}
+
+/** "오후 3:00" next to a date, or a quiet "시간" to add one. */
+function TimeField({
+  label,
+  value,
+  onChange,
+  min,
+  overdue,
+}: {
+  label: string;
+  value: ISOTime | null;
+  onChange: (t: ISOTime | null) => void;
+  /** Same-day start time: earlier slots are off and the rest show the length. */
+  min?: ISOTime | null;
+  overdue?: boolean;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const d = useDisclosure();
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className={cx(s.trigger, s.timeTrigger)}
+        data-empty={!value}
+        data-overdue={overdue && !!value}
+        data-open={d.open}
+        aria-haspopup="dialog"
+        aria-expanded={d.open}
+        aria-label={`${label}: ${value ? formatTimeKo(value) : '없음'}`}
+        onClick={d.toggle}
+      >
+        {!value && <Icon name="clock" size={14} className={s.triggerIcon} />}
+        <span className={s.triggerText}>{value ? formatTimeKo(value) : '시간'}</span>
+        <Chevron />
+      </button>
+      <Popover anchor={ref} open={d.open} onClose={d.close}>
+        <TimePickerPanel
+          value={value}
+          min={min}
+          onPick={(t) => {
+            d.close();
+            onChange(t);
           }}
         />
       </Popover>

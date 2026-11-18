@@ -2,7 +2,8 @@
  * Webhooks, shared by the server and the web app.
  *
  * Outgoing: every activity-log entry maps to at most one webhook event, and a periodic scan adds
- * schedule alerts (due today / tomorrow, overdue, fixed-date conflicts). A webhook subscribes to
+ * schedule alerts (due today / tomorrow, overdue, fixed-date conflicts). Tasks with a time also get
+ * reminders a set number of minutes before they start or are due. A webhook subscribes to
  * event *keys*; the payload's `event` is the precise name ("project.archived" under key "project").
  *
  * Incoming: a POST body (JSON, form or plain text) becomes one create or update command, run
@@ -10,9 +11,26 @@
  */
 import { z } from 'zod';
 import { viaLabelKo } from './activity';
-import { addDays, diffDays, isISODate, type ISODate } from './dates';
+import {
+  addDays,
+  clockIndex,
+  diffDays,
+  formatDurationKo,
+  formatRelativeKo,
+  formatTimeKo,
+  fromMinutes,
+  isISODate,
+  isISOTime,
+  isPastDue,
+  nowIn,
+  spanInOrder,
+  toMinutes,
+  type Clock,
+  type ISODate,
+  type ISOTime,
+} from './dates';
 import { forecast, type PlanDependency, type PlanItem } from './impact';
-import { parseDatePhrase, parseQuickAdd } from './quickadd';
+import { parseDateTimePhrase, parseQuickAdd, parseTimePhrase } from './quickadd';
 import { uuid } from './schemas';
 import type { ActivityVia, Priority, TaskStatus, WorkspaceKind } from './types';
 
@@ -36,6 +54,8 @@ export const WEBHOOK_EVENT_KEYS = [
   'task.due_soon',
   'task.overdue',
   'fixed.conflict',
+  'task.start_reminder',
+  'task.due_reminder',
 ] as const;
 export type WebhookEventKey = (typeof WEBHOOK_EVENT_KEYS)[number];
 
@@ -44,6 +64,22 @@ export type ScheduleEventKey = (typeof SCHEDULE_EVENT_KEYS)[number];
 
 export function isScheduleEvent(key: string): key is ScheduleEventKey {
   return (SCHEDULE_EVENT_KEYS as readonly string[]).includes(key);
+}
+
+/** Minute-precise reminders for tasks that have a time, sent `remindMinutes` before it. */
+export const REMINDER_EVENT_KEYS = ['task.start_reminder', 'task.due_reminder'] as const;
+export type ReminderEventKey = (typeof REMINDER_EVENT_KEYS)[number];
+
+export function isReminderEvent(key: string): key is ReminderEventKey {
+  return (REMINDER_EVENT_KEYS as readonly string[]).includes(key);
+}
+
+/** How long before a task's time its reminder goes out. 0 = at that minute. */
+export const REMINDER_LEAD_OPTIONS = [0, 5, 10, 15, 30, 60, 120, 1440] as const;
+export const DEFAULT_REMIND_MINUTES = 30;
+
+export function remindLeadLabel(minutes: number): string {
+  return minutes === 0 ? '정각에' : `${formatDurationKo(minutes)} 전`;
 }
 
 export interface WebhookEventOption {
@@ -92,6 +128,8 @@ export const WEBHOOK_EVENT_GROUPS: WebhookEventGroup[] = [
       { key: 'task.due_soon', label: '내일 마감', hint: '마감 하루 전' },
       { key: 'task.overdue', label: '기한 지남', hint: '마감이 지난 동안 하루 한 번' },
       { key: 'fixed.conflict', label: '고정 일정 충돌', hint: '선행 작업이 늦어 고정 일정을 넘길 때' },
+      { key: 'task.start_reminder', label: '시작 시각 알림', hint: '시작 시각이 있는 작업, 정한 시간 전에' },
+      { key: 'task.due_reminder', label: '마감 시각 알림', hint: '마감 시각이 있는 작업, 정한 시간 전에' },
     ],
   },
 ];
@@ -169,7 +207,10 @@ export interface WebhookTaskRef {
   status: TaskStatus;
   priority: Priority;
   startDate: ISODate | null;
+  /** "HH:MM" in the user's time zone, or null for the whole day. */
+  startTime: ISOTime | null;
   dueDate: ISODate | null;
+  dueTime: ISOTime | null;
   fixed: boolean;
   project: { id: string; name: string } | null;
   assignee: { id: string; name: string } | null;
@@ -200,12 +241,16 @@ export interface WebhookPayload {
   changes?: Record<string, unknown>;
   /** The activity entry's details as recorded. */
   data?: Record<string, unknown>;
-  /** Schedule alerts. */
+  /** Schedule alerts and reminders. */
   alert?: {
     date: ISODate;
     daysOverdue?: number;
     overrunDays?: number;
     cause?: { id: string; ref: string; title: string } | null;
+    /** Reminders: the start or due moment, "YYYY-MM-DDTHH:MM" in the webhook's time zone. */
+    at?: string;
+    /** Reminders: minutes from the send until then (0 or less = now). */
+    minutesLeft?: number;
   };
 }
 
@@ -232,6 +277,8 @@ const EMOJI: Record<string, string> = {
   'task.overdue': '⏰',
   'task.due_today': '📅',
   'task.due_soon': '📅',
+  'task.start_reminder': '🔔',
+  'task.due_reminder': '🔔',
   'fixed.conflict': '⚠️',
   ping: '👋',
 };
@@ -266,20 +313,32 @@ export interface ScheduleAlert {
   overrunDays?: number;
   /** For conflicts: the late task at the start of the chain. */
   causeId?: string | null;
+  /** The task's due time, for the summary. */
+  time?: ISOTime | null;
 }
 
 /**
  * What a periodic scan reports today: active tasks due today or tomorrow, overdue tasks, and
  * fixed tasks the live forecast pushes past their date (with the late task that started it).
+ * With `now`, a task due today whose time has passed is already overdue.
  */
-export function scheduleAlerts(items: readonly PlanItem[], deps: readonly PlanDependency[], today: ISODate): ScheduleAlert[] {
+export function scheduleAlerts(
+  items: readonly PlanItem[],
+  deps: readonly PlanDependency[],
+  today: ISODate,
+  now?: Clock | null,
+): ScheduleAlert[] {
   const out: ScheduleAlert[] = [];
   const tomorrow = addDays(today, 1);
+  const clock = now && now.date === today ? now : null;
   for (const it of items) {
     if ((it.status !== 'todo' && it.status !== 'doing') || !it.dueDate) continue;
-    if (it.dueDate === today) out.push({ key: 'task.due_today', taskId: it.id });
-    else if (it.dueDate === tomorrow) out.push({ key: 'task.due_soon', taskId: it.id });
-    else if (it.dueDate < today) out.push({ key: 'task.overdue', taskId: it.id, daysOverdue: diffDays(today, it.dueDate) });
+    const time = it.dueTime ?? null;
+    const at = time ? { time } : {};
+    if (it.dueDate < today || (clock && isPastDue(it.dueDate, time, clock)))
+      out.push({ key: 'task.overdue', taskId: it.id, daysOverdue: diffDays(today, it.dueDate), ...at });
+    else if (it.dueDate === today) out.push({ key: 'task.due_today', taskId: it.id, ...at });
+    else if (it.dueDate === tomorrow) out.push({ key: 'task.due_soon', taskId: it.id, ...at });
   }
   const report = forecast(items, deps, today);
   const byId = new Map(report.impacts.map((i) => [i.taskId, i]));
@@ -296,17 +355,61 @@ export function scheduleAlerts(items: readonly PlanItem[], deps: readonly PlanDe
   return out;
 }
 
-export function scheduleSummary(a: Pick<ScheduleAlert, 'key' | 'daysOverdue' | 'overrunDays'>, cause?: string | null): string {
+export function scheduleSummary(a: Pick<ScheduleAlert, 'key' | 'daysOverdue' | 'overrunDays' | 'time'>, cause?: string | null): string {
+  const at = a.time ? ` ${formatTimeKo(a.time)}` : '';
   switch (a.key) {
     case 'task.due_today':
-      return '오늘 마감';
+      return `오늘${at} 마감`;
     case 'task.due_soon':
-      return '내일 마감';
+      return `내일${at} 마감`;
     case 'task.overdue':
-      return `마감 ${a.daysOverdue ?? 1}일 지남`;
+      return a.daysOverdue ? `마감 ${a.daysOverdue}일 지남` : `마감 시각${at} 지남`;
     case 'fixed.conflict':
       return `고정 일정 충돌 · ${cause ? `${cause} ` : '선행 작업 '}지연으로 ${a.overrunDays ?? 1}일 넘침`;
   }
+}
+
+export interface Reminder {
+  key: ReminderEventKey;
+  taskId: string;
+  date: ISODate;
+  time: ISOTime;
+  /** From `now` until the moment (0 or less = it is that minute or just past). */
+  minutesLeft: number;
+}
+
+/**
+ * Reminders due now for tasks with a time: from `lead` minutes before the moment until the moment
+ * itself (a short grace after it when `lead` is 0, so a late scan still catches it). The caller
+ * dedupes on task + moment, so moving a task's time arms a fresh reminder.
+ */
+export function reminderAlerts(
+  items: readonly PlanItem[],
+  now: Clock,
+  lead: number,
+  keys: readonly ReminderEventKey[] = REMINDER_EVENT_KEYS,
+): Reminder[] {
+  const out: Reminder[] = [];
+  const at = clockIndex(now.date, now.minutes);
+  const want = new Set(keys);
+  const check = (key: ReminderEventKey, it: PlanItem, date: ISODate | null, time: ISOTime | null | undefined) => {
+    if (!want.has(key) || !date || !time) return;
+    const target = clockIndex(date, toMinutes(time));
+    const until = lead > 0 ? target : target + 10;
+    if (at >= target - lead && at < until) out.push({ key, taskId: it.id, date, time, minutesLeft: target - at });
+  };
+  for (const it of items) {
+    if (it.status === 'todo') check('task.start_reminder', it, it.startDate, it.startTime);
+    if (it.status === 'todo' || it.status === 'doing') check('task.due_reminder', it, it.dueDate, it.dueTime);
+  }
+  return out;
+}
+
+export function reminderSummary(r: Pick<Reminder, 'key' | 'date' | 'time' | 'minutesLeft'>, today: ISODate): string {
+  const what = r.key === 'task.start_reminder' ? '시작' : '마감';
+  const day = r.date === today ? '' : `${formatRelativeKo(r.date, today)} `;
+  const when = `${day}${formatTimeKo(r.time)}`;
+  return r.minutesLeft <= 0 ? `지금 ${what} · ${when}` : `${formatDurationKo(r.minutesLeft)} 뒤 ${what} · ${when}`;
 }
 
 // ───────────────────────────── incoming
@@ -317,7 +420,9 @@ export interface IncomingPatch {
   status?: TaskStatus;
   priority?: Priority;
   startDate?: ISODate | null;
+  startTime?: ISOTime | null;
   dueDate?: ISODate | null;
+  dueTime?: ISOTime | null;
   fixed?: boolean;
 }
 
@@ -329,7 +434,9 @@ export type IncomingCommand =
       status?: TaskStatus;
       priority?: Priority;
       startDate?: ISODate | null;
+      startTime?: ISOTime | null;
       dueDate?: ISODate | null;
+      dueTime?: ISOTime | null;
       fixed?: boolean;
       /** A project name or id. */
       project?: string;
@@ -402,16 +509,58 @@ function str(v: unknown, field: string, max: number): string | undefined {
   return s;
 }
 
-function dateField(v: unknown, field: string, today: ISODate): ISODate | null | undefined {
+interface ParseCtx {
+  today: ISODate;
+  /** The sender's time zone: instants with an offset ("…T06:00:00Z") are read on its clock. */
+  timeZone?: string;
+  /** Minutes past midnight now, in that zone. */
+  nowMinutes?: number | null;
+}
+
+/**
+ * A date, maybe with a time: "2026-11-20", "2026-11-20T15:30", "2026-11-20 15:30",
+ * an ISO instant with an offset, or words like "내일 오후 3시". undefined = not sent.
+ */
+function dateField(v: unknown, field: string, ctx: ParseCtx): { date: ISODate | null; time?: ISOTime | null } | undefined {
   if (v === undefined) return undefined;
-  if (v === null || v === '' || v === false) return null;
+  if (v === null || v === '' || v === false) return { date: null };
   if (typeof v !== 'string') return fail(`${field}: YYYY-MM-DD 날짜여야 합니다`);
   const s = v.trim();
-  if (/^(none|없음|null)$/i.test(s)) return null;
+  if (/^(none|없음|null)$/i.test(s)) return { date: null };
   const head = s.slice(0, 10);
-  if (isISODate(head) && (s.length === 10 || s[10] === 'T' || s[10] === ' ')) return head;
-  const phrase = parseDatePhrase(s, today);
-  return phrase ?? fail(`${field}: "${s.slice(0, 40)}"을(를) 날짜로 읽지 못했습니다 (예: 2026-11-20, 내일, 금요일)`);
+  if (isISODate(head)) {
+    if (s.length === 10) return { date: head };
+    const rest = /^[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/i.exec(s.slice(10));
+    if (rest) {
+      const time = `${rest[1]}:${rest[2]}`;
+      if (!isISOTime(time)) return fail(`${field}: 시각 "${time}"이(가) 올바르지 않습니다`);
+      // Exactly midnight is how many tools write a plain date ("2026-11-20T00:00:00Z"): keep it a date.
+      if (time === '00:00' && !Number(rest[3] ?? 0)) return { date: head };
+      if (rest[4] && ctx.timeZone) {
+        const instant = new Date(s.replace(' ', 'T'));
+        if (!Number.isNaN(instant.getTime())) {
+          const local = nowIn(ctx.timeZone, instant);
+          return { date: local.date, time: fromMinutes(local.minutes) };
+        }
+      }
+      return { date: head, time };
+    }
+    if (s[10] === 'T' || s[10] === ' ') return { date: head };
+  }
+  const phrase = parseDateTimePhrase(s, ctx.today, ctx.nowMinutes);
+  if (phrase) return phrase.time ? phrase : { date: phrase.date };
+  return fail(`${field}: "${s.slice(0, 40)}"을(를) 날짜로 읽지 못했습니다 (예: 2026-11-20, 2026-11-20T15:30, 내일 오후 3시)`);
+}
+
+function timeField(v: unknown, field: string): ISOTime | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || v === '' || v === false) return null;
+  if (typeof v !== 'string') return fail(`${field}: HH:MM 시각이어야 합니다`);
+  const s = v.trim();
+  if (/^(none|없음|null)$/i.test(s)) return null;
+  const hm = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(s);
+  if (hm && isISOTime(`${hm[1]!.padStart(2, '0')}:${hm[2]}`)) return `${hm[1]!.padStart(2, '0')}:${hm[2]}`;
+  return parseTimePhrase(s) ?? fail(`${field}: "${s.slice(0, 40)}"을(를) 시각으로 읽지 못했습니다 (예: 15:30, 오후 3시)`);
 }
 
 function priorityField(v: unknown): Priority | undefined {
@@ -452,32 +601,46 @@ function taskRef(v: unknown): string {
   return fail(`task: "${s}"은(는) 작업 번호(#12)나 id가 아닙니다`);
 }
 
-function patchFrom(o: Record<string, unknown>, today: ISODate): IncomingPatch {
+function patchFrom(o: Record<string, unknown>, ctx: ParseCtx): IncomingPatch {
   const patch: IncomingPatch = {};
   const title = str(o.title, 'title', 500);
   if (title !== undefined) {
     if (!title) fail('title: 빈 제목으로 바꿀 수 없습니다');
     patch.title = title;
   }
-  const pick = (a: string, b: string) => (a in o ? o[a] : o[b]);
+  const pick = (...keys: string[]) => o[keys.find((k) => k in o) ?? keys[0]!];
   const notes = pick('notes', 'description');
   if (notes !== undefined && notes !== null) patch.notes = str(notes, 'notes', 20_000);
   const status = statusField(o.status);
   if (status) patch.status = status;
   const pr = priorityField(o.priority);
   if (pr !== undefined) patch.priority = pr;
-  const start = dateField(pick('startDate', 'start'), 'startDate', today);
-  if (start !== undefined) patch.startDate = start;
-  const due = dateField(pick('dueDate', 'due'), 'dueDate', today);
-  if (due !== undefined) patch.dueDate = due;
+  for (const side of ['start', 'due'] as const) {
+    const dateKey = `${side}Date` as const;
+    const timeKey = `${side}Time` as const;
+    const d = dateField(pick(dateKey, side), dateKey, ctx);
+    if (d !== undefined) {
+      patch[dateKey] = d.date;
+      if (d.time !== undefined) patch[timeKey] = d.time;
+    }
+    const t = timeField(pick(timeKey, `${side}_time`), timeKey);
+    if (t !== undefined) {
+      if (t && d?.date === null) fail(`${timeKey}: 날짜를 지우면서 시각을 정할 수 없습니다`);
+      patch[timeKey] = t;
+    }
+  }
   const fixed = boolField(o.fixed, 'fixed');
   if (fixed !== undefined) patch.fixed = fixed;
-  if (patch.startDate && patch.dueDate && patch.startDate > patch.dueDate) fail('시작일은 마감일보다 늦을 수 없습니다');
+  if (patch.startDate && patch.dueDate) {
+    if (patch.startDate > patch.dueDate) fail('시작일은 마감일보다 늦을 수 없습니다');
+    if (!spanInOrder(patch.startDate, patch.startTime, patch.dueDate, patch.dueTime)) fail('시작 시각은 마감 시각보다 늦을 수 없습니다');
+  }
   return patch;
 }
 
 /** Plain text: "보고서 초안 내일 !높음" creates; "#12 완료" or "#12 금요일까지" changes #12. */
-function fromText(text: string, today: ISODate): IncomingCommand {
+function fromText(text: string, ctx: ParseCtx): IncomingCommand {
+  const { today } = ctx;
   const raw = text.replace(/\r\n?/g, '\n').trim();
   if (!raw) return fail('보낸 내용이 비어 있습니다');
   const [first, ...rest] = raw.split('\n');
@@ -491,11 +654,17 @@ function fromText(text: string, today: ISODate): IncomingCommand {
     if (!tail) return fail(`"${task}" 다음에 할 일을 적으세요. 예: "${task} 완료", "${task} 금요일까지"`);
     const status = statusWord(tail);
     if (status) return { kind: 'update', task, patch: { status } };
-    const q = parseQuickAdd(tail, today, { disabled: ['project'] });
+    const q = parseQuickAdd(tail, today, { disabled: ['project'], nowMinutes: ctx.nowMinutes });
     if (!q.title && q.tokens.length) {
       const patch: IncomingPatch = {};
-      if (q.dueDate) patch.dueDate = q.dueDate;
-      if (q.startDate) patch.startDate = q.startDate;
+      if (q.dueDate) {
+        patch.dueDate = q.dueDate;
+        if (q.dueTime) patch.dueTime = q.dueTime;
+      }
+      if (q.startDate) {
+        patch.startDate = q.startDate;
+        if (q.startTime) patch.startTime = q.startTime;
+      }
       if (q.priority !== null) patch.priority = q.priority;
       if (q.fixed) patch.fixed = true;
       return { kind: 'update', task, patch };
@@ -503,7 +672,7 @@ function fromText(text: string, today: ISODate): IncomingCommand {
     return fail(`"${task} ${tail.slice(0, 40)}"을(를) 이해하지 못했습니다. 예: "${task} 완료", "${task} 시작", "${task} 금요일까지", "${task} !높음"`);
   }
 
-  const q = parseQuickAdd(line, today);
+  const q = parseQuickAdd(line, today, { nowMinutes: ctx.nowMinutes });
   if (!q.title) return fail('작업 제목이 없습니다');
   if (q.title.length > 500) return fail('제목은 500자를 넘을 수 없습니다');
   return {
@@ -511,14 +680,16 @@ function fromText(text: string, today: ISODate): IncomingCommand {
     title: q.title,
     ...(notes ? { notes: notes.slice(0, 20_000) } : {}),
     ...(q.startDate ? { startDate: q.startDate } : {}),
+    ...(q.startTime ? { startTime: q.startTime } : {}),
     ...(q.dueDate ? { dueDate: q.dueDate } : {}),
+    ...(q.dueTime ? { dueTime: q.dueTime } : {}),
     ...(q.priority !== null ? { priority: q.priority } : {}),
     ...(q.fixed ? { fixed: true } : {}),
     ...(q.projectName ? { project: q.projectName } : {}),
   };
 }
 
-function fromObject(o: Record<string, unknown>, today: ISODate): IncomingCommand {
+function fromObject(o: Record<string, unknown>, ctx: ParseCtx): IncomingCommand {
   const actionRaw = typeof o.action === 'string' ? o.action.trim().toLowerCase() : undefined;
   if (o.action !== undefined && (actionRaw === undefined || !(actionRaw in ACTIONS))) {
     return fail(`action: create·update·complete·start·cancel·reopen 중 하나여야 합니다`);
@@ -529,9 +700,9 @@ function fromObject(o: Record<string, unknown>, today: ISODate): IncomingCommand
 
   if (action === 'create' || (!action && ref === undefined)) {
     if (o.title === undefined || o.title === null) {
-      if (textValue !== undefined && !action) return fromText(textValue, today);
+      if (textValue !== undefined && !action) return fromText(textValue, ctx);
       if (textValue !== undefined) {
-        const cmd = fromText(textValue, today);
+        const cmd = fromText(textValue, ctx);
         if (cmd.kind !== 'create') return fail('action이 create이면 text로 기존 작업을 바꿀 수 없습니다');
         return cmd;
       }
@@ -539,7 +710,7 @@ function fromObject(o: Record<string, unknown>, today: ISODate): IncomingCommand
     }
     const title = str(o.title, 'title', 500);
     if (!title) return fail('title: 제목을 입력하세요');
-    const patch = patchFrom({ ...o, title: undefined }, today);
+    const patch = patchFrom({ ...o, title: undefined }, ctx);
     const project = str(o.project ?? o.projectId, 'project', 200);
     const assignee = str(o.assignee ?? o.assigneeId, 'assignee', 320);
     return {
@@ -552,7 +723,7 @@ function fromObject(o: Record<string, unknown>, today: ISODate): IncomingCommand
   }
 
   const task = taskRef(ref);
-  const patch = patchFrom(o, today);
+  const patch = patchFrom(o, ctx);
   if (action && action !== 'update') {
     if (patch.status && patch.status !== action) return fail(`action "${actionRaw}"과(와) status "${patch.status}"가 서로 다릅니다`);
     patch.status = action;
@@ -567,12 +738,18 @@ function fromObject(o: Record<string, unknown>, today: ISODate): IncomingCommand
  * Turn a request body into one command. Accepts plain text, `{ text }`, a create body
  * (`{ title, dueDate, priority, project, assignee, … }`) or an update
  * (`{ action: "complete" | "start" | "cancel" | "reopen" | "update", task: "#12", … }`).
+ * Dates may carry a time ("2026-11-20T15:30", "내일 오후 3시"), or send `dueTime`/`startTime` apart.
  */
-export function parseIncoming(body: unknown, today: ISODate): IncomingParse {
+export function parseIncoming(
+  body: unknown,
+  today: ISODate,
+  opts: { timeZone?: string; nowMinutes?: number | null } = {},
+): IncomingParse {
+  const ctx: ParseCtx = { today, ...opts };
   try {
-    if (typeof body === 'string') return { ok: true, command: fromText(body, today) };
+    if (typeof body === 'string') return { ok: true, command: fromText(body, ctx) };
     if (body && typeof body === 'object' && !Array.isArray(body)) {
-      return { ok: true, command: fromObject(body as Record<string, unknown>, today) };
+      return { ok: true, command: fromObject(body as Record<string, unknown>, ctx) };
     }
     return { ok: false, error: '본문은 JSON 객체나 텍스트여야 합니다' };
   } catch (e) {
@@ -595,6 +772,8 @@ export interface Webhook {
   projectIds: string[] | null;
   /** Local hour (0–23) schedule alerts start going out each day. */
   alertHour: number;
+  /** How many minutes before a task's start or due time its reminder goes out. */
+  remindMinutes: number;
   timezone: string;
   enabled: boolean;
   /** Why the server turned it off (repeated failures). */
@@ -678,6 +857,7 @@ export const createWebhookInput = z.object({
     .transform((list) => [...new Set(list)]),
   projectIds: z.array(uuid).min(1, '프로젝트를 하나 이상 고르세요').max(500).nullable().optional(),
   alertHour: z.number().int().min(0).max(23).optional(),
+  remindMinutes: z.number().int().min(0).max(1440).optional(),
   enabled: z.boolean().optional(),
 });
 export type CreateWebhookInput = z.infer<typeof createWebhookInput>;

@@ -3,6 +3,8 @@
 import {
   formatRelativeKo,
   formatShortKo,
+  formatTimeKo,
+  formatTimeRangeKo,
   matchProject,
   parseQuickAdd,
   PRIORITY_LABEL_KO,
@@ -13,6 +15,7 @@ import {
   type TriageSuggestion,
 } from '@obelisk/core';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { useClock } from '@/lib/clock';
 import { cx } from '@/lib/format';
 import { fetchTriage, useJev } from '@/lib/jev';
 import { canWriteProject, createProject, createTask, useApp } from '@/lib/store';
@@ -57,6 +60,15 @@ function SyntaxHelp({ onClose }: { onClose?: () => void }) {
         </div>
         <div className={s.helpRow}>
           <dt>
+            <Icon name="clock" size={13} /> 시각
+          </dt>
+          <dd>
+            <code>오후 3시</code> <code>15:30</code> <code>3시 반</code> <code>10시~11시</code>{' '}
+            <span className={s.helpNote}>날짜 없이 쓰면 다가오는 그 시각</span>
+          </dd>
+        </div>
+        <div className={s.helpRow}>
+          <dt>
             <Icon name="hash" size={13} /> 프로젝트
           </dt>
           <dd>
@@ -81,7 +93,7 @@ function SyntaxHelp({ onClose }: { onClose?: () => void }) {
         </div>
       </dl>
       <div className={s.helpFoot}>
-        예: <span className={s.helpExample}>기획서 초안 내일 #업무 !높음</span> · 입력창 아래에 뜬 항목을 누르면 인식을 취소해요
+        예: <span className={s.helpExample}>기획서 초안 내일 오후 3시 #업무 !높음</span> · 입력창 아래에 뜬 항목을 누르면 인식을 취소해요
       </div>
     </div>
   );
@@ -113,7 +125,10 @@ export const QuickAdd = forwardRef<
   const input = useRef<HTMLInputElement>(null);
   useImperativeHandle(ref, () => ({ focus: () => input.current?.focus() }));
 
-  const parsed = useMemo(() => parseQuickAdd(value, today, { disabled }), [value, today, disabled]);
+  // Read once per keystroke: "3시" alone means the next 3 o'clock, so it needs the time now.
+  const clock = useClock(false);
+  const nowMinutes = clock.date === today ? clock.minutes : null;
+  const parsed = useMemo(() => parseQuickAdd(value, today, { disabled, nowMinutes }), [value, today, disabled, nowMinutes]);
   const activeProjects = projects.filter((p) => !p.archivedAt);
   const matched = parsed.projectName ? matchProject(activeProjects, parsed.projectName) : null;
 
@@ -208,7 +223,9 @@ export const QuickAdd = forwardRef<
       title,
       projectId: pid,
       startDate: parsed.startDate,
+      startTime: parsed.startTime,
       dueDate: due,
+      dueTime: parsed.dueDate ? parsed.dueTime : null,
       priority,
       fixed: fixed || undefined,
       ...(defaultAssigneeId ? { assigneeId: defaultAssigneeId } : {}),
@@ -237,6 +254,13 @@ export const QuickAdd = forwardRef<
         text: b ? `${dateText(a!)} → ${dateText(b)}` : dateText(a!),
         tone: 'info' as BadgeTone,
       };
+    }
+    if (t.kind === 'time') {
+      const [a, b] = t.value.split('~');
+      const time = b ? formatTimeRangeKo(a!, b) : formatTimeKo(a!);
+      // A time typed without a date lands on today or tomorrow: say which.
+      const day = !parsed.tokens.some((x) => x.kind === 'date') && parsed.dueDate ? `${formatRelativeKo(parsed.dueDate, today)} ` : '';
+      return { kind: t.kind, icon: 'clock' as const, text: `${day}${time}`, tone: 'info' as BadgeTone };
     }
     if (t.kind === 'project')
       return {

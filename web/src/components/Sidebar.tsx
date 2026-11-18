@@ -10,6 +10,7 @@ import {
   PROJECT_COLORS,
   type ProjectColor,
 } from '@obelisk/core';
+import { useClock } from '@/lib/clock';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMemo, useRef, useState } from 'react';
@@ -68,6 +69,7 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
   const [theme, setTheme] = useState<ThemePref>('system');
   const userRef = useRef<HTMLButtonElement>(null);
   const menu = useDisclosure();
+  const now = useClock();
 
   const data = useMemo(() => {
     const list = Object.values(app.tasks);
@@ -88,14 +90,14 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
     return {
       mine: active.filter((t) => t.assigneeId && t.assigneeId === app.user?.id).length,
       today: list.filter((t) => isToday(t, app.today)).length,
-      overdue: list.filter((t) => isOverdue(t, app.today)).length,
+      overdue: list.filter((t) => isOverdue(t, app.today, now)).length,
       inbox: active.filter((t) => !t.projectId).length,
       risk: fc.summary.delayedCount + fc.summary.conflictCount,
       conflicts: fc.summary.conflictCount,
       byProject,
       events,
     };
-  }, [app]);
+  }, [app, now]);
 
   const org = app.workspace?.kind === 'org';
   const pages: NavItem[] = [

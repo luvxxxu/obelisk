@@ -1,6 +1,18 @@
 'use client';
 
-import { addDays, isOverdue, isToday, positionBetween, spread, type ProjectColor, type Task, type TaskStatus } from '@obelisk/core';
+import {
+  addDays,
+  dateTimeKey,
+  isOverdue,
+  isToday,
+  positionBetween,
+  spread,
+  type Clock,
+  type ProjectColor,
+  type Task,
+  type TaskStatus,
+} from '@obelisk/core';
+import { useClock } from '@/lib/clock';
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { Icon } from '@/components/Icon';
 import { tip, ui } from '@/components/primitives';
@@ -41,13 +53,15 @@ const PRIORITY_TAG: Record<number, { label: string; hue: Hue } | undefined> = {
 const KEY_SHORTCUTS = 'Alt+ArrowUp Alt+ArrowDown Alt+ArrowLeft Alt+ArrowRight';
 
 /** Overdue first, then earliest date, then priority, then #number. */
-function byUrgency(today: string) {
+function byUrgency(today: string, now: Clock) {
   return (a: Task, b: Task) => {
-    const oa = isOverdue(a, today) ? 0 : 1;
-    const ob = isOverdue(b, today) ? 0 : 1;
+    const oa = isOverdue(a, today, now) ? 0 : 1;
+    const ob = isOverdue(b, today, now) ? 0 : 1;
     if (oa !== ob) return oa - ob;
-    const da = a.dueDate ?? a.startDate ?? '9999-12-31';
-    const db = b.dueDate ?? b.startDate ?? '9999-12-31';
+    const when = (t: Task) =>
+      t.dueDate ? dateTimeKey(t.dueDate, t.dueTime) : t.startDate ? dateTimeKey(t.startDate, t.startTime, 'start') : '9999-12-31';
+    const da = when(a);
+    const db = when(b);
     if (da !== db) return da < db ? -1 : 1;
     return b.priority - a.priority || a.number - b.number;
   };
@@ -70,13 +84,14 @@ export function UrgentBoard({ today, doneToday, onNew }: { today: string; doneTo
   const [kept, setKept] = useState<ReadonlySet<string>>(() => new Set());
   const boardRef = useRef<HTMLDivElement>(null);
   const capture = useFlip(boardRef);
-  const cmp = useMemo(() => byUrgency(today), [today]);
+  const now = useClock();
+  const cmp = useMemo(() => byUrgency(today, now), [today, now]);
 
   const lists = useMemo<Record<Col, Task[]>>(() => {
     const soon = addDays(today, URGENT_DAYS);
     const urgent = (t: Task) => {
       const d = t.dueDate ?? t.startDate;
-      return t.status === 'doing' || t.priority === 3 || isOverdue(t, today) || isToday(t, today) || (!!d && d <= soon);
+      return t.status === 'doing' || t.priority === 3 || isOverdue(t, today, now) || isToday(t, today) || (!!d && d <= soon);
     };
     const sort = order === 'manual' ? (a: Task, b: Task) => a.position - b.position || cmp(a, b) : cmp;
     const open = tasks.filter((t) => (t.status === 'todo' || t.status === 'doing') && (kept.has(t.id) || urgent(t))).sort(sort);
@@ -334,8 +349,9 @@ function TaskCard({
   startKbd: string;
 }) {
   const done = task.status === 'done';
-  const overdue = isOverdue(task, today);
-  const date = overdue && task.dueDate ? overdueLabel(task.dueDate, today) : spanLabel(task, today);
+  const now = useClock(!!task.dueTime);
+  const overdue = isOverdue(task, today, now);
+  const date = overdue && task.dueDate ? overdueLabel(task.dueDate, today, task.dueTime, now) : spanLabel(task, today);
   const pr = PRIORITY_TAG[task.priority];
 
   return (

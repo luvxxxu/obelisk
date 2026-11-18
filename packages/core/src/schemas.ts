@@ -1,11 +1,40 @@
 import { z } from 'zod';
-import { isISODate, isValidTimeZone } from './dates';
+import { isISODate, isISOTime, isValidTimeZone, spanInOrder } from './dates';
 import { PROJECT_COLORS } from './types';
 
 export const isoDate = z
   .string()
   .refine(isISODate, { message: 'YYYY-MM-DD 형식의 올바른 날짜여야 합니다' })
   .describe('Calendar date, YYYY-MM-DD');
+
+export const isoTime = z
+  .string()
+  .refine(isISOTime, { message: 'HH:MM(24시간) 형식의 시각이어야 합니다' })
+  .describe('Time of day, HH:MM (24h) in the user\'s time zone');
+
+type Span = {
+  startDate?: string | null;
+  startTime?: string | null;
+  dueDate?: string | null;
+  dueTime?: string | null;
+};
+
+/** Times need their date, and start may not come after due. Shared by create and bulk create. */
+export function spanIssues(v: Span): { message: string; path: string[] }[] {
+  const out: { message: string; path: string[] }[] = [];
+  if (v.startTime && !v.startDate) out.push({ message: '시작 시각은 시작일과 함께 정하세요', path: ['startTime'] });
+  if (v.dueTime && !v.dueDate) out.push({ message: '마감 시각은 마감일과 함께 정하세요', path: ['dueTime'] });
+  if (!out.length && v.startDate && v.dueDate && v.startDate > v.dueDate) {
+    out.push({ message: '시작일은 마감일보다 늦을 수 없습니다', path: ['startDate'] });
+  } else if (!out.length && !spanInOrder(v.startDate, v.startTime, v.dueDate, v.dueTime)) {
+    out.push({ message: '시작 시각은 마감 시각보다 늦을 수 없습니다', path: ['startTime'] });
+  }
+  return out;
+}
+
+const checkSpan = (v: Span, ctx: z.RefinementCtx) => {
+  for (const issue of spanIssues(v)) ctx.addIssue({ code: 'custom', ...issue });
+};
 
 export const taskStatus = z.enum(['todo', 'doing', 'done', 'canceled']);
 export const priority = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]);
@@ -23,15 +52,14 @@ export const createTaskInput = z
     priority: priority.optional(),
     projectId: uuid.nullable().optional(),
     startDate: isoDate.nullable().optional(),
+    startTime: isoTime.nullable().optional(),
     dueDate: isoDate.nullable().optional(),
+    dueTime: isoTime.nullable().optional(),
     fixed: z.boolean().optional(),
     assigneeId: uuid.nullable().optional(),
     blockedBy: z.array(uuid).max(50).optional(),
   })
-  .refine((v) => !v.startDate || !v.dueDate || v.startDate <= v.dueDate, {
-    message: '시작일은 마감일보다 늦을 수 없습니다',
-    path: ['startDate'],
-  });
+  .superRefine(checkSpan);
 export type CreateTaskInput = z.infer<typeof createTaskInput>;
 
 export const updateTaskInput = z.object({
@@ -41,7 +69,10 @@ export const updateTaskInput = z.object({
   priority: priority.optional(),
   projectId: uuid.nullable().optional(),
   startDate: isoDate.nullable().optional(),
+  /** Clearing a date clears its time too. */
+  startTime: isoTime.nullable().optional(),
   dueDate: isoDate.nullable().optional(),
+  dueTime: isoTime.nullable().optional(),
   fixed: z.boolean().optional(),
   assigneeId: uuid.nullable().optional(),
   position: z.number().finite().optional(),
@@ -59,12 +90,14 @@ export const bulkCreateTasksInput = z.object({
         priority: priority.optional(),
         projectId: uuid.nullable().optional(),
         startDate: isoDate.nullable().optional(),
+        startTime: isoTime.nullable().optional(),
         dueDate: isoDate.nullable().optional(),
+        dueTime: isoTime.nullable().optional(),
         fixed: z.boolean().optional(),
         assigneeId: uuid.nullable().optional(),
         /** keys of tasks in this batch, or ids / #numbers of existing tasks */
         blockedBy: z.array(z.string().min(1)).max(50).optional(),
-      }),
+      }).superRefine(checkSpan),
     )
     .min(1)
     .max(100),
@@ -77,7 +110,16 @@ export const dependencyInput = z.object({ dependsOnId: uuid });
 export const rescheduleInput = z.object({
   rootId: uuid.optional(),
   changes: z
-    .array(z.object({ taskId: uuid, startDate: isoDate.nullable(), dueDate: isoDate.nullable() }))
+    .array(
+      z.object({
+        taskId: uuid,
+        startDate: isoDate.nullable(),
+        dueDate: isoDate.nullable(),
+        /** Omitted = keep the task's time (cleared with its date). */
+        startTime: isoTime.nullable().optional(),
+        dueTime: isoTime.nullable().optional(),
+      }),
+    )
     .min(1)
     .max(500),
 });

@@ -1,6 +1,7 @@
 'use client';
 
 import { compareTasks, isOverdue, isToday, type Task } from '@obelisk/core';
+import { useClock } from '@/lib/clock';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { Icon } from '@/components/Icon';
@@ -17,12 +18,13 @@ export default function MinePage() {
   const { today, user, workspace } = app;
   const tasks = useTasks();
   const me = user?.id;
+  const clock = useClock();
 
   const groups = useMemo(() => {
     const active = (t: Task) => t.status === 'todo' || t.status === 'doing';
     const mine = tasks.filter((t) => active(t) && t.assigneeId === me).sort(compareTasks);
-    const overdue = mine.filter((t) => isOverdue(t, today));
-    const now = mine.filter((t) => !isOverdue(t, today) && isToday(t, today));
+    const overdue = mine.filter((t) => isOverdue(t, today, clock));
+    const now = mine.filter((t) => !isOverdue(t, today, clock) && isToday(t, today));
     const later = mine.filter((t) => !isToday(t, today) && (t.startDate || t.dueDate));
     const undated = mine.filter((t) => !t.startDate && !t.dueDate);
     const done = tasks
@@ -33,7 +35,7 @@ export default function MinePage() {
       .filter((t) => active(t) && t.createdBy === me && t.assigneeId && t.assigneeId !== me)
       .sort(compareTasks);
     return { total: mine.length, overdue, now, later, undated, done, delegated };
-  }, [tasks, me, today]);
+  }, [tasks, me, today, clock]);
 
   const byAssignee = useMemo(() => {
     const map = new Map<string, Task[]>();

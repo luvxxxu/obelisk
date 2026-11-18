@@ -1,6 +1,7 @@
 'use client';
 
 import { formatRelativeKo, OVERVIEW_DAYS, OVERVIEW_FIXED_DAYS, overviewSections, weekday, type ISODate, type WorkspaceSummary } from '@obelisk/core';
+import { useClock } from '@/lib/clock';
 import { memo, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Icon } from '@/components/Icon';
 import { Spinner, tip, ui } from '@/components/primitives';
@@ -351,12 +352,13 @@ const Row = memo(function Row({
     }, 380);
   };
   const open = () => void openOverviewItem(item, spaceName);
+  const now = useClock(!!task.dueTime);
 
   // Same date language as the shared task row: overdue red, today bold, the rest muted.
   let label: string | null = null;
   let tone: 'overdue' | 'today' | undefined;
   if (date === 'overdue' && task.dueDate) {
-    label = overdueLabel(task.dueDate, today);
+    label = overdueLabel(task.dueDate, today, task.dueTime, now);
     tone = 'overdue';
   } else if (date === 'span') {
     label = spanLabel(task, today);

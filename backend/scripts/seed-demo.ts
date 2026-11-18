@@ -60,7 +60,8 @@ await api('POST', '/api/tasks/bulk', {
 await api('POST', '/api/tasks/bulk', {
   projectId: life,
   tasks: [
-    { title: '치과 예약 전화', dueDate: d(0), priority: 2 },
+    { title: '치과 예약 전화', dueDate: d(0), dueTime: '17:00', priority: 2 },
+    { title: '주간 회의', startDate: d(1), startTime: '10:00', dueDate: d(1), dueTime: '11:00', fixed: true },
     { title: '30분 달리기', dueDate: d(0), priority: 1 },
     { title: '종합소득세 서류 챙기기', dueDate: d(5), priority: 3 },
     { title: '부모님 선물 고르기', dueDate: d(13) },

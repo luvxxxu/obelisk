@@ -12,7 +12,9 @@ export function toTask(r: TaskRow): Task {
     priority: r.priority as Priority,
     projectId: r.projectId,
     startDate: r.startDate,
+    startTime: r.startDate ? r.startTime : null,
     dueDate: r.dueDate,
+    dueTime: r.dueDate ? r.dueTime : null,
     fixed: r.fixed,
     position: r.position,
     postponedCount: r.postponedCount,
@@ -48,6 +50,8 @@ export function toPlanItem(t: Task | TaskRow): PlanItem {
     status: t.status,
     startDate: t.startDate,
     dueDate: t.dueDate,
+    startTime: t.startTime,
+    dueTime: t.dueTime,
     fixed: t.fixed,
     projectId: t.projectId,
   };

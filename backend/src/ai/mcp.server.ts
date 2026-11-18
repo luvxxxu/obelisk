@@ -15,13 +15,16 @@ import {
   describeActivity,
   formatDaysKo,
   isoDate,
+  isoTime,
   isOverdue,
+  nowIn,
   PRIORITY_LABEL_KO,
   PRIORITY_NAME,
   PROJECT_COLORS,
   selectView,
   todayIn,
   VIEW_NAMES,
+  type Clock,
   type Dependency,
   type ImpactReport,
   type ImpactSummary,
@@ -95,7 +98,7 @@ Workspaces and permissions
 - Tasks can have an assignee (a workspace member; "me" for the user). list_members shows who can be assigned; list_tasks assignee="me" lists the user's own work. get_activity shows who changed what.
 
 Concepts
-- Tasks have a short ref like "#12" (preferred when talking to the user), a status (todo, doing, done, canceled), a priority (none/low/medium/high), an optional project, and optional startDate/dueDate (YYYY-MM-DD, in the user's timezone; "today" is returned by get_overview).
+- Tasks have a short ref like "#12" (preferred when talking to the user), a status (todo, doing, done, canceled), a priority (none/low/medium/high), an optional project, and optional startDate/dueDate (YYYY-MM-DD, in the user's timezone; "today" is returned by get_overview). Either date can carry a time, startTime/dueTime (HH:MM, 24h, same timezone): set them for meetings, appointments and "by 3pm" deadlines, and leave them out for all-day work. A time needs its date; clearing a date clears its time; moving a date (postpone, cascade) keeps the time. Delay prediction counts whole days.
 - Dependencies: a task can be "blocked by" other tasks (finish-to-start). This is what powers delay prediction.
 - Fixed tasks (fixed=true) are immovable commitments such as meetings or hard deadlines. They never shift; a delay that reaches them is reported as a conflict.
 
@@ -144,10 +147,13 @@ const workspaceArg = z
   .describe('Workspace name or id (see list_workspaces). Omit for the default workspace.');
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const nullableDate = isoDate.nullable();
+const timeIn = isoTime.describe('Time of day, HH:MM 24h in the user\'s timezone (e.g. "15:30"). Needs the matching date.');
 
 /** Per-workspace state for one MCP request: the caller's access plus small caches. */
 class Ctx {
   readonly today: string;
+  /** The user's wall clock now, so a due time that passed today counts as overdue. */
+  readonly now: Clock;
   private projectMap?: Map<string, Project>;
   private deps?: Dependency[];
   private memberList?: Member[];
@@ -157,7 +163,8 @@ class Ctx {
     readonly a: Access,
     readonly s: McpDeps,
   ) {
-    this.today = todayIn(a.user.timezone);
+    this.now = nowIn(a.user.timezone);
+    this.today = this.now.date;
   }
 
   get userId() {
@@ -270,12 +277,14 @@ class Ctx {
       project: project?.name ?? null,
       ...(project ? { projectColor: project.color } : {}),
       startDate: t.startDate,
+      startTime: t.startTime,
       dueDate: t.dueDate,
+      dueTime: t.dueTime,
       fixed: t.fixed,
     };
     if (t.assigneeId) out.assignee = (await this.memberName(t.assigneeId)) ?? '(전 멤버)';
     if (!canEditTask(t, this.a)) out.readOnly = true;
-    if (isOverdue(t, this.today)) out.overdue = true;
+    if (isOverdue(t, this.today, this.now)) out.overdue = true;
     if (t.postponedCount > 0) out.postponedCount = t.postponedCount;
     if (t.completedAt) out.completedAt = t.completedAt;
     if (opts.withNotes !== false && t.notes) out.notes = opts.withNotes ? t.notes : truncate(t.notes, 280);
@@ -383,7 +392,8 @@ function headlineKo(
 
 /** Priority first, then in-progress before to-do, then the earlier deadline. */
 function byImportance(a: Task, b: Task): number {
-  const day = (t: Task) => t.dueDate ?? t.startDate ?? '9999-12-31';
+  const day = (t: Task) =>
+    t.dueDate ? `${t.dueDate}T${t.dueTime ?? '24:00'}` : t.startDate ? `${t.startDate}T${t.startTime ?? '00:00'}` : '9999-12-31';
   return (
     b.priority - a.priority ||
     Number(b.status === 'doing') - Number(a.status === 'doing') ||
@@ -542,9 +552,9 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       const horizon = addDays(c.today, days);
       // Each task appears once (an in-progress task that starts later is "today", not also "upcoming"),
       // most important first: the card and the markdown group these by day, in this order.
-      const overdue = selectView(active, 'overdue', c.today).sort(byImportance);
+      const overdue = selectView(active, 'overdue', c.today, c.now).sort(byImportance);
       const today = selectView(active, 'today', c.today)
-        .filter((t) => !isOverdue(t, c.today))
+        .filter((t) => !isOverdue(t, c.today, c.now))
         .sort(byImportance);
       const shown = new Set([...overdue, ...today].map((t) => t.id));
       const upcoming = selectView(active, 'upcoming', c.today)
@@ -644,7 +654,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
     {
       title: 'Create task',
       description:
-        'Create one task. Dates are YYYY-MM-DD. Use fixed=true for immovable commitments (meetings, hard deadlines). blockedBy lists tasks that must finish first.',
+        'Create one task. Dates are YYYY-MM-DD; add startTime/dueTime (HH:MM) when the user names a time ("3pm meeting" → dueDate + dueTime, or startTime–dueTime for a slot). Use fixed=true for immovable commitments (meetings, hard deadlines). blockedBy lists tasks that must finish first.',
       annotations: WRITE,
       ui: { view: 'task', invoking: '작업을 만드는 중…', invoked: '작업을 만들었어요' },
     },
@@ -654,7 +664,9 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       project: projectRef.optional(),
       priority: priorityIn.optional(),
       startDate: isoDate.optional(),
+      startTime: timeIn.optional(),
       dueDate: isoDate.optional(),
+      dueTime: timeIn.optional(),
       fixed: z.boolean().optional(),
       assignee: assigneeRef.optional(),
       blockedBy: z.array(ref).max(50).optional(),
@@ -669,7 +681,9 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
         assigneeId: await c.resolveAssignee(a.assignee),
         priority: a.priority ? PRIORITY_VALUE[a.priority] : undefined,
         startDate: a.startDate,
+        startTime: a.startTime,
         dueDate: a.dueDate,
+        dueTime: a.dueTime,
         fixed: a.fixed,
         blockedBy,
       });
@@ -697,7 +711,9 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
             notes: z.string().max(20000).optional(),
             priority: priorityIn.optional(),
             startDate: isoDate.optional(),
+            startTime: timeIn.optional(),
             dueDate: isoDate.optional(),
+            dueTime: timeIn.optional(),
             fixed: z.boolean().optional(),
             assignee: assigneeRef.optional(),
             blockedBy: z.array(z.string().min(1)).optional().describe('Keys from this batch or existing task refs'),
@@ -733,7 +749,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
     {
       title: 'Update task',
       description:
-        'Change any field of a task. Pass null to clear project/startDate/dueDate/assignee. Moving a due date later does NOT move dependents — the response lists who is affected; prefer postpone_task for postponements.',
+        'Change any field of a task. Pass null to clear project/startDate/startTime/dueDate/dueTime/assignee (clearing a date clears its time; changing only a date keeps its time). Moving a due date later does NOT move dependents — the response lists who is affected; prefer postpone_task for postponements.',
       annotations: { ...WRITE, idempotentHint: true },
       ui: { view: 'task', invoking: '작업을 고치는 중…', invoked: '작업을 수정했어요' },
     },
@@ -745,7 +761,9 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       priority: priorityIn.optional(),
       project: projectRef.nullable().optional(),
       startDate: nullableDate.optional(),
+      startTime: timeIn.nullable().optional(),
       dueDate: nullableDate.optional(),
+      dueTime: timeIn.nullable().optional(),
       fixed: z.boolean().optional(),
       assignee: assigneeRef.nullable().optional(),
     },
@@ -767,7 +785,9 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
         priority: a.priority ? PRIORITY_VALUE[a.priority] : undefined,
         projectId: await c.resolveProject(a.project),
         startDate: a.startDate,
+        startTime: a.startTime,
         dueDate: a.dueDate,
+        dueTime: a.dueTime,
         fixed: a.fixed,
         assigneeId: await c.resolveAssignee(a.assignee),
       });

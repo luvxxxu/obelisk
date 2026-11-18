@@ -12,10 +12,10 @@ export const QUESTIONS_VERSION = 'q2';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export function dayLabel(date: ISODate, today: ISODate): string {
+export function dayLabel(date: ISODate, today: ISODate, time?: string | null): string {
   const d = diffDays(date, today);
   const rel = d === 0 ? 'today' : d === 1 ? 'tomorrow' : d === -1 ? 'yesterday' : d > 0 ? `in ${d} days` : `${-d} days ago`;
-  return `${date} ${WEEKDAYS[weekday(date)]} (${rel})`;
+  return `${date} ${WEEKDAYS[weekday(date)]}${time ? ` ${time}` : ''} (${rel})`;
 }
 
 export function todayLabel(today: ISODate): string {
@@ -39,7 +39,8 @@ export interface TaskContext {
 
 /** How one task reads to Jev. Titles and notes are user data: questions treat them as quoted content. */
 export function taskState(
-  t: Pick<Task, 'title' | 'notes' | 'status' | 'dueDate' | 'startDate' | 'fixed' | 'postponedCount'>,
+  t: Pick<Task, 'title' | 'notes' | 'status' | 'dueDate' | 'startDate' | 'fixed' | 'postponedCount'> &
+    Partial<Pick<Task, 'startTime' | 'dueTime'>>,
   ctx: TaskContext,
   today: ISODate,
   /** Dependency questions leave dates out: "scheduled later" is not "needs the other first". */
@@ -51,8 +52,8 @@ export function taskState(
     ...(t.notes.trim() ? { notes: excerpt(t.notes, 360) } : {}),
     ...(ctx.project ? { project: ctx.project } : {}),
     status: t.status === 'doing' ? 'in progress' : 'not started',
-    ...(dates && t.startDate && t.startDate !== t.dueDate ? { starts: dayLabel(t.startDate, today) } : {}),
-    ...(dates && t.dueDate ? { due: dayLabel(t.dueDate, today) } : {}),
+    ...(dates && t.startDate && (t.startDate !== t.dueDate || t.startTime) ? { starts: dayLabel(t.startDate, today, t.startTime) } : {}),
+    ...(dates && t.dueDate ? { due: dayLabel(t.dueDate, today, t.dueTime) } : {}),
     ...(t.fixed ? { fixed_date_commitment: true } : {}),
     ...(ctx.waiting.length ? { tasks_waiting_for_it: ctx.waiting.slice(0, 5).map((s) => excerpt(s, 80)) } : {}),
     ...(ctx.waitsOn.length ? { waits_for: ctx.waitsOn.slice(0, 5).map((s) => excerpt(s, 80)) } : {}),

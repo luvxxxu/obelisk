@@ -150,6 +150,8 @@ export function planItems(s: AppState = state): PlanItem[] {
     status: t.status,
     startDate: t.startDate,
     dueDate: t.dueDate,
+    startTime: t.startTime,
+    dueTime: t.dueTime,
     fixed: t.fixed,
     projectId: t.projectId,
   }));
@@ -313,6 +315,9 @@ export async function updateTask(id: string, patch: UpdateTaskInput): Promise<Ta
   const prev = state.tasks[id];
   if (!guard(prev)) return null;
   const optimistic: Task = { ...prev, ...(patch as Partial<Task>) };
+  // A time goes with its date.
+  if (!optimistic.startDate) optimistic.startTime = null;
+  if (!optimistic.dueDate) optimistic.dueTime = null;
   if (patch.status && patch.status !== prev.status) {
     optimistic.completedAt = patch.status === 'done' ? new Date().toISOString() : null;
   }
@@ -367,7 +372,17 @@ export async function reschedule(changes: DateChange[], rootId?: string): Promis
   }
   upsertTasks(
     changes
-      .map((c) => state.tasks[c.taskId] && { ...state.tasks[c.taskId]!, startDate: c.startDate, dueDate: c.dueDate })
+      .map((c) => {
+        const t = state.tasks[c.taskId];
+        if (!t) return null;
+        return {
+          ...t,
+          startDate: c.startDate,
+          dueDate: c.dueDate,
+          startTime: c.startDate ? (c.startTime !== undefined ? c.startTime : t.startTime) : null,
+          dueTime: c.dueDate ? (c.dueTime !== undefined ? c.dueTime : t.dueTime) : null,
+        };
+      })
       .filter((t): t is Task => !!t),
   );
   try {

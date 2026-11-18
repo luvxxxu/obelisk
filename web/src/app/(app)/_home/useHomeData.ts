@@ -28,6 +28,7 @@ import {
   type TaskImpact,
   type TaskLeverage,
 } from '@obelisk/core';
+import { useClock } from '@/lib/clock';
 import { useMemo } from 'react';
 import { completedOn, useForecast, useLeverage, useTasks } from '@/lib/hooks';
 import { planItems, useApp } from '@/lib/store';
@@ -72,15 +73,16 @@ export function useHomeData() {
   const fc = useForecast();
   const lev = useLeverage();
   const tz = user?.timezone ?? 'UTC';
+  const now = useClock();
 
   // Same selection as the Today page.
   const day = useMemo(
     () => ({
-      overdue: selectView(tasks, 'overdue', today),
-      todays: selectView(tasks, 'today', today).filter((t) => !isOverdue(t, today)),
+      overdue: selectView(tasks, 'overdue', today, now),
+      todays: selectView(tasks, 'today', today).filter((t) => !isOverdue(t, today, now)),
       done: tasks.filter((t) => t.status === 'done' && completedOn(t, tz) === today).sort(compareDone),
     }),
-    [tasks, today, tz],
+    [tasks, today, tz, now],
   );
 
   // Same bucketing as the Upcoming page (by due date, else start date), first 7 days only.

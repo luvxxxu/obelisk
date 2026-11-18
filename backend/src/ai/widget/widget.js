@@ -400,6 +400,13 @@
   const md = (iso) => `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}`;
   const mdW = (iso) => `${md(iso)} (${wdOf(iso)})`;
   const longDate = (iso) => `${+iso.slice(5, 7)}월 ${+iso.slice(8, 10)}일 ${wdOf(iso)}요일`;
+  /** "15:30" → "오후 3:30" */
+  const tm = (hhmm) => {
+    if (!hhmm) return '';
+    const h = +hhmm.slice(0, 2);
+    return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${hhmm.slice(3, 5)}`;
+  };
+  const withTm = (label, hhmm) => (hhmm ? `${label} ${tm(hhmm)}` : label);
   const daysKo = (n) => {
     const a = Math.abs(n);
     return a >= 7 && a % 7 === 0 ? `${a / 7}주` : `${a}일`;
@@ -491,7 +498,8 @@
 
   /** Priority first, then in progress, then the earlier deadline (same rule as the server). */
   function byImportance(a, b) {
-    const day = (t) => t.dueDate || t.startDate || '9999-12-31';
+    const day = (t) =>
+      t.dueDate ? `${t.dueDate}T${t.dueTime || '24:00'}` : t.startDate ? `${t.startDate}T${t.startTime || '00:00'}` : '9999-12-31';
     return (
       (PRIO_RANK[b.priority] || 0) - (PRIO_RANK[a.priority] || 0) ||
       (b.status === 'doing') - (a.status === 'doing') ||
@@ -514,7 +522,7 @@
     for (const t of tasks) {
       const first = firstDay(t);
       if (!isActive(t)) put('done', { order: 1e6, label: '완료' }, t);
-      else if (today && t.dueDate && t.dueDate < today) put('overdue', { order: -2, label: '기한 지남', tone: 'danger' }, t);
+      else if (today && t.dueDate && (t.dueDate < today || t.overdue)) put('overdue', { order: -2, label: '기한 지남', tone: 'danger' }, t);
       else if (!first) put('none', { order: 1e5 + 1, label: '날짜 없음' }, t);
       else if (!today || t.status === 'doing' || first <= today) put('today', { order: -1, label: '오늘' }, t);
       else {
@@ -532,30 +540,38 @@
   function dateEl(t, today, group) {
     const s = t.startDate;
     const d = t.dueDate;
+    const st = s ? t.startTime : null;
+    const dt = d ? t.dueTime : null;
     if (!s && !d) return null;
     const range = s && d && s !== d;
-    const exact = range ? `${mdW(s)} – ${mdW(d)}` : mdW(d || s);
+    const exact = range ? `${withTm(mdW(s), st)} – ${withTm(mdW(d), dt)}` : s && d && st && dt ? `${mdW(d)} ${tm(st)} – ${tm(dt)}` : withTm(mdW(d || s), dt || st);
+    const sameDaySlot = s && d && !range && st && dt ? `${tm(st)} – ${tm(dt)}` : null;
     let label = null;
     let tone = null;
     if (isActive(t) && today && d && d < today) {
       const n = ddiff(today, d);
       label = n === 1 ? '어제 마감' : `${n}일 지남`;
       tone = 'overdue';
+    } else if (isActive(t) && today && d === today && t.overdue) {
+      label = dt ? `${tm(dt)} 지남` : '마감 지남';
+      tone = 'overdue';
     } else if (group === 'today' && today) {
       if (d === today) {
-        label = '오늘 마감';
+        label = sameDaySlot || (dt ? `${tm(dt)} 마감` : '오늘 마감');
         tone = 'today';
-      } else if (d && (!s || s <= today)) label = `${rel(d, today)}까지`;
+      } else if (d && (!s || s <= today)) label = withTm(`${rel(d, today)}`, dt) + '까지';
       else if (range) label = `${md(s)} – ${md(d)}`;
-      else if (s && s > today) label = `${rel(s, today)} 시작`;
+      else if (s && s > today) label = `${withTm(rel(s, today), st)} 시작`;
     } else if (group && group !== 'later' && group !== 'done' && group !== 'none') {
-      label = range ? `~${md(d)}` : null;
+      label = range ? `~${withTm(md(d), dt)}` : sameDaySlot || (dt || st ? tm(dt || st) : null);
     } else {
       label = range
         ? today && s <= today && d >= today
-          ? `${rel(d, today)}까지`
+          ? `${withTm(rel(d, today), dt)}까지`
           : `${md(s)} – ${md(d)}`
-        : rel(d || s, today) + (d ? '' : ' 시작');
+        : sameDaySlot
+          ? `${rel(d, today)} ${sameDaySlot}`
+          : withTm(rel(d || s, today), d ? dt : st) + (d ? '' : ' 시작');
       if (isActive(t) && today && ((d || s) === today || (range && s <= today && d >= today))) tone = 'today';
     }
     return label ? h('span', { class: 'date', 'data-tone': tone, title: exact }, label) : null;
@@ -896,10 +912,16 @@
     ];
     const s = t.startDate;
     const due = t.dueDate;
-    if (s && due && s !== due) props.push(chip(`${mdW(s)} – ${mdW(due)}`, { ic: icon('calendar', 13) }));
-    else if (due) props.push(chip(`${rel(due, today)} 마감`, { ic: icon('calendar', 13), title: mdW(due) }));
-    else if (s) props.push(chip(`${rel(s, today)} 시작`, { ic: icon('calendar', 13), title: mdW(s) }));
-    if (t.overdue && due && today) props.push(chip(`${ddiff(today, due)}일 지남`, { tone: 'danger', ic: icon('alertCircle', 13) }));
+    const st = s ? t.startTime : null;
+    const dt = due ? t.dueTime : null;
+    if (s && due && s !== due) props.push(chip(`${withTm(mdW(s), st)} – ${withTm(mdW(due), dt)}`, { ic: icon('calendar', 13) }));
+    else if (s && due && st && dt) props.push(chip(`${rel(due, today)} ${tm(st)} – ${tm(dt)}`, { ic: icon('calendar', 13), title: mdW(due) }));
+    else if (due) props.push(chip(`${withTm(rel(due, today), dt)} 마감`, { ic: icon('calendar', 13), title: mdW(due) }));
+    else if (s) props.push(chip(`${withTm(rel(s, today), st)} 시작`, { ic: icon('calendar', 13), title: mdW(s) }));
+    if (t.overdue && due && today) {
+      const n = ddiff(today, due);
+      props.push(chip(n > 0 ? `${n}일 지남` : '마감 시각 지남', { tone: 'danger', ic: icon('alertCircle', 13) }));
+    }
     if (t.fixed) props.push(chip('고정 일정', { ic: icon('lock', 13), title: '앞 작업이 밀려도 움직이지 않아요' }));
     if (t.postponedCount) props.push(chip(`${t.postponedCount}번 미룸`, { tone: t.postponedCount >= 2 ? 'warn' : null, ic: icon('postpone', 13) }));
 

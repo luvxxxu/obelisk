@@ -13,9 +13,9 @@ Helper: `scripts/obelisk.sh METHOD PATH [JSON]`.
 | GET | `/api/bootstrap` | user, `today`, workspace (+ your role), workspaces, members, teams, projects (with your `access`), open + recent tasks, dependencies |
 | GET | `/api/tasks?view=&projectId=&status=&q=&from=&to=&limit=&assignee=` | `view`: today, upcoming, overdue, inbox, unscheduled, all, done. `projectId=inbox` for no project. `assignee`: `me`, a user id, or `none` |
 | GET | `/api/tasks/:ref` | ref = `12`, uuid, or unique title fragment (URL-encode `#` as `%23` or omit it) |
-| POST | `/api/tasks` | `{title, notes?, status?, priority?: 0-3, projectId?, startDate?, dueDate?, fixed?, assigneeId?, blockedBy?: uuid[]}` |
+| POST | `/api/tasks` | `{title, notes?, status?, priority?: 0-3, projectId?, startDate?, startTime?, dueDate?, dueTime?, fixed?, assigneeId?, blockedBy?: uuid[]}` — times are `HH:MM` (24h, the user's timezone) and need their date |
 | POST | `/api/tasks/bulk` | `{projectId?, tasks: [{key?, title, …, blockedBy?: (key \| "#12" \| uuid)[]}]}` |
-| PATCH | `/api/tasks/:id` | any task field; `null` clears dates/project/assignee |
+| PATCH | `/api/tasks/:id` | any task field; `null` clears dates/times/project/assignee (clearing a date clears its time; a new date keeps the time) |
 | GET | `/api/tasks/:id/activity` | who changed what on this task |
 | DELETE | `/api/tasks/:id` | |
 | POST | `/api/tasks/reorder` | `{changes: [{taskId, position, status?}]}` — manual board order (lower first), atomic |

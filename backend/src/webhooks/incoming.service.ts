@@ -4,9 +4,10 @@ import {
   changePhrases,
   createTaskInput,
   formatShortKo,
+  formatTimeKo,
   matchProject,
+  nowIn,
   parseIncoming,
-  todayIn,
   updateTaskInput,
   type CreateIncomingWebhookInput,
   type IncomingWebhook,
@@ -40,7 +41,9 @@ export interface IncomingResult {
     status: Task['status'];
     priority: Task['priority'];
     startDate: string | null;
+    startTime: string | null;
     dueDate: string | null;
+    dueTime: string | null;
     projectId: string | null;
     url: string;
   };
@@ -56,7 +59,9 @@ function present(t: Task) {
     status: t.status,
     priority: t.priority,
     startDate: t.startDate,
+    startTime: t.startTime,
     dueDate: t.dueDate,
+    dueTime: t.dueTime,
     projectId: t.projectId,
     url: taskUrl(t.id),
   };
@@ -206,7 +211,8 @@ export class IncomingService {
 
   private async run(hook: IncomingWebhookRow, body: unknown): Promise<IncomingResult> {
     const a = await this.actAs(hook);
-    const parsed = parseIncoming(body, todayIn(a.user.timezone));
+    const clock = nowIn(a.user.timezone);
+    const parsed = parseIncoming(body, clock.date, { timeZone: a.user.timezone, nowMinutes: clock.minutes });
     if (!parsed.ok) throw new BadRequestException(parsed.error);
     const cmd = parsed.command;
 
@@ -219,13 +225,15 @@ export class IncomingService {
         status: cmd.status,
         priority: cmd.priority,
         startDate: cmd.startDate,
+        startTime: cmd.startTime,
         dueDate: cmd.dueDate,
+        dueTime: cmd.dueTime,
         fixed: cmd.fixed,
         projectId,
         assigneeId,
       });
       const task = await this.tasks.create(a, input);
-      const due = task.dueDate ? ` · 마감 ${formatShortKo(task.dueDate)}` : '';
+      const due = task.dueDate ? ` · 마감 ${formatShortKo(task.dueDate)}${task.dueTime ? ` ${formatTimeKo(task.dueTime)}` : ''}` : '';
       return { ok: true, action: 'created', task: present(task), text: `새 작업 #${task.number} ${task.title}${due}` };
     }
 
@@ -237,8 +245,8 @@ export class IncomingService {
     const patch = parse(updateTaskInput, cmd.patch);
     const updated = await this.tasks.update(a, target.id, patch);
     const changes: Record<string, { from: unknown; to: unknown }> = {};
-    for (const k of ['title', 'status', 'priority', 'startDate', 'dueDate', 'fixed'] as const) {
-      if (k in patch && JSON.stringify(target[k]) !== JSON.stringify(updated[k])) changes[k] = { from: target[k], to: updated[k] };
+    for (const k of ['title', 'status', 'priority', 'startDate', 'startTime', 'dueDate', 'dueTime', 'fixed'] as const) {
+      if ((k in patch || (k === 'startTime' && 'startDate' in patch) || (k === 'dueTime' && 'dueDate' in patch)) && JSON.stringify(target[k]) !== JSON.stringify(updated[k])) changes[k] = { from: target[k], to: updated[k] };
     }
     if (patch.notes !== undefined && patch.notes !== target.notes) (changes as Record<string, unknown>).notes = true;
     const what = changePhrases(changes).join(' · ') || '바뀐 내용 없음';

@@ -2,7 +2,9 @@
 
 import {
   addDays,
+  isReminderEvent,
   isScheduleEvent,
+  remindLeadLabel,
   maskWebhookUrl,
   WEBHOOK_EVENT_LABEL,
   WEBHOOK_FORMAT_LABEL,
@@ -217,6 +219,7 @@ export default function WebhooksSettingsPage() {
                     const st = hookStatus(h);
                     const labels = eventSummary(h);
                     const schedule = h.events.some(isScheduleEvent);
+                    const reminder = h.events.some(isReminderEvent);
                     return (
                       <li key={h.id} className={s.row} data-off={!h.enabled || undefined}>
                         <div className={s.main}>
@@ -231,7 +234,7 @@ export default function WebhooksSettingsPage() {
                             {labels.slice(0, 5).join(' · ')}
                             {labels.length > 5 && ` 외 ${labels.length - 5}개`}
                           </p>
-                          {(h.projectIds || schedule) && (
+                          {(h.projectIds || schedule || reminder) && (
                             <p className={s.meta}>
                               {h.projectIds && (
                                 <span className={s.metaItem}>
@@ -241,6 +244,11 @@ export default function WebhooksSettingsPage() {
                               {schedule && (
                                 <span className={s.metaItem}>
                                   <Icon name="clock" size={12} /> 매일 {hourLabel(h.alertHour)}
+                                </span>
+                              )}
+                              {reminder && (
+                                <span className={s.metaItem}>
+                                  <Icon name="bell" size={12} /> 시각 {remindLeadLabel(h.remindMinutes)}
                                 </span>
                               )}
                             </p>

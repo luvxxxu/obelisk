@@ -1,9 +1,63 @@
 'use client';
 
-import { formatRelativeKo, previewDateChange, type DateChangePreview, type DateSpan } from '@obelisk/core';
+import {
+  DAY_MINUTES,
+  formatRelativeKo,
+  fromMinutes,
+  previewDateChange,
+  toMinutes,
+  type DateChange,
+  type DateChangePreview,
+  type DateSpan,
+  type ISOTime,
+  type Task,
+} from '@obelisk/core';
 import { useSyncExternalStore } from 'react';
-import { getState, planItems, reschedule } from './store';
+import { withTime } from './format';
+import { getState, planItems, reschedule, updateTask } from './store';
 import { toast } from './toast';
+
+/** Dates plus, optionally, new times. A time left undefined stays as it is (and goes with a cleared date). */
+export interface TimedSpan extends DateSpan {
+  startTime?: ISOTime | null;
+  dueTime?: ISOTime | null;
+}
+
+/** The times a task ends up with after `next`. */
+function resolvedTimes(task: Task, next: TimedSpan): { startTime: ISOTime | null; dueTime: ISOTime | null } {
+  return {
+    startTime: next.startDate ? (next.startTime !== undefined ? next.startTime : task.startTime) : null,
+    dueTime: next.dueDate ? (next.dueTime !== undefined ? next.dueTime : task.dueTime) : null,
+  };
+}
+
+/**
+ * Keep a same-day start before its due, the way calendars do: moving the start carries the due
+ * time along (keeping the length, an hour by default); moving the due pulls the start back.
+ */
+export function orderTimes(task: Task, next: TimedSpan): TimedSpan {
+  const { startTime: st, dueTime: dt } = resolvedTimes(task, next);
+  if (!next.startDate || next.startDate !== next.dueDate || !st || !dt || st <= dt) return next;
+  const was = task.startDate === task.dueDate && task.startTime && task.dueTime ? toMinutes(task.dueTime) - toMinutes(task.startTime) : 0;
+  const len = was > 0 ? was : 60;
+  const dueMoved = next.dueTime !== undefined && next.startTime === undefined;
+  return dueMoved
+    ? { ...next, startTime: fromMinutes(Math.max(0, toMinutes(dt) - len)) }
+    : { ...next, dueTime: fromMinutes(Math.min(DAY_MINUTES - 1, toMinutes(st) + len)) };
+}
+
+/** Put the edited task's new times on its own entry of a previewed change set. */
+function withTimes(changes: DateChange[], taskId: string, next: TimedSpan): DateChange[] {
+  return changes.map((c) =>
+    c.taskId !== taskId
+      ? c
+      : {
+          ...c,
+          ...(next.startTime !== undefined ? { startTime: next.startTime } : {}),
+          ...(next.dueTime !== undefined ? { dueTime: next.dueTime } : {}),
+        },
+  );
+}
 
 /**
  * Every date edit in the UI goes through here. If moving a task would push
@@ -12,7 +66,7 @@ import { toast } from './toast';
 export interface PendingChange {
   taskId: string;
   title: string;
-  next: DateSpan;
+  next: TimedSpan;
   preview: DateChangePreview;
 }
 
@@ -36,18 +90,25 @@ export function previewFor(taskId: string, next: DateSpan) {
   return previewDateChange(planItems(s), s.deps, taskId, next);
 }
 
-export function requestDateChange(taskId: string, next: DateSpan) {
+export function requestDateChange(taskId: string, span: TimedSpan) {
   const s = getState();
   const task = s.tasks[taskId];
   if (!task) return;
-  if (task.startDate === next.startDate && task.dueDate === next.dueDate) return;
+  const next = orderTimes(task, span);
+  const times = resolvedTimes(task, next);
+  const sameDates = task.startDate === next.startDate && task.dueDate === next.dueDate;
+  if (sameDates) {
+    // A new time on the same day moves nothing else: the delay model counts whole days.
+    if (times.startTime !== task.startTime || times.dueTime !== task.dueTime) void updateTask(taskId, times);
+    return;
+  }
   const preview = previewFor(taskId, next);
   if (preview.hasImpact) {
     pending = { taskId, title: task.title, next, preview };
     emit();
     return;
   }
-  void commit(taskId, preview.only, 1);
+  void commit(taskId, withTimes(preview.only, taskId, next), 1);
 }
 
 export async function resolvePending(mode: 'cascade' | 'only' | 'cancel') {
@@ -55,21 +116,23 @@ export async function resolvePending(mode: 'cascade' | 'only' | 'cancel') {
   pending = null;
   emit();
   if (!p || mode === 'cancel') return;
-  await commit(p.taskId, mode === 'cascade' ? p.preview.cascade : p.preview.only, mode === 'cascade' ? p.preview.cascade.length : 1);
+  const changes = mode === 'cascade' ? p.preview.cascade : p.preview.only;
+  await commit(p.taskId, withTimes(changes, p.taskId, p.next), changes.length);
 }
 
-async function commit(taskId: string, changes: DateChangePreview['only'], count: number) {
+async function commit(taskId: string, changes: DateChange[], count: number) {
   const s = getState();
-  const before = changes
+  const before: DateChange[] = changes
     .map((c) => s.tasks[c.taskId])
-    .filter(Boolean)
-    .map((t) => ({ taskId: t!.id, startDate: t!.startDate, dueDate: t!.dueDate }));
+    .filter((t): t is Task => !!t)
+    .map((t) => ({ taskId: t.id, startDate: t.startDate, dueDate: t.dueDate, startTime: t.startTime, dueTime: t.dueTime }));
   const task = s.tasks[taskId];
   const ok = await reschedule(changes, taskId);
   if (!ok || !task) return;
-  const root = changes.find((c) => c.taskId === taskId);
-  const when = root?.dueDate ?? root?.startDate;
-  const label = when ? formatRelativeKo(when, getState().today) : '날짜 없음';
+  const after = getState().tasks[taskId];
+  const when = after?.dueDate ?? after?.startDate;
+  const time = after?.dueDate ? after.dueTime : after?.startTime;
+  const label = when ? withTime(formatRelativeKo(when, getState().today), time) : '날짜 없음';
   toast.show(count > 1 ? `${count}개 작업 일정을 함께 옮겼어요` : `“${task.title}” → ${label}`, {
     action: { label: '실행 취소', run: () => void reschedule(before) },
   });

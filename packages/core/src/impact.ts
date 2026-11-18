@@ -17,7 +17,7 @@
  * Pure TypeScript, no I/O: the browser runs it live while you drag, the server
  * runs it for the REST API and the MCP tools.
  */
-import { fromDay, toDay, type ISODate } from './dates';
+import { fromDay, toDay, type ISODate, type ISOTime } from './dates';
 import type { TaskStatus } from './types';
 
 export interface PlanItem {
@@ -26,6 +26,9 @@ export interface PlanItem {
   status: TaskStatus;
   startDate: ISODate | null;
   dueDate: ISODate | null;
+  /** Times ride along with their dates; the delay model itself works in whole days. */
+  startTime?: ISOTime | null;
+  dueTime?: ISOTime | null;
   fixed: boolean;
   projectId: string | null;
   number?: number;
@@ -92,6 +95,9 @@ export interface DateChange {
   taskId: string;
   startDate: ISODate | null;
   dueDate: ISODate | null;
+  /** Omitted = the task keeps its time (a cleared date clears it). */
+  startTime?: ISOTime | null;
+  dueTime?: ISOTime | null;
 }
 
 const isActiveStatus = (s: TaskStatus) => s === 'todo' || s === 'doing';

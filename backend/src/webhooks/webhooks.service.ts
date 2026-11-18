@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, type OnModuleInit } from '@nestjs/common';
 import {
+  DEFAULT_REMIND_MINUTES,
   describeActivity,
   detectWebhookFormat,
   webhookEventFor,
@@ -73,7 +74,9 @@ export function taskRef(t: TaskRow, names: (id: string | null) => string | null)
     status: t.status,
     priority: t.priority as Priority,
     startDate: t.startDate,
+    startTime: t.startDate ? t.startTime : null,
     dueDate: t.dueDate,
+    dueTime: t.dueDate ? t.dueTime : null,
     fixed: t.fixed,
     project: t.projectId && projectName ? { id: t.projectId, name: projectName } : null,
     assignee: t.assigneeId && assigneeName ? { id: t.assigneeId, name: assigneeName } : null,
@@ -241,6 +244,7 @@ export class WebhooksService implements OnModuleInit {
       events: h.events as WebhookEventKey[],
       projectIds: h.projectIds ?? null,
       alertHour: h.alertHour,
+      remindMinutes: h.remindMinutes,
       timezone: h.timezone,
       enabled: h.enabled,
       disabledReason: h.disabledReason,
@@ -290,6 +294,7 @@ export class WebhooksService implements OnModuleInit {
         events: input.events,
         projectIds: input.projectIds ? [...new Set(input.projectIds)] : null,
         alertHour: input.alertHour ?? 9,
+        remindMinutes: input.remindMinutes ?? DEFAULT_REMIND_MINUTES,
         timezone: a.user.timezone,
         secret: seal(secret, secretContext(id)),
         enabled: input.enabled ?? true,
@@ -312,8 +317,13 @@ export class WebhooksService implements OnModuleInit {
     }
     if (input.events !== undefined) set.events = input.events;
     if (input.projectIds !== undefined) set.projectIds = input.projectIds ? [...new Set(input.projectIds)] : null;
+    // Alert hours and reminders are read on the clock of whoever set them last.
     if (input.alertHour !== undefined && input.alertHour !== cur.alertHour) {
       set.alertHour = input.alertHour;
+      set.timezone = a.user.timezone;
+    }
+    if (input.remindMinutes !== undefined && input.remindMinutes !== cur.remindMinutes) {
+      set.remindMinutes = input.remindMinutes;
       set.timezone = a.user.timezone;
     }
     if (input.enabled !== undefined && input.enabled !== cur.enabled) {

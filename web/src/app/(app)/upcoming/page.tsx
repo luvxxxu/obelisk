@@ -111,7 +111,7 @@ export default function UpcomingPage() {
                 {!empty && (
                   <div className={s.dayRows}>
                     {d.tasks.map((t) => (
-                      <TaskRow key={t.id} task={t} showDate={false} />
+                      <TaskRow key={t.id} task={t} showDate="time" />
                     ))}
                   </div>
                 )}

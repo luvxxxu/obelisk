@@ -2,6 +2,7 @@ import type { HomeLayout, WebhookPayload } from '@obelisk/core';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   date,
   doublePrecision,
   index,
@@ -212,6 +213,9 @@ export const tasks = pgTable(
     priority: smallint('priority').notNull().default(0),
     startDate: date('start_date', { mode: 'string' }),
     dueDate: date('due_date', { mode: 'string' }),
+    /** "HH:MM" wall-clock time on the start/due date, in the user's time zone; null = the whole day. */
+    startTime: text('start_time'),
+    dueTime: text('due_time'),
     fixed: boolean('fixed').notNull().default(false),
     position: doublePrecision('position').notNull().default(0),
     postponedCount: integer('postponed_count').notNull().default(0),
@@ -224,6 +228,9 @@ export const tasks = pgTable(
     index('tasks_workspace_status_idx').on(t.workspaceId, t.status),
     index('tasks_project_idx').on(t.projectId),
     index('tasks_assignee_idx').on(t.assigneeId),
+    // A time is "HH:MM" and only exists with its date.
+    check('tasks_start_time_check', sql`${t.startTime} is null or (${t.startTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' and ${t.startDate} is not null)`),
+    check('tasks_due_time_check', sql`${t.dueTime} is null or (${t.dueTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' and ${t.dueDate} is not null)`),
   ],
 );
 
@@ -301,6 +308,8 @@ export const webhooks = pgTable(
     projectIds: jsonb('project_ids').$type<string[] | null>(),
     /** Local hour schedule alerts start going out, in `timezone`. */
     alertHour: smallint('alert_hour').notNull().default(9),
+    /** Minutes before a task's start/due time that its reminder goes out. */
+    remindMinutes: smallint('remind_minutes').notNull().default(30),
     timezone: text('timezone').notNull().default('Asia/Seoul'),
     /** HMAC signing secret, sealed (common/secret.ts) with "webhook-secret:<id>" as context. */
     secret: text('secret').notNull(),

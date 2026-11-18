@@ -11,6 +11,7 @@ import {
   reorderTasksInput,
   rescheduleInput,
   taskStatus,
+  nowIn,
   todayIn,
   updateProjectAccessInput,
   updateProjectInput,
@@ -129,6 +130,7 @@ export class PlannerController {
         assigneeId: q.assignee === 'me' ? a.userId : q.assignee === 'none' ? null : q.assignee,
       },
       todayIn(auth.user.timezone),
+      nowIn(auth.user.timezone),
     );
     return { tasks };
   }

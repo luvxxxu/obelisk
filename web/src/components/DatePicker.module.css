@@ -352,6 +352,189 @@
   box-shadow: var(--focus-ring);
 }
 
+/* ───────── time of day: phrase input + half-hour slots */
+
+.timePanel {
+  width: 232px;
+}
+
+/* direct entry: [오전|오후] 3 : 47  [설정] — reads as one input with editable segments */
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.timeField {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  padding: 0 4px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  box-shadow: var(--shadow-xs);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.timeField:focus-within {
+  border-color: var(--ring-color);
+  box-shadow: var(--ring);
+}
+
+.timeField[data-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.meridiem {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 6px;
+  margin-right: 2px;
+  border-radius: var(--radius-xs);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+  outline: none;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.meridiem:hover,
+.meridiem:focus-visible {
+  background: var(--surface-2);
+}
+
+.seg {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  font-size: var(--fs-base);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--text);
+  outline: none;
+  caret-color: transparent;
+}
+
+.seg:focus {
+  background: var(--surface-2);
+}
+
+.seg::selection {
+  background: transparent;
+}
+
+.colon {
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.apply {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  outline: none;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.apply:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.apply:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.apply:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (pointer: coarse) {
+  /* 16px keeps iOS from zooming into the field */
+  .seg {
+    font-size: var(--fs-lg);
+  }
+}
+
+.slots {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 248px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: var(--control-sm);
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  text-align: left;
+  outline: none;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.slot:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.slot:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.slot:disabled {
+  color: var(--text-3);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.slot[data-selected='true'] {
+  background: var(--surface-2);
+  font-weight: 500;
+}
+
+.slotTime {
+  font-variant-numeric: tabular-nums;
+}
+
+.slotHint {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.slotCheck {
+  margin-left: auto;
+  color: var(--text);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .parsed {
     animation: none;

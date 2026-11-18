@@ -9,8 +9,10 @@ import {
   matchesView,
   OVERVIEW_DAYS,
   OVERVIEW_FIXED_DAYS,
+  spanIssues,
   wouldCreateCycle,
   type BulkCreateTasksInput,
+  type Clock,
   type CreateTaskInput,
   type Dependency,
   type ISODate,
@@ -36,7 +38,7 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ACTIVE: TaskStatus[] = ['todo', 'doing'];
 /** Fields whose before → after is kept in the activity log. Notes are only flagged as changed. */
-const LOGGED = ['title', 'status', 'priority', 'startDate', 'dueDate', 'fixed'] as const;
+const LOGGED = ['title', 'status', 'priority', 'startDate', 'startTime', 'dueDate', 'dueTime', 'fixed'] as const;
 
 export interface TaskFilter {
   view?: ViewName;
@@ -51,6 +53,15 @@ export interface TaskFilter {
 }
 
 export const taskSubject = (t: { number: number; title: string }) => `#${t.number} ${t.title}`;
+
+/** Times need their date, and start may not come after due (by date, then by time on the same day). */
+function assertSpan(
+  v: { startDate?: string | null; startTime?: string | null; dueDate?: string | null; dueTime?: string | null },
+  prefix = '',
+) {
+  const issue = spanIssues(v)[0];
+  if (issue) throw new BadRequestException(prefix + issue.message);
+}
 
 @Injectable()
 export class TasksService {
@@ -127,7 +138,8 @@ export class TasksService {
     return rows.map(toTask);
   }
 
-  async list(a: Access, f: TaskFilter, today: ISODate): Promise<Task[]> {
+  /** `now` (the user's wall clock) makes the overdue view count a due time that passed today. */
+  async list(a: Access, f: TaskFilter, today: ISODate, now?: Clock | null): Promise<Task[]> {
     const wantsClosed = f.view === 'done' || f.status === 'done' || f.status === 'canceled';
     const conds = [a.taskScope()];
     if (!wantsClosed) conds.push(inArray(tasks.status, ACTIVE));
@@ -151,7 +163,7 @@ export class TasksService {
       .limit(wantsClosed ? Math.min(f.limit ?? 50, 500) : 5000);
 
     let out = rows.map(toTask);
-    if (f.view && f.view !== 'done') out = out.filter((t) => matchesView(t, f.view!, today));
+    if (f.view && f.view !== 'done') out = out.filter((t) => matchesView(t, f.view!, today, now));
     if (f.from || f.to) {
       out = out.filter((t) => {
         const s = t.startDate ?? t.dueDate;
@@ -295,7 +307,9 @@ export class TasksService {
         priority: input.priority ?? 0,
         projectId,
         startDate: input.startDate ?? null,
+        startTime: input.startDate ? (input.startTime ?? null) : null,
         dueDate: input.dueDate ?? null,
+        dueTime: input.dueDate ? (input.dueTime ?? null) : null,
         fixed: input.fixed ?? false,
         position: Date.now() / 1000,
         completedAt: status === 'done' ? new Date() : null,
@@ -322,9 +336,7 @@ export class TasksService {
   }
 
   async create(a: Access, input: CreateTaskInput): Promise<Task> {
-    if (input.startDate && input.dueDate && input.startDate > input.dueDate) {
-      throw new BadRequestException('시작일은 마감일보다 늦을 수 없습니다');
-    }
+    assertSpan(input);
     return this.db.transaction(async (tx) => {
       const row = await this.insertTask(tx, a, input);
       for (const dep of new Set(input.blockedBy ?? [])) {
@@ -347,9 +359,7 @@ export class TasksService {
       const keyToId = new Map<string, string>();
       const created: TaskRow[] = [];
       for (const item of input.tasks) {
-        if (item.startDate && item.dueDate && item.startDate > item.dueDate) {
-          throw new BadRequestException(`"${item.title}": 시작일은 마감일보다 늦을 수 없습니다`);
-        }
+        assertSpan(item, `"${item.title}": `);
         const row = await this.insertTask(tx, a, { ...item, projectId: item.projectId ?? input.projectId });
         created.push(row);
         if (item.key) keyToId.set(item.key, row.id);
@@ -388,7 +398,12 @@ export class TasksService {
     const cur = await this.editableRow(a, id, conn);
     const start = patch.startDate !== undefined ? patch.startDate : cur.startDate;
     const due = patch.dueDate !== undefined ? patch.dueDate : cur.dueDate;
-    if (start && due && start > due) throw new BadRequestException('시작일은 마감일보다 늦을 수 없습니다');
+    // A time stays with its date: kept when the date moves, cleared when the date goes.
+    const startTime = start ? (patch.startTime !== undefined ? patch.startTime : cur.startTime) : null;
+    const dueTime = due ? (patch.dueTime !== undefined ? patch.dueTime : cur.dueTime) : null;
+    if (patch.startTime && !start) throw new BadRequestException('시작 시각은 시작일과 함께 정하세요');
+    if (patch.dueTime && !due) throw new BadRequestException('마감 시각은 마감일과 함께 정하세요');
+    assertSpan({ startDate: start, startTime, dueDate: due, dueTime });
     const projectId = patch.projectId !== undefined ? patch.projectId : cur.projectId;
     if (patch.projectId !== undefined && patch.projectId !== cur.projectId) {
       if (patch.projectId) await this.projectInWorkspace(conn, a, patch.projectId);
@@ -400,6 +415,8 @@ export class TasksService {
     }
 
     const set: Partial<TaskRow> = { ...patch, updatedAt: new Date() } as Partial<TaskRow>;
+    if (startTime !== cur.startTime) set.startTime = startTime;
+    if (dueTime !== cur.dueTime) set.dueTime = dueTime;
     if (patch.status && patch.status !== cur.status) {
       set.completedAt = patch.status === 'done' ? new Date() : null;
     }
@@ -433,16 +450,18 @@ export class TasksService {
       for (const c of input.changes) rows.set(c.taskId, await this.editableRow(a, c.taskId, tx));
       const root = input.rootId ? rows.get(input.rootId) : undefined;
       for (const c of input.changes) {
-        if (c.startDate && c.dueDate && c.startDate > c.dueDate) {
-          throw new BadRequestException('시작일은 마감일보다 늦을 수 없습니다');
-        }
         const cur = rows.get(c.taskId)!;
+        const startTime = c.startDate ? (c.startTime !== undefined ? c.startTime : cur.startTime) : null;
+        const dueTime = c.dueDate ? (c.dueTime !== undefined ? c.dueTime : cur.dueTime) : null;
+        assertSpan({ startDate: c.startDate, startTime, dueDate: c.dueDate, dueTime });
         const later = !!(cur.dueDate && c.dueDate && c.dueDate > cur.dueDate);
         const [row] = await tx
           .update(tasks)
           .set({
             startDate: c.startDate,
+            startTime,
             dueDate: c.dueDate,
+            dueTime,
             updatedAt: new Date(),
             ...(later && c.taskId === input.rootId ? { postponedCount: cur.postponedCount + 1 } : {}),
           })

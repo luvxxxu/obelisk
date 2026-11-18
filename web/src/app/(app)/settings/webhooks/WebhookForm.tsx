@@ -1,9 +1,13 @@
 'use client';
 
 import {
+  DEFAULT_REMIND_MINUTES,
   DEFAULT_WEBHOOK_EVENTS,
   detectWebhookFormat,
+  isReminderEvent,
   isScheduleEvent,
+  REMINDER_LEAD_OPTIONS,
+  remindLeadLabel,
   WEBHOOK_EVENT_GROUPS,
   WEBHOOK_FORMAT_LABEL,
   WEBHOOK_FORMATS,
@@ -54,6 +58,7 @@ export function WebhookForm({
   const [scope, setScope] = useState<'all' | 'some'>('all');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [alertHour, setAlertHour] = useState(9);
+  const [remindMinutes, setRemindMinutes] = useState(DEFAULT_REMIND_MINUTES);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -66,11 +71,14 @@ export function WebhookForm({
     setScope(initial?.projectIds ? 'some' : 'all');
     setPicked(new Set(initial?.projectIds ?? []));
     setAlertHour(initial?.alertHour ?? 9);
+    setRemindMinutes(initial?.remindMinutes ?? DEFAULT_REMIND_MINUTES);
     setSaving(false);
   }, [open, initial]);
 
   const groups = WEBHOOK_EVENT_GROUPS.filter((g) => !g.orgOnly || kind === 'org');
   const hasSchedule = [...events].some(isScheduleEvent);
+  const hasReminder = [...events].some(isReminderEvent);
+  const zoneOf = (changed: boolean) => (initial && !changed ? initial.timezone : timezone);
   const liveProjects = useMemo(
     () => projects.filter((p) => !p.archivedAt || picked.has(p.id)).sort((a, b) => a.position - b.position),
     [projects, picked],
@@ -109,6 +117,7 @@ export function WebhookForm({
       events: [...events],
       projectIds: scope === 'all' ? null : [...picked],
       alertHour,
+      remindMinutes,
     };
     try {
       if (initial) {
@@ -254,7 +263,30 @@ export function WebhookForm({
                         ))}
                       </select>
                       <span>부터 · 작업마다 하루 한 번</span>
-                      <span className={s.tz}>{initial && initial.alertHour === alertHour ? initial.timezone : timezone}</span>
+                      <span className={s.tz}>{zoneOf(!!initial && initial.alertHour !== alertHour)}</span>
+                    </div>
+                  )}
+                  {g.id === 'schedule' && (
+                    <div className={s.alertHour} data-on={hasReminder}>
+                      <Icon name="bell" size={14} />
+                      <span>시각 알림은</span>
+                      <select
+                        className={cx(ui.input, s.hourSelect)}
+                        value={remindMinutes}
+                        disabled={!hasReminder}
+                        aria-label="시각 알림을 보낼 때"
+                        onChange={(e) => setRemindMinutes(Number(e.target.value))}
+                      >
+                        {[...new Set([...REMINDER_LEAD_OPTIONS, remindMinutes])]
+                          .sort((a, b) => a - b)
+                          .map((m) => (
+                            <option key={m} value={m}>
+                              {remindLeadLabel(m)}
+                            </option>
+                          ))}
+                      </select>
+                      <span>보내요 · 시각이 정해진 작업만</span>
+                      <span className={s.tz}>{zoneOf(!!initial && initial.remindMinutes !== remindMinutes)}</span>
                     </div>
                   )}
                 </fieldset>

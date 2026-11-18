@@ -1,32 +1,83 @@
-import { diffDays, formatDaysKo, formatRelativeKo, formatShortKo, type ISODate, type Task } from '@obelisk/core';
+import {
+  diffDays,
+  formatDaysKo,
+  formatDurationKo,
+  formatRelativeKo,
+  formatShortKo,
+  formatTimeKo,
+  formatTimeRangeKo,
+  isPastDue,
+  minutesUntil,
+  toMinutes,
+  type Clock,
+  type ISODate,
+  type ISOTime,
+  type Task,
+} from '@obelisk/core';
 
 export type DateTone = 'overdue' | 'today' | 'soon' | 'default' | 'done';
 
-export function dateTone(task: Pick<Task, 'status' | 'dueDate' | 'startDate'>, today: ISODate): DateTone {
+type Timed = Partial<Pick<Task, 'startTime' | 'dueTime'>>;
+
+/** With `now`, a due time that passed today already counts as overdue. */
+export function dateTone(task: Pick<Task, 'status' | 'dueDate' | 'startDate'> & Timed, today: ISODate, now?: Clock | null): DateTone {
   if (task.status === 'done' || task.status === 'canceled') return 'done';
   const d = task.dueDate ?? task.startDate;
   if (!d) return 'default';
-  if (task.dueDate && task.dueDate < today) return 'overdue';
+  if (task.dueDate && (task.dueDate < today || (now && now.date === today && isPastDue(task.dueDate, task.dueTime, now))))
+    return 'overdue';
   if (d === today || (task.startDate && task.startDate <= today && (!task.dueDate || task.dueDate >= today)))
     return 'today';
   if (diffDays(d, today) <= 2) return 'soon';
   return 'default';
 }
 
-/** "오늘", "내일", "11월 20일 (목)", ranges as "11/18 – 11/20". */
-export function spanLabel(task: Pick<Task, 'startDate' | 'dueDate'>, today: ISODate): string | null {
-  const { startDate: s, dueDate: d } = task;
-  if (s && d && s !== d) {
-    if (s <= today && d >= today) return `${formatRelativeKo(d, today)}까지`;
-    return `${formatShortKo(s)} – ${formatShortKo(d)}`;
-  }
-  const one = d ?? s;
-  return one ? formatRelativeKo(one, today) : null;
+/** "오늘 오후 3:00" (or the date alone without a time). */
+export function withTime(label: string, time: ISOTime | null | undefined): string {
+  return time ? `${label} ${formatTimeKo(time)}` : label;
 }
 
-export function overdueLabel(due: ISODate, today: ISODate): string {
+/**
+ * "오늘", "내일 오후 3:00", "금요일 오전 10:00 – 11:30", "11월 20일 (목)",
+ * ranges as "11/18 (화) – 11/20 (목) 오후 6:00", running ones as "금요일 오후 6:00까지".
+ */
+export function spanLabel(task: Pick<Task, 'startDate' | 'dueDate'> & Timed, today: ISODate): string | null {
+  const { startDate: s, dueDate: d } = task;
+  const st = s ? (task.startTime ?? null) : null;
+  const dt = d ? (task.dueTime ?? null) : null;
+  if (s && d && s !== d) {
+    if (s <= today && d >= today) return `${withTime(formatRelativeKo(d, today), dt)}까지`;
+    return `${formatShortKo(s)} – ${withTime(formatShortKo(d), dt)}`;
+  }
+  if (s && d && st && dt) return `${formatRelativeKo(d, today)} ${formatTimeRangeKo(st, dt)}`;
+  if (s && d && st) return `${withTime(formatRelativeKo(d, today), st)}부터`;
+  const one = d ?? s;
+  return one ? withTime(formatRelativeKo(one, today), d ? dt : st) : null;
+}
+
+/** Inside a day group the header names the day: rows say only the time ("오후 3:00", "오전 10:00 – 11:30"). */
+export function timeLabel(task: Pick<Task, 'startDate' | 'dueDate'> & Timed): string | null {
+  const st = task.startDate ? (task.startTime ?? null) : null;
+  const dt = task.dueDate ? (task.dueTime ?? null) : null;
+  if (st && dt && task.startDate === task.dueDate) return formatTimeRangeKo(st, dt);
+  if (dt) return formatTimeKo(dt);
+  if (st && (!task.dueDate || task.startDate === task.dueDate)) return formatTimeKo(st);
+  return null;
+}
+
+/** "3일 지남", "어제 마감", or for a time that passed today "40분 지남". */
+export function overdueLabel(due: ISODate, today: ISODate, dueTime?: ISOTime | null, now?: Clock | null): string {
   const n = diffDays(today, due);
+  if (n <= 0 && dueTime && now) return `${formatDurationKo(now.minutes - toMinutes(dueTime))} 지남`;
+  if (n <= 0) return '마감 지남';
   return n === 1 ? '어제 마감' : `${n}일 지남`;
+}
+
+/** "40분 남음" when a timed due falls within the next hour, else null. */
+export function dueSoonLabel(task: Pick<Task, 'status' | 'dueDate'> & Timed, now: Clock): string | null {
+  if (task.status === 'done' || task.status === 'canceled' || !task.dueDate || !task.dueTime) return null;
+  const left = minutesUntil(task.dueDate, task.dueTime, now);
+  return left > 0 && left <= 60 ? `${formatDurationKo(left)} 남음` : null;
 }
 
 export function daysLabel(n: number): string {

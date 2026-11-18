@@ -1,4 +1,4 @@
-import type { ISODate } from './dates';
+import type { ISODate, ISOTime } from './dates';
 import type { JevStatus } from './jev';
 
 export type TaskStatus = 'todo' | 'doing' | 'done' | 'canceled';
@@ -158,7 +158,11 @@ export interface Task {
   priority: Priority;
   projectId: string | null;
   startDate: ISODate | null;
+  /** Optional time on the start date, "HH:MM" in the user's time zone. Only set with a startDate. */
+  startTime: ISOTime | null;
   dueDate: ISODate | null;
+  /** Optional time on the due date ("by 15:30"). Only set with a dueDate. */
+  dueTime: ISOTime | null;
   /** Fixed tasks (meetings, hard deadlines) never move when something upstream slips. */
   fixed: boolean;
   position: number;

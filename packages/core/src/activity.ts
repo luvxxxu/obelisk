@@ -2,7 +2,7 @@
  * Korean phrases for activity-log entries, shared by the web app and the MCP markdown.
  * Values use arrows ("마감일 11/20 → 11/22") so no particle has to agree with a name.
  */
-import { formatShortKo } from './dates';
+import { formatShortKo, formatTimeKo, isISOTime } from './dates';
 import {
   LEVEL_LABEL_KO,
   PRIORITY_LABEL_KO,
@@ -21,6 +21,8 @@ const FIELD_KO: Record<string, string> = {
   priority: '우선순위',
   startDate: '시작일',
   dueDate: '마감일',
+  startTime: '시작 시각',
+  dueTime: '마감 시각',
   fixed: '고정',
   project: '프로젝트',
   assignee: '담당자',
@@ -43,6 +45,9 @@ function val(field: string, v: unknown): string {
     case 'startDate':
     case 'dueDate':
       return formatShortKo(String(v));
+    case 'startTime':
+    case 'dueTime':
+      return isISOTime(v) ? formatTimeKo(v) : String(v);
     case 'fixed':
     case 'membersCanCreateProjects':
       return v ? '켬' : '끔';

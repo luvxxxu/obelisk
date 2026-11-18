@@ -31,6 +31,7 @@ Server: `{{OBELISK_URL}}`
 | Status | `todo`, `doing`, `done`, `canceled` |
 | Priority | `none`, `low`, `medium`, `high` |
 | Dates | `startDate` / `dueDate` as `YYYY-MM-DD` in the user's timezone. Only a due date = one-day task. Get "today" from `get_overview` — never assume it. |
+| Times | Optional `startTime` / `dueTime` as `HH:MM` (24h, same timezone) on those dates: "3pm meeting" → `dueDate` + `dueTime: "15:00"`, a slot → `startTime`–`dueTime` on one day. Leave them out for all-day work. A time needs its date; clearing a date clears its time; postponing keeps it. Delay prediction still counts whole days, but a due time that has passed today already counts as overdue. |
 | Blocked by | Finish-to-start dependency: a task can't start before its blockers are due. |
 | Fixed | Immovable commitment (meeting, launch, hard deadline). Never shifts; a delay reaching it is a **conflict**. |
 

@@ -277,6 +277,12 @@
   color: var(--text-2);
 }
 
+/* due within the hour: "23분 남음" */
+.date[data-tone='imminent'] {
+  color: var(--warn-text);
+  font-weight: 500;
+}
+
 .project {
   gap: 6px;
   min-width: 0;

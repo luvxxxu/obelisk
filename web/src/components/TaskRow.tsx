@@ -2,7 +2,8 @@
 
 import { addDays, diffDays, startOfWeek, type ISODate, type Task } from '@obelisk/core';
 import { memo, useMemo, useRef, useState } from 'react';
-import { cx, dateTone, overdueLabel, spanLabel } from '@/lib/format';
+import { useClock } from '@/lib/clock';
+import { cx, dateTone, dueSoonLabel, overdueLabel, spanLabel, timeLabel } from '@/lib/format';
 import { previewFor, requestDateChange } from '@/lib/reschedule';
 import { canEdit, memberName, selectTask, toggleDone, useApp } from '@/lib/store';
 import { DatePickerPanel } from './DatePicker';
@@ -139,7 +140,8 @@ export const TaskRow = memo(function TaskRow({
 }: {
   task: Task;
   showProject?: boolean;
-  showDate?: boolean;
+  /** 'time': a day group already names the date, so show only the time (if any). */
+  showDate?: boolean | 'time';
 }) {
   const app = useApp();
   const { today, deps, tasks, projects, selectedTaskId } = app;
@@ -159,8 +161,11 @@ export const TaskRow = memo(function TaskRow({
     return n && (n.status === 'todo' || n.status === 'doing');
   }).length;
 
-  const tone = dateTone(task, today);
-  const label = showDate ? spanLabel(task, today) : null;
+  // Only rows with a time need the minute tick ("40분 남음", "10분 지남").
+  const now = useClock(!!(task.dueTime || task.startTime));
+  const tone = dateTone(task, today, now);
+  const label = showDate === 'time' ? timeLabel(task) : showDate ? spanLabel(task, today) : null;
+  const soon = label && tone !== 'overdue' && now.date === today ? dueSoonLabel(task, now) : null;
   const done = task.status === 'done' || completing;
   const active = task.status === 'todo' || task.status === 'doing';
   const editable = canEdit(task, app);
@@ -216,11 +221,11 @@ export const TaskRow = memo(function TaskRow({
               {label && (
                 <span
                   className={cx(s.item, s.date)}
-                  data-tone={tone}
-                  {...tip(task.fixed ? '고정 일정: 날짜가 움직이지 않아요' : null, { side: 'top' })}
+                  data-tone={soon ? 'imminent' : tone}
+                  {...tip(task.fixed ? '고정 일정: 날짜가 움직이지 않아요' : soon || tone === 'overdue' ? label : null, { side: 'top' })}
                 >
                   {task.fixed && <Icon name="pin" size={13} />}
-                  {tone === 'overdue' && task.dueDate ? overdueLabel(task.dueDate, today) : label}
+                  {tone === 'overdue' && task.dueDate ? overdueLabel(task.dueDate, today, task.dueTime, now) : (soon ?? label)}
                 </span>
               )}
               {!label && task.fixed && (

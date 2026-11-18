@@ -1,6 +1,7 @@
 'use client';
 
 import { isOverdue, selectView } from '@obelisk/core';
+import { useClock } from '@/lib/clock';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { Icon } from '@/components/Icon';
@@ -19,15 +20,17 @@ export default function TodayPage() {
   const tasks = useTasks();
   const fc = useForecast();
   const jev = useJev();
+  // Tasks due at a time move to 기한 지남 the minute it passes.
+  const now = useClock();
 
   const { overdue, todays, done } = useMemo(() => {
     const tz = user?.timezone ?? 'UTC';
     return {
-      overdue: selectView(tasks, 'overdue', today),
-      todays: selectView(tasks, 'today', today).filter((t) => !isOverdue(t, today)),
+      overdue: selectView(tasks, 'overdue', today, now),
+      todays: selectView(tasks, 'today', today).filter((t) => !isOverdue(t, today, now)),
       done: tasks.filter((t) => t.status === 'done' && completedOn(t, tz) === today),
     };
-  }, [tasks, today, user]);
+  }, [tasks, today, user, now]);
 
   const risk = fc.summary.delayedCount + fc.summary.conflictCount;
   const hour = new Date().getHours();

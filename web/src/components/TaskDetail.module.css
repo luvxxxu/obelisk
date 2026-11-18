@@ -264,6 +264,11 @@
   flex-shrink: 0;
 }
 
+.timeTrigger {
+  margin-left: -4px;
+  font-variant-numeric: tabular-nums;
+}
+
 .triggerText {
   min-width: 0;
   overflow: hidden;
