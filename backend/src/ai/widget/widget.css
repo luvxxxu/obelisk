@@ -1,72 +1,88 @@
-/* Obelisk MCP App view — Linear-like: dense rows, quiet neutrals, colour only for meaning.
-   Neutrals are translucent so the card sits on any host background; text colours and fonts
-   follow the host (MCP Apps style variables) when it provides them. */
+/* Obelisk MCP App view — the same calm look as the Obelisk app: monochrome ink, hairlines,
+   colour only for meaning (overdue/conflict red, slipping orange, done/ok green, priority rings,
+   project swatches). No accent colour, no icon tiles, no boxed stat tiles, no bouncy motion.
+   The card paints its own pure base, #ffffff light / #000000 dark (the app's rule), so a host's
+   grey or beige card colour never shows through. Overlays and lines are translucent ink on top. */
 
 :root {
   color-scheme: light;
-  --o-text: #1b1b1f;
-  --o-text-2: #55555e;
-  --o-text-3: #8a8a94;
-  --o-ink: 24, 24, 32; /* rgb of overlays */
-  --o-surface: #ffffff;
-  --o-on-solid: #ffffff;
+  --o-text: #0d0d0d;
+  --o-text-2: #4f4f4f;
+  --o-text-3: #767676;
+  --o-bg: #ffffff; /* pure base */
+  --o-ink: 0, 0, 0; /* rgb of overlays */
+  --o-on-text: #ffffff; /* ink on a text-coloured fill (done disc, primary button) */
 
-  /* Linear palette */
-  --c-gray: #9ca3b0;
-  --c-indigo: #5e6ad2;
-  --c-yellow: #e0a800;
-  --c-orange: #ec7a2c;
-  --c-red: #e5484d;
-  --c-green: #3fa772;
-  --c-blue: #3b82f6;
+  /* meaning — the app's semantic colours */
+  --c-gray: #a3a3a3;
+  --c-red: #dc2626;
+  --c-orange: #c2410c;
+  --c-green: #15803d;
+  --c-blue: #2563eb;
 
-  /* project colours (same names as the app) */
-  --p-slate: #64748b;
-  --p-red: #ef4444;
-  --p-orange: #f97316;
-  --p-amber: #eab308;
-  --p-green: #22c55e;
-  --p-teal: #14b8a6;
-  --p-blue: #3b82f6;
-  --p-indigo: #6366f1;
-  --p-violet: #8b5cf6;
-  --p-pink: #ec4899;
+  /* project colours (same names and values as the app) */
+  --p-slate: #71717a;
+  --p-red: #dc2626;
+  --p-orange: #ea580c;
+  --p-amber: #ca8a04;
+  --p-green: #16a34a;
+  --p-teal: #0d9488;
+  --p-blue: #2563eb;
+  --p-indigo: #4f46e5;
+  --p-violet: #7c3aed;
+  --p-pink: #db2777;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --o-text: #ededf0;
-    --o-text-2: #b4b4bd;
-    --o-text-3: #80808b;
-    --o-ink: 240, 240, 250;
-    --o-surface: #1c1c21;
-    --o-on-solid: #ffffff;
-    --c-gray: #7d8592;
-    --c-indigo: #7c86e8;
-    --c-yellow: #f2c94c;
-    --c-orange: #f2994a;
-    --c-red: #f2555a;
-    --c-green: #4cb782;
+    --o-text: #f3f3f3;
+    --o-text-2: #b4b4b4;
+    --o-text-3: #8c8c8c;
+    --o-bg: #000000;
+    --o-ink: 255, 255, 255;
+    --o-on-text: #000000;
+    --c-gray: #737373;
+    --c-red: #f87171;
+    --c-orange: #fb923c;
+    --c-green: #4ade80;
     --c-blue: #60a5fa;
+    --p-slate: #a1a1aa;
+    --p-red: #f87171;
+    --p-orange: #fb923c;
+    --p-amber: #facc15;
+    --p-green: #4ade80;
+    --p-teal: #2dd4bf;
+    --p-blue: #60a5fa;
+    --p-indigo: #818cf8;
+    --p-violet: #a78bfa;
+    --p-pink: #f472b6;
   }
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --o-text: #ededf0;
-  --o-text-2: #b4b4bd;
-  --o-text-3: #80808b;
-  --o-ink: 240, 240, 250;
-  --o-surface: #1c1c21;
-  --o-on-solid: #ffffff;
-  --c-gray: #7d8592;
-  --c-indigo: #7c86e8;
-  --c-yellow: #f2c94c;
-  --c-orange: #f2994a;
-  --c-red: #f2555a;
-  --c-green: #4cb782;
+  --o-text: #f3f3f3;
+  --o-text-2: #b4b4b4;
+  --o-text-3: #8c8c8c;
+  --o-bg: #000000;
+  --o-ink: 255, 255, 255;
+  --o-on-text: #000000;
+  --c-gray: #737373;
+  --c-red: #f87171;
+  --c-orange: #fb923c;
+  --c-green: #4ade80;
   --c-blue: #60a5fa;
+  --p-slate: #a1a1aa;
+  --p-red: #f87171;
+  --p-orange: #fb923c;
+  --p-amber: #facc15;
+  --p-green: #4ade80;
+  --p-teal: #2dd4bf;
+  --p-blue: #60a5fa;
+  --p-indigo: #818cf8;
+  --p-violet: #a78bfa;
+  --p-pink: #f472b6;
 }
 
 *,
@@ -79,25 +95,27 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: transparent;
+  background: var(--o-bg);
 }
 
 body {
-  --text: var(--color-text-primary, var(--o-text));
-  --text-2: var(--color-text-secondary, var(--o-text-2));
-  --text-3: var(--color-text-tertiary, var(--o-text-3));
+  /* neutral ink tuned for the pure base (a host's warm greys are made for its own card colour) */
+  --text: var(--o-text);
+  --text-2: var(--o-text-2);
+  --text-3: var(--o-text-3);
   --line: rgba(var(--o-ink), 0.08);
-  --line-2: rgba(var(--o-ink), 0.055);
-  --hover: rgba(var(--o-ink), 0.04);
-  --band: rgba(var(--o-ink), 0.03);
+  --line-2: rgba(var(--o-ink), 0.06);
+  --hover: rgba(var(--o-ink), 0.045);
+  --band: rgba(var(--o-ink), 0.025);
   --chip: rgba(var(--o-ink), 0.05);
-  --chip-line: rgba(var(--o-ink), 0.1);
-  --focus: rgba(94, 106, 210, 0.45);
-  --radius: 8px;
+  --chip-line: rgba(var(--o-ink), 0.13);
+  --focus: rgba(var(--o-ink), 0.5);
+  --radius: 10px;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --font: var(
     --font-sans,
-    'Inter Variable',
-    Inter,
+    ui-sans-serif,
     -apple-system,
     BlinkMacSystemFont,
     'Pretendard Variable',
@@ -113,9 +131,7 @@ body {
   color: var(--text);
   font-family: var(--font);
   font-size: 13px;
-  line-height: 1.45;
-  letter-spacing: -0.003em;
-  font-feature-settings: 'cv11', 'ss01';
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   word-break: keep-all;
@@ -163,46 +179,34 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-/* ───────────────────────────── header */
+/* ───────────────────────────── header: title + muted line; a plain tone icon only when it means something */
 
 .hd {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 10px 14px 8px;
+  gap: 8px;
+  min-height: 48px;
+  padding: 14px 16px 10px;
 }
 
 .hd-icon {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--chip);
-  color: var(--text-2);
   flex-shrink: 0;
+  color: var(--text-3);
 }
 
 .hd-icon[data-tone='danger'] {
-  background: color-mix(in srgb, var(--c-red) 14%, transparent);
   color: var(--c-red);
 }
 
 .hd-icon[data-tone='warn'] {
-  background: color-mix(in srgb, var(--c-orange) 14%, transparent);
   color: var(--c-orange);
 }
 
 .hd-icon[data-tone='ok'] {
-  background: color-mix(in srgb, var(--c-green) 14%, transparent);
   color: var(--c-green);
-}
-
-.hd-icon[data-tone='brand'] {
-  background: color-mix(in srgb, var(--c-indigo) 14%, transparent);
-  color: var(--c-indigo);
 }
 
 .hd-text {
@@ -214,14 +218,14 @@ button:disabled {
 }
 
 .hd-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.01em;
   white-space: nowrap;
 }
 
 .hd-sub {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-3);
   min-width: 0;
   overflow: hidden;
@@ -237,16 +241,17 @@ button:disabled {
   flex-shrink: 0;
 }
 
-/* ───────────────────────────── chips / pills */
+/* ───────────────────────────── chips: 22px labels, radius 6; tinted only when they mean something */
 
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  border: 1px solid var(--chip-line);
+  padding: 0 7px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: var(--chip);
   font-size: 12px;
   color: var(--text-2);
   white-space: nowrap;
@@ -260,37 +265,33 @@ button:disabled {
 
 .chip[data-tone='danger'] {
   color: var(--c-red);
-  border-color: color-mix(in srgb, var(--c-red) 30%, transparent);
-  background: color-mix(in srgb, var(--c-red) 7%, transparent);
+  background: color-mix(in srgb, var(--c-red) 9%, transparent);
 }
 
 .chip[data-tone='warn'] {
   color: var(--c-orange);
-  border-color: color-mix(in srgb, var(--c-orange) 30%, transparent);
-  background: color-mix(in srgb, var(--c-orange) 7%, transparent);
+  background: color-mix(in srgb, var(--c-orange) 9%, transparent);
 }
 
 .chip[data-tone='ok'] {
   color: var(--c-green);
-  border-color: color-mix(in srgb, var(--c-green) 30%, transparent);
-  background: color-mix(in srgb, var(--c-green) 7%, transparent);
+  background: color-mix(in srgb, var(--c-green) 9%, transparent);
 }
 
 .chip[data-tone='brand'] {
-  color: var(--c-indigo);
-  border-color: color-mix(in srgb, var(--c-indigo) 30%, transparent);
-  background: color-mix(in srgb, var(--c-indigo) 7%, transparent);
-}
-
-.chip[data-tone='quiet'] {
-  border-color: transparent;
+  color: var(--text);
   background: var(--chip);
 }
 
+.chip[data-tone='quiet'] {
+  background: var(--chip);
+}
+
+/* a project colour is an identity swatch: a small rounded square, as in the app */
 .dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: 2px;
   flex-shrink: 0;
   background: var(--c, var(--c-gray));
 }
@@ -320,11 +321,11 @@ button:disabled {
   align-items: center;
   gap: 8px;
   height: 32px;
-  padding: 0 14px;
+  padding: 0 16px;
   background: var(--band);
   border-top: 1px solid var(--line-2);
   border-bottom: 1px solid var(--line-2);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text);
 }
@@ -414,10 +415,11 @@ button.status:hover {
 }
 
 button.status:active {
-  transform: scale(0.88);
+  transform: scale(0.94);
 }
 
-/* Like the Obelisk app: the ring's colour is the priority, the fill is the status. */
+/* Like the Obelisk app: the ring's colour is the priority (낮음 blue · 보통 orange · 높음 red),
+   the fill is the status; done is a solid disc in the text colour. */
 .status {
   color: var(--c-gray);
 }
@@ -427,7 +429,7 @@ button.status:active {
 }
 
 .status[data-p='medium'] {
-  color: var(--c-yellow);
+  color: var(--c-orange);
 }
 
 .status[data-p='high'] {
@@ -440,7 +442,11 @@ button.status:active {
 }
 
 .status[data-s='done'] {
-  color: var(--c-indigo);
+  color: var(--text);
+}
+
+.status .mark {
+  stroke: var(--o-on-text);
 }
 
 .status[data-s='canceled'] {
@@ -452,19 +458,14 @@ button.status:active {
   pointer-events: none;
 }
 
+/* completion: the disc fades in, nothing bounces */
 .status[data-pop] svg {
-  animation: pop 0.34s cubic-bezier(0.34, 1.4, 0.64, 1);
+  animation: pop 0.22s var(--ease-out);
 }
 
 @keyframes pop {
-  0% {
-    transform: scale(0.7);
-  }
-  60% {
-    transform: scale(1.15);
-  }
-  100% {
-    transform: scale(1);
+  from {
+    opacity: 0.3;
   }
 }
 
@@ -474,6 +475,7 @@ button.status:active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 14px;
   color: var(--text);
 }
 
@@ -498,8 +500,8 @@ button.status:active {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  font-size: 11.5px;
-  color: var(--text-3);
+  font-size: 12px;
+  color: var(--c-orange);
   font-variant-numeric: tabular-nums;
 }
 
@@ -525,14 +527,16 @@ button.status:active {
 
 .date[data-tone='overdue'] {
   color: var(--c-red);
+  font-weight: 500;
 }
 
 .date[data-tone='today'] {
-  color: var(--c-orange);
+  color: var(--text);
+  font-weight: 500;
 }
 
 .after {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-3);
   white-space: nowrap;
 }
@@ -543,7 +547,7 @@ button.status:active {
   gap: 6px;
   width: 100%;
   height: 34px;
-  padding: 0 14px 0 40px;
+  padding: 0 16px 0 42px;
   font-size: 12px;
   color: var(--text-3);
   border-bottom: 1px solid var(--line-2);
@@ -583,7 +587,7 @@ button.status:active {
 /* ───────────────────────────── calm lists (day groups) */
 
 .groups {
-  padding: 0 6px 6px;
+  padding: 0 6px 8px;
   border-top: 1px solid var(--line-2);
 }
 
@@ -591,10 +595,10 @@ button.status:active {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  padding: 12px 10px 4px;
-  font-size: 12px;
+  padding: 14px 10px 4px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text-2);
+  color: var(--text);
 }
 
 .gh .sub {
@@ -613,16 +617,16 @@ button.status:active {
 }
 
 .rows.calm > .row {
-  min-height: 34px;
-  padding: 5px 10px;
+  min-height: 36px;
+  padding: 6px 10px;
   border-bottom: 0;
-  border-radius: 7px;
-  gap: 9px;
+  border-radius: var(--radius);
+  gap: 10px;
 }
 
 .rows.calm .ref {
-  min-width: 26px;
-  font-size: 11.5px;
+  min-width: 28px;
+  font-size: 12px;
 }
 
 .row[data-p='high'] .title {
@@ -630,10 +634,10 @@ button.status:active {
 }
 
 .groups .more {
-  padding-left: 45px;
+  padding-left: 46px;
   border-bottom: 0;
-  border-radius: 7px;
-  height: 30px;
+  border-radius: var(--radius);
+  height: 32px;
 }
 
 .proj {
@@ -649,14 +653,14 @@ button.status:active {
 }
 
 .proj .dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 
 .banner.slim {
   align-items: center;
-  margin-top: -4px;
-  padding: 8px 12px;
+  margin-top: 0;
+  padding: 10px 14px;
 }
 
 .banner.slim > .ic {
@@ -674,22 +678,19 @@ button.status:active {
 .banner {
   display: flex;
   gap: 10px;
-  margin: 2px 14px 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  border: 1px solid color-mix(in srgb, var(--c-orange) 28%, transparent);
-  background: color-mix(in srgb, var(--c-orange) 6%, transparent);
-  font-size: 12.5px;
+  margin: 0 16px 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c-orange) 7%, transparent);
+  font-size: 13px;
 }
 
 .banner[data-tone='danger'] {
-  border-color: color-mix(in srgb, var(--c-red) 28%, transparent);
-  background: color-mix(in srgb, var(--c-red) 6%, transparent);
+  background: color-mix(in srgb, var(--c-red) 7%, transparent);
 }
 
 .banner[data-tone='ok'] {
-  border-color: color-mix(in srgb, var(--c-green) 26%, transparent);
-  background: color-mix(in srgb, var(--c-green) 6%, transparent);
+  background: color-mix(in srgb, var(--c-green) 7%, transparent);
 }
 
 .banner > .ic {
@@ -717,7 +718,7 @@ button.status:active {
 }
 
 .banner-text {
-  color: var(--text-2);
+  color: var(--text);
 }
 
 .mini {
@@ -768,7 +769,7 @@ button.status:active {
 /* ───────────────────────────── task detail */
 
 .detail {
-  padding: 4px 16px 14px;
+  padding: 4px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -793,10 +794,10 @@ button.status:active {
 
 .detail-title {
   margin: -4px 0 0;
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1.35;
   font-weight: 600;
-  letter-spacing: -0.012em;
+  letter-spacing: -0.01em;
 }
 
 .detail[data-s='done'] .detail-title {
@@ -810,16 +811,17 @@ button.status:active {
 }
 
 .props .chip {
-  height: 26px;
+  height: 28px;
   padding: 0 10px 0 8px;
-  border-radius: 7px;
-  background: var(--chip);
-  border-color: transparent;
+  border-radius: 999px;
+  background: transparent;
+  border-color: var(--chip-line);
   color: var(--text-2);
 }
 
-.props .chip[data-tone] {
-  background: none;
+.props .chip[data-tone='danger'],
+.props .chip[data-tone='warn'] {
+  border-color: transparent;
 }
 
 .props .chip .status,
@@ -830,13 +832,12 @@ button.status:active {
 
 .notes {
   margin: 0;
-  padding: 10px 12px;
-  border-radius: var(--radius);
+  padding: 12px 14px;
+  border-radius: 12px;
   background: var(--band);
-  border: 1px solid var(--line-2);
   color: var(--text-2);
-  font-size: 12.5px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.6;
   white-space: pre-wrap;
   max-height: 9.5em;
   overflow: hidden;
@@ -858,12 +859,10 @@ button.status:active {
   color: var(--text-2);
 }
 
+/* dependencies: plain labelled lists, no box around them */
 .rel {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  overflow: hidden;
 }
 
 .rel-h {
@@ -871,30 +870,40 @@ button.status:active {
   align-items: center;
   gap: 6px;
   height: 28px;
-  padding: 0 12px;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--text-3);
-  background: var(--band);
-  border-bottom: 1px solid var(--line-2);
+  padding: 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
 }
 
 .rel-h:not(:first-child) {
-  border-top: 1px solid var(--line-2);
+  margin-top: 8px;
+}
+
+.rel-h > .ic {
+  color: var(--text-3);
 }
 
 .rel .row {
-  min-height: 34px;
-  padding: 5px 12px;
+  min-height: 36px;
+  padding: 6px 2px;
+}
+
+.rel .rows > .row:last-child {
+  border-bottom: 1px solid var(--line-2);
+}
+
+.rel .rows {
+  border-top: 1px solid var(--line-2);
 }
 
 /* ───────────────────────────── impact timeline */
 
 .lead {
-  margin: 0 14px 12px;
+  margin: 0 16px 14px;
   color: var(--text-2);
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .move {
@@ -902,7 +911,7 @@ button.status:active {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  margin: 0 14px 10px;
+  margin: 0 16px 10px;
 }
 
 .move .from {
@@ -915,27 +924,24 @@ button.status:active {
   font-weight: 600;
 }
 
+/* figures: a quiet row of number + label, no boxes; colour only when the number is not zero */
 .stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin: 0 14px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  overflow: hidden;
+  gap: 0 16px;
+  margin: 0 16px 14px;
 }
 
 .stat {
-  padding: 8px 12px 9px;
-  border-left: 1px solid var(--line-2);
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 2px;
   min-width: 0;
 }
 
-.stat:first-child {
-  border-left: 0;
-}
-
 .stat-v {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -943,7 +949,7 @@ button.status:active {
 }
 
 .stat-l {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
@@ -969,14 +975,7 @@ button.status:active {
 @container (max-width: 420px) {
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .stat:nth-child(3) {
-    border-left: 0;
-  }
-
-  .stat:nth-child(n + 3) {
-    border-top: 1px solid var(--line-2);
+    gap: 10px 16px;
   }
 }
 
@@ -993,9 +992,8 @@ button.status:active {
 }
 
 .tl-axis {
-  height: 26px;
+  height: 28px;
   border-bottom: 1px solid var(--line-2);
-  background: var(--band);
 }
 
 .tl-axis .track {
@@ -1010,7 +1008,7 @@ button.status:active {
   align-items: center;
   padding-left: 4px;
   border-left: 1px solid var(--line-2);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-3);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -1030,11 +1028,11 @@ button.status:active {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 6px 10px 6px 14px;
+  padding: 6px 10px 6px 16px;
 }
 
 .tl-label .title {
-  font-size: 12.5px;
+  font-size: 13px;
 }
 
 /* kind colours, shared by timeline icons, bars and tags */
@@ -1044,7 +1042,7 @@ button.status:active {
 }
 
 [data-k='root'] {
-  --k: var(--c-indigo);
+  --k: var(--text-2);
 }
 
 [data-k='shifted'] {
@@ -1060,15 +1058,13 @@ button.status:active {
 }
 
 .kind {
-  width: 16px;
-  height: 16px;
-  border-radius: 5px;
+  width: 14px;
+  height: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   color: var(--k);
-  background: color-mix(in srgb, var(--k) 13%, transparent);
 }
 
 .track {
@@ -1083,7 +1079,7 @@ button.status:active {
   top: 0;
   bottom: 0;
   width: 0;
-  border-left: 1.5px dashed color-mix(in srgb, var(--c-red) 55%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--text-3) 60%, transparent);
   z-index: 1;
 }
 
@@ -1103,7 +1099,6 @@ button.status:active {
 
 .bar.solid {
   background: var(--k);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 8%, transparent);
 }
 
 .bar.solid[data-k='absorbed'],
@@ -1141,7 +1136,7 @@ button.status:active {
   display: flex;
   align-items: center;
   height: 100%;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-3);
 }
 
@@ -1170,7 +1165,7 @@ button.status:active {
 }
 
 .slips {
-  margin: 12px 14px 0;
+  margin: 12px 16px 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1180,7 +1175,7 @@ button.status:active {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-2);
   min-width: 0;
 }
@@ -1202,31 +1197,26 @@ button.status:active {
 }
 
 .section-label {
-  margin: 14px 14px 6px;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--text-3);
+  margin: 16px 16px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 /* ───────────────────────────── bottlenecks + projects */
 
 .rank {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+  width: 16px;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
-  background: var(--chip);
-  color: var(--text-2);
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
 .rank[data-top] {
-  background: color-mix(in srgb, var(--c-red) 13%, transparent);
   color: var(--c-red);
 }
 
@@ -1244,7 +1234,7 @@ button.status:active {
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: inherit;
-  background: var(--c-indigo);
+  background: var(--text-2);
 }
 
 .metric {
@@ -1306,16 +1296,14 @@ button.status:active {
   min-width: 0;
 }
 
+/* project: its colour swatch, like the app's sidebar */
 .picon {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  width: 10px;
+  height: 10px;
+  margin: 0 3px;
+  border-radius: 3px;
   flex-shrink: 0;
-  color: var(--c);
-  background: color-mix(in srgb, var(--c) 16%, transparent);
+  background: var(--c);
 }
 
 .health {
@@ -1327,9 +1315,9 @@ button.status:active {
   white-space: nowrap;
 }
 
-.health .dot {
-  width: 7px;
-  height: 7px;
+.health[data-tone='danger'] {
+  color: var(--c-red);
+  font-weight: 500;
 }
 
 .row[data-archived] {
@@ -1342,8 +1330,8 @@ button.status:active {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
-  padding: 8px 14px;
+  min-height: 44px;
+  padding: 8px 10px 8px 16px;
   border-top: 1px solid var(--line-2);
   margin-top: 0;
 }
@@ -1364,7 +1352,7 @@ button.status:active {
   font-size: 12px;
   color: var(--text-2);
   min-width: 0;
-  animation: fadein 0.2s ease;
+  animation: fadein 0.2s var(--ease-out);
 }
 
 .ft-note[data-tone='ok'] > .ic {
@@ -1389,24 +1377,25 @@ button.status:active {
   gap: 6px;
 }
 
+/* buttons: pills; primary is the text colour (black on light, white on dark) */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 7px;
-  font-size: 12.5px;
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
-  color: var(--text-2);
+  color: var(--text);
   border: 1px solid var(--chip-line);
   background: transparent;
   transition:
-    background-color 0.12s ease,
-    color 0.12s ease,
-    opacity 0.12s ease;
+    background-color 0.12s var(--ease),
+    color 0.12s var(--ease),
+    opacity 0.12s var(--ease);
 }
 
 .btn:hover {
@@ -1414,21 +1403,25 @@ button.status:active {
   color: var(--text);
 }
 
+.btn:active:not([disabled]) {
+  transform: scale(0.98);
+}
+
 .btn.primary {
   border-color: transparent;
-  background: var(--c-indigo);
-  color: #fff;
+  background: var(--text);
+  color: var(--o-on-text);
 }
 
 .btn.primary:hover {
-  background: color-mix(in srgb, var(--c-indigo) 88%, #000);
-  color: #fff;
+  background: color-mix(in srgb, var(--text) 85%, transparent);
+  color: var(--o-on-text);
 }
 
 .btn.ghost {
   border-color: transparent;
-  color: var(--text-3);
-  padding: 0 6px;
+  color: var(--text-2);
+  padding: 0 10px;
 }
 
 .btn.ghost:hover {
@@ -1458,16 +1451,16 @@ button.status:active {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-top: 1px solid var(--line-2);
   margin-top: 14px;
 }
 
 .actions .hint {
   flex-basis: 100%;
-  font-size: 11.5px;
+  font-size: 12px;
+  line-height: 1.55;
   color: var(--text-3);
-  margin-top: -2px;
 }
 
 /* ───────────────────────────── states */
@@ -1480,31 +1473,26 @@ button.status:active {
   padding: 28px 16px 30px;
   text-align: center;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: 13px;
   border-top: 1px solid var(--line-2);
 }
 
 .empty .ic {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: var(--chip);
   color: var(--text-3);
 }
 
 .empty[data-tone='ok'] .ic {
   color: var(--c-green);
-  background: color-mix(in srgb, var(--c-green) 12%, transparent);
 }
 
 .empty b {
-  color: var(--text-2);
-  font-weight: 500;
-  font-size: 13px;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
 }
 
 .skeleton {
-  padding: 12px 14px 14px;
+  padding: 4px 16px 18px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1512,27 +1500,23 @@ button.status:active {
 
 .sk {
   height: 12px;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--chip) 0%, var(--hover) 50%, var(--chip) 100%);
-  background-size: 200% 100%;
-  animation: shimmer 1.3s ease-in-out infinite;
+  border-radius: 6px;
+  background: var(--chip);
+  animation: breathe 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 }
 
-@keyframes shimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: -100% 0;
+@keyframes breathe {
+  50% {
+    opacity: 0.45;
   }
 }
 
 .error {
   display: flex;
   gap: 10px;
-  padding: 14px;
+  padding: 14px 16px;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 
 .error > .ic {

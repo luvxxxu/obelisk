@@ -351,10 +351,10 @@
     if (s === 'doing') inner = ring + '<path d="M8 4.25a3.75 3.75 0 0 1 0 7.5Z" fill="currentColor"/>';
     if (s === 'done')
       inner =
-        '<circle cx="8" cy="8" r="7" fill="currentColor"/><path d="m5.1 8.25 1.95 1.9 3.85-4.1" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+        '<circle cx="8" cy="8" r="7" fill="currentColor"/><path class="mark" d="m5.1 8.25 1.95 1.9 3.85-4.1" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
     if (s === 'canceled')
       inner =
-        '<circle cx="8" cy="8" r="7" fill="currentColor"/><path d="m5.8 5.8 4.4 4.4m0-4.4-4.4 4.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>';
+        '<circle cx="8" cy="8" r="7" fill="currentColor"/><path class="mark" d="m5.8 5.8 4.4 4.4m0-4.4-4.4 4.4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>';
     return `<svg width="${size}" height="${size}" viewBox="0 0 16 16" aria-hidden="true">${inner}</svg>`;
   }
 
@@ -433,11 +433,13 @@
 
   // ───────────────────────────── shared pieces
 
+  /** Card title + muted line. The icon shows only when its tone means something (danger/warn/ok). */
   function header({ ic, tone, title, sub, right }) {
+    const meaningful = tone === 'danger' || tone === 'warn' || tone === 'ok';
     return h(
       'div',
       { class: 'hd' },
-      h('span', { class: 'hd-icon', 'data-tone': tone }, ic),
+      meaningful && ic ? h('span', { class: 'hd-icon', 'data-tone': tone }, ic) : null,
       h('div', { class: 'hd-text' }, h('span', { class: 'hd-title' }, title), sub ? h('span', { class: 'hd-sub' }, sub) : null),
       right && right.length ? h('div', { class: 'hd-right' }, right) : null,
     );
@@ -561,7 +563,7 @@
 
   function flags(t) {
     const out = [];
-    if (t.fixed) out.push(h('span', { class: 'ic', title: '고정 일정 — 움직이지 않아요' }, icon('lock', 12)));
+    if (t.fixed) out.push(h('span', { class: 'ic', title: '고정 일정: 움직이지 않아요' }, icon('lock', 12)));
     if ((t.postponedCount || 0) >= 3)
       out.push(h('span', { class: 'flag-postponed', title: `${t.postponedCount}번 미룬 작업` }, icon('postpone', 11), t.postponedCount));
     return out.length ? h('span', { class: 'flags' }, out) : null;
@@ -585,7 +587,7 @@
       'button',
       Object.assign(attrs, {
         type: 'button',
-        title: `${what} — ${done ? '다시 열기' : '완료로 표시'}`,
+        title: `${what} · ${done ? '다시 열기' : '완료로 표시'}`,
         'aria-label': `${t.ref} ${done ? '다시 열기' : '완료로 표시'}`,
         onclick: (e) => {
           e.stopPropagation();
@@ -1319,14 +1321,14 @@
             { class: 'rows', style: 'border-top:1px solid var(--line-2)' },
             list.map((p) => {
               const health = p.overdue
-                ? h('span', { class: 'health', style: 'color:var(--c-red)' }, h('span', { class: 'dot', style: '--c:var(--c-red)' }), `기한 지남 ${p.overdue}`)
+                ? h('span', { class: 'health', 'data-tone': 'danger' }, `기한 지남 ${p.overdue}`)
                 : p.open
-                  ? h('span', { class: 'health' }, h('span', { class: 'dot', style: '--c:var(--c-green)' }), '순조')
-                  : h('span', { class: 'health' }, h('span', { class: 'dot', style: '--c:var(--c-gray)' }), '열린 작업 없음');
+                  ? h('span', { class: 'health' }, '순조')
+                  : h('span', { class: 'health' }, '열린 작업 없음');
               return h(
                 'div',
                 Object.assign({ class: 'row', 'data-archived': p.archived || null }, linkProps(`/projects/${p.id}`)),
-                h('span', { class: 'picon', style: `--c: var(--p-${p.color || 'slate'})` }, icon('folder', 12, 2)),
+                h('span', { class: 'picon', style: `--c: var(--p-${p.color || 'slate'})`, 'aria-hidden': 'true' }),
                 h('span', { class: 'title', style: 'font-weight:500' }, p.name),
                 p.archived ? chip('보관됨', { tone: 'quiet' }) : null,
                 h(
