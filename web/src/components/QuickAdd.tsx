@@ -280,7 +280,7 @@ export const QuickAdd = forwardRef<
           className={s.input}
           value={value}
           autoFocus={autoFocus}
-          placeholder={placeholder ?? '할 일 추가 — 예: 기획서 초안 내일 #업무 !높음'}
+          placeholder={placeholder ?? '할 일 추가 (예: 기획서 초안 내일 #업무 !높음)'}
           onChange={(e) => setValue(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -309,10 +309,9 @@ export const QuickAdd = forwardRef<
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => void submit()}
             aria-label="추가"
-            {...tip(parsed.title.trim() ? null : '제목을 함께 적어주세요', { side: 'top' })}
+            {...tip(parsed.title.trim() ? '추가' : '제목을 함께 적어주세요', { side: 'top', kbd: parsed.title.trim() ? '↵' : undefined })}
           >
-            <span className={s.submitLabel}>추가</span>
-            <kbd aria-hidden="true">↵</kbd>
+            <Icon name="arrowUp" size={16} strokeWidth={2.25} />
           </button>
         ) : (
           !isModal && (
@@ -346,7 +345,7 @@ export const QuickAdd = forwardRef<
               className={cx(ui.badge, s.chip)}
               data-kind={c.kind}
               data-tone={c.tone}
-              aria-label={`${c.text} — 인식 취소`}
+              aria-label={`${c.text} 인식 취소`}
               {...tip('누르면 인식을 취소하고 제목에 그대로 둬요', { side: 'bottom' })}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => setDisabled((d) => [...d, c.kind])}
@@ -372,7 +371,7 @@ export const QuickAdd = forwardRef<
       {(offers.length > 0 || (asking && !live && jev.connected)) && typing && (
         <div className={s.jevRow} aria-live="polite">
           <span className={s.jevLabel} data-busy={asking || undefined}>
-            <Icon name="sparkle" size={12} strokeWidth={2} />
+            {asking ? <span className={cx(ui.spinner, s.jevSpin)} aria-hidden="true" /> : <Icon name="scale" size={13} />}
             Jev
           </span>
           {offers.map((o) => {

@@ -274,8 +274,6 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
                       )}
                       <span className={cx(s.labelText, t.status === 'done' && s.labelDone)}>{t.title}</span>
                       {t.fixed && <Icon name="pin" size={12} className={s.labelPin} />}
-                      {im?.kind === 'shifted' && <span className={s.labelFlag} data-tone="warn" aria-hidden="true" />}
-                      {im?.kind === 'conflict' && <span className={s.labelFlag} data-tone="danger" aria-hidden="true" />}
                     </button>
                   );
                 })}
@@ -358,7 +356,7 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
                           width: (diffDays(live.e, live.s) + 1) * DAY_W - 6,
                           top,
                           height: barH,
-                          ['--bar' as string]: `var(--c-${p?.color ?? 'indigo'})`,
+                          ['--bar' as string]: `var(--c-${p?.color ?? 'slate'})`,
                         }}
                         onPointerDown={(e) => onPointerDown(e, t, 'move')}
                         onPointerMove={onPointerMove}
@@ -397,9 +395,6 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
 
         {rows.length === 0 && (
           <div className={s.empty} style={{ top: HEAD_H }}>
-            <span className={s.emptyIcon}>
-              <Icon name="timeline" size={18} />
-            </span>
             <span className={s.emptyText}>{emptyHint ?? '날짜가 있는 작업이 없어요. 작업에 시작일·마감일을 넣으면 여기에 그려져요.'}</span>
           </div>
         )}
@@ -413,7 +408,6 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
           </span>
           {summary && drag.delta !== 0 && (
             <span className={s.dragTipImpact}>
-              <i className={s.dragTipDot} aria-hidden="true" />
               {summary.delayedCount || summary.conflictCount
                 ? [summary.delayedCount && `${summary.delayedCount}개 밀림`, summary.conflictCount && `충돌 ${summary.conflictCount}`].filter(Boolean).join(' · ')
                 : '다른 일정 영향 없음'}
@@ -430,7 +424,7 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
             <span className={s.unschedCount}>{unscheduled.length}</span>
           </span>
           {unscheduled.map((t) => (
-            <button key={t.id} className={s.unschedItem} onClick={() => selectTask(t.id)} title={`${t.title} — 열어서 날짜 넣기`}>
+            <button key={t.id} className={s.unschedItem} onClick={() => selectTask(t.id)} title={`${t.title} · 열어서 날짜 넣기`}>
               {t.title}
             </button>
           ))}

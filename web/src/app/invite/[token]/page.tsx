@@ -4,7 +4,7 @@ import { ROLE_LABEL_KO, type InvitePreview } from '@obelisk/core';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Icon } from '@/components/Icon';
+import { Icon, Logo } from '@/components/Icon';
 import { buttonClass, Spinner, ui } from '@/components/primitives';
 import { WorkspaceMark } from '@/components/WorkspaceSwitcher';
 import { api } from '@/lib/api';
@@ -57,13 +57,13 @@ export default function InvitePage() {
         ) : error && !invite ? (
           <>
             <header className={s.header}>
-              <div className={s.logoTile}>
-                <Icon name="link" size={20} />
-              </div>
+              <span className={s.logo}>
+                <Logo size={28} />
+              </span>
               <h1 className={s.title}>초대 링크를 열 수 없어요</h1>
               <p className={s.description}>{error}</p>
             </header>
-            <Link href="/" className={buttonClass({ variant: 'outline', size: 'lg', block: true })}>
+            <Link href="/" className={buttonClass({ variant: 'outline', size: 'lg', block: true, className: s.action })}>
               Obelisk로 가기
             </Link>
           </>
@@ -91,14 +91,13 @@ export default function InvitePage() {
 
               {invite.alreadyMember ? (
                 <button
-                  className={buttonClass({ variant: 'primary', size: 'lg', block: true })}
+                  className={buttonClass({ variant: 'primary', size: 'lg', block: true, className: s.action })}
                   onClick={async () => {
                     router.replace('/');
                     await switchWorkspace(invite.workspace.id);
                   }}
                 >
                   이미 멤버예요 · 열기
-                  <Icon name="arrowRight" size={16} />
                 </button>
               ) : !invite.valid ? (
                 <div className={ui.alert} data-tone="warn">
@@ -107,36 +106,33 @@ export default function InvitePage() {
                   <div className={ui.alertDescription}>조직 관리자에게 새 링크를 요청하세요.</div>
                 </div>
               ) : signedIn ? (
-                <button className={buttonClass({ variant: 'primary', size: 'lg', block: true })} disabled={busy} onClick={() => void join()}>
+                <button
+                  className={buttonClass({ variant: 'primary', size: 'lg', block: true, className: s.action })}
+                  disabled={busy}
+                  onClick={() => void join()}
+                >
                   {busy ? (
                     <>
                       <span className={ui.spinner} aria-hidden="true" /> 참여하는 중…
                     </>
                   ) : (
-                    <>
-                      {invite.workspace.name}에 참여하기
-                      <Icon name="arrowRight" size={16} />
-                    </>
+                    `${invite.workspace.name}에 참여하기`
                   )}
                 </button>
               ) : (
                 <div className={i.actions}>
-                  <Link href={`/signup?${back}`} className={buttonClass({ variant: 'primary', size: 'lg', block: true })}>
+                  <Link href={`/signup?${back}`} className={buttonClass({ variant: 'primary', size: 'lg', block: true, className: s.action })}>
                     계정 만들고 참여하기
                   </Link>
-                  <Link href={`/login?${back}`} className={buttonClass({ variant: 'outline', size: 'lg', block: true })}>
+                  <Link href={`/login?${back}`} className={buttonClass({ variant: 'outline', size: 'lg', block: true, className: s.action })}>
                     이미 계정이 있어요 · 로그인
                   </Link>
                 </div>
               )}
 
               <ul className={i.facts}>
-                <li>
-                  <Icon name="lock" size={14} /> 공유받은 프로젝트만 볼 수 있어요. 내 개인 공간은 그대로 나만 봐요.
-                </li>
-                <li>
-                  <Icon name="sparkle" size={14} /> 연결한 AI도 이 조직에서 내 권한만큼만 일해요.
-                </li>
+                <li>공유받은 프로젝트만 볼 수 있어요. 내 개인 공간은 그대로 나만 봐요.</li>
+                <li>연결한 AI도 이 조직에서 내 권한만큼만 일해요.</li>
               </ul>
             </>
           )

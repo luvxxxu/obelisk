@@ -1,5 +1,7 @@
-/* Task row — shadcn-like list row.
-   Layout: [checkbox] [title + meta badges] [hover actions]
+/* Task row — a quiet list row.
+   Layout: [checkbox] [title + meta] [hover actions]
+   Meta is plain muted text with small icons; only an overdue date (red), today (bold) and
+   "N회 미룸" (orange) carry emphasis.
    Wide rows (≥ 480px content) keep meta on the title line, right-aligned with the date last so
    dates line up down the list; narrow rows stack meta under the title. */
 
@@ -9,7 +11,7 @@
   align-items: flex-start;
   gap: 12px;
   min-height: 44px;
-  padding: 12px 8px 12px 12px;
+  padding: 11px 8px 11px 12px;
   margin: 0 -12px;
   border-radius: var(--radius);
   cursor: pointer;
@@ -33,8 +35,7 @@
 
 .selected,
 .selected:hover {
-  background: var(--surface-2);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+  background: var(--surface-3);
 }
 
 .selected:focus-visible {
@@ -129,7 +130,7 @@
 }
 
 .check:active {
-  transform: scale(0.9);
+  transform: scale(0.94);
 }
 
 .check[data-done='true'],
@@ -153,45 +154,14 @@
   stroke-dashoffset: 0;
 }
 
-/* completion: a gentle pop, the tick draws in, a soft ring fades out */
-.check[data-animate='true'][data-done='true'] {
-  animation: pop var(--dur-mid) var(--ease-spring);
-}
-
+/* completion: the disc fills and the tick draws in. Nothing bounces. */
 .check[data-animate='true'][data-done='true'] path {
   animation: draw var(--dur-mid) var(--ease-out) 0.04s both;
-}
-
-.row .check[data-animate='true'][data-done='true']::before,
-.check[data-animate='true'][data-done='true']::before {
-  inset: -1.5px;
-  animation: ring var(--dur-slow) var(--ease-out) both;
-}
-
-@keyframes pop {
-  0% {
-    transform: scale(0.86);
-  }
-  55% {
-    transform: scale(1.1);
-  }
-  100% {
-    transform: scale(1);
-  }
 }
 
 @keyframes draw {
   from {
     stroke-dashoffset: 24;
-  }
-}
-
-@keyframes ring {
-  from {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 28%, transparent);
-  }
-  to {
-    box-shadow: 0 0 0 7px color-mix(in srgb, var(--primary) 0%, transparent);
   }
 }
 
@@ -270,40 +240,54 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 6px;
+  gap: 2px 12px;
   min-width: 0;
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
-.meta .badge {
+.item {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
-  padding: 0 6px;
-}
-
-.meta .badge svg {
-  opacity: 0.85;
-}
-
-/* neutral meta reads quieter than the coloured (meaningful) ones */
-.meta .badge[data-tone='outline'] {
-  color: var(--text-2);
-}
-
-.date {
+  height: 20px;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
+.item svg {
+  flex-shrink: 0;
+}
+
+.item[data-tone='warn'] {
+  color: var(--warn-text);
+}
+
+.date[data-tone='overdue'] {
+  color: var(--danger-text);
+  font-weight: 500;
+}
+
+.date[data-tone='today'] {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.date[data-tone='soon'] {
+  color: var(--text-2);
+}
+
 .project {
-  display: inline-flex;
-  align-items: center;
   gap: 6px;
   min-width: 0;
   max-width: 180px;
-  height: 20px;
-  padding: 0 2px;
-  color: var(--text-3);
-  white-space: nowrap;
+}
+
+.swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 
 .projectName {
@@ -375,7 +359,7 @@
 /* ───────── postpone menu */
 
 .postponeMenu {
-  width: 256px;
+  width: 272px;
 }
 
 .postponeMenu .effect {

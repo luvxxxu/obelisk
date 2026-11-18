@@ -2,7 +2,7 @@
 
 import { chatMessage, orderPayload, type Webhook, type WebhookDelivery } from '@obelisk/core';
 import { useCallback, useEffect, useState } from 'react';
-import { Icon } from '@/components/Icon';
+import { Icon, type IconName } from '@/components/Icon';
 import { Modal, Skeleton, Spinner, ui } from '@/components/primitives';
 import { api } from '@/lib/api';
 import { cx, relativeTime } from '@/lib/format';
@@ -11,6 +11,7 @@ import { deliveryTone } from './shared';
 import s from './webhooks.module.css';
 
 const STATUS_LABEL: Record<WebhookDelivery['status'], string> = { success: '성공', failed: '실패', pending: '재시도 대기' };
+const STATUS_ICON: Record<WebhookDelivery['status'], IconName> = { success: 'checkCircle', failed: 'xCircle', pending: 'clock' };
 
 function sentBody(hook: Webhook, d: WebhookDelivery): string {
   const body = hook.format === 'json' ? orderPayload(d.payload) : chatMessage(d.payload, hook.format);
@@ -87,7 +88,7 @@ export function Deliveries({ hook, onClose, onChanged }: { hook: Webhook | null;
         <div className={s.logList}>
           {[0, 1, 2].map((i) => (
             <div key={i} className={s.logRow}>
-              <Skeleton width={8} height={8} style={{ borderRadius: 99 }} />
+              <Skeleton width={15} height={15} style={{ borderRadius: 99 }} />
               <Skeleton width={180 + i * 40} height={13} />
               <Skeleton width={60} height={12} style={{ marginLeft: 'auto' }} />
             </div>
@@ -105,7 +106,9 @@ export function Deliveries({ hook, onClose, onChanged }: { hook: Webhook | null;
             return (
               <li key={d.id} className={s.logItem} data-open={expanded || undefined}>
                 <button type="button" className={s.logRow} aria-expanded={expanded} onClick={() => setOpen(expanded ? null : d.id)}>
-                  <span className={ui.dot} data-tone={deliveryTone(d.status)} aria-label={STATUS_LABEL[d.status]} />
+                  <span className={s.logStatus} data-tone={deliveryTone(d.status)} role="img" aria-label={STATUS_LABEL[d.status]}>
+                    <Icon name={STATUS_ICON[d.status]} size={15} />
+                  </span>
                   <code className={s.logEvent}>{d.event}</code>
                   <span className={s.logText}>{d.payload.text}</span>
                   <span className={s.logMeta}>

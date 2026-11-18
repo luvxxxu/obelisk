@@ -62,11 +62,10 @@ export default function MinePage() {
   return (
     <Page>
       <ViewHeader
-        icon="user"
         title="내 작업"
         description={`${workspace.name}에서 내가 맡은 작업 ${groups.total}개${groups.overdue.length ? ` · 기한 지남 ${groups.overdue.length}개` : ''}`}
       />
-      <QuickAdd defaultAssigneeId={me} placeholder="내가 맡을 작업 추가 — 예: 계약서 검토 금요일 #법무" />
+      <QuickAdd defaultAssigneeId={me} placeholder="내가 맡을 작업 추가 (예: 계약서 검토 금요일 #법무)" />
 
       <TaskGroup title="기한 지남" tone="danger" tasks={groups.overdue} />
       <TaskGroup title="오늘" tasks={groups.now} />

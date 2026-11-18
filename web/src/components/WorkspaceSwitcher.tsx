@@ -25,10 +25,10 @@ export function WorkspaceMark({ ws, size = 'md' }: { ws: Pick<WorkspaceSummary, 
 }
 
 /**
- * Notion-style switcher at the top of the sidebar: which space you're in, the others you
- * belong to, and the way to start an organization.
+ * Space switcher, shown as the page title in the top bar (the way ChatGPT shows the model):
+ * which space you're in, the others you belong to, and the way to start an organization.
  */
-export function WorkspaceSwitcher({ onNavigate }: { onNavigate: () => void }) {
+export function WorkspaceSwitcher({ onNavigate = () => {} }: { onNavigate?: () => void }) {
   const app = useApp();
   const router = useRouter();
   const ref = useRef<HTMLButtonElement>(null);
@@ -59,13 +59,12 @@ export function WorkspaceSwitcher({ onNavigate }: { onNavigate: () => void }) {
         onClick={menu.toggle}
         aria-haspopup="menu"
         aria-expanded={menu.open}
-        aria-label={`공간 전환 — 지금: ${workspaceLabel(ws)}`}
+        aria-label={`공간 전환, 지금: ${workspaceLabel(ws)}`}
       >
-        <WorkspaceMark ws={ws} />
         <span className={s.name}>{workspaceLabel(ws)}</span>
-        <Icon name="chevronsUpDown" size={14} className={s.chevron} />
+        <Icon name="chevronDown" size={16} strokeWidth={2} className={s.chevron} />
       </button>
-      <Popover anchor={ref} open={menu.open} onClose={menu.close} width={296} className={s.menu}>
+      <Popover anchor={ref} open={menu.open} onClose={menu.close} width={304}>
         <div className={s.account}>{app.user?.email}</div>
         {app.workspaces.length > 1 && (
           <>

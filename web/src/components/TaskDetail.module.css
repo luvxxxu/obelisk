@@ -393,7 +393,6 @@
   border: 1px solid var(--input);
   border-radius: var(--radius);
   background: var(--input-bg);
-  box-shadow: var(--shadow-xs);
   cursor: text;
   transition:
     border-color var(--dur-fast) var(--ease),
@@ -583,8 +582,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: var(--shadow-xs);
-}
+  }
 
 .simHead {
   display: flex;
@@ -638,7 +636,6 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
-  box-shadow: var(--shadow-xs);
   font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-2);
@@ -774,7 +771,7 @@ span.assigneeAvatar {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
 }
 
 .memberText {
@@ -828,24 +825,13 @@ span.assigneeAvatar {
   display: flex;
   gap: 10px;
   padding: 6px 0;
-  animation: activity-in var(--dur) var(--ease-out) both;
-}
-
-.activityItem:nth-child(2) {
-  animation-delay: 30ms;
-}
-.activityItem:nth-child(3) {
-  animation-delay: 60ms;
-}
-.activityItem:nth-child(n + 4) {
-  animation-delay: 90ms;
 }
 
 span.activityAvatar {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   box-shadow: 0 0 0 3px var(--bg);
   margin-top: 1px;
 }
@@ -892,23 +878,6 @@ span.activityAvatar {
 .activityMore:hover {
   color: var(--text);
   background: var(--surface-2);
-}
-
-@keyframes activity-in {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .activityItem {
-    animation: none;
-  }
 }
 
 .fieldset:disabled textarea::placeholder {

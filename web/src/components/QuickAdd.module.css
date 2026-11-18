@@ -1,5 +1,5 @@
-/* Quick add — shadcn input look: bordered field, leading +, focus ring via :focus-within
-   (the global outline is removed on text inputs). Parsed tokens appear as removable badges. */
+/* Quick add — a ChatGPT-style composer: a rounded field with a soft edge, a leading +, and a round
+   send button that appears once there is something to add. Parsed tokens show as removable badges. */
 
 .wrap {
   width: 100%;
@@ -18,12 +18,12 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 40px;
-  padding: 0 6px 0 12px;
+  height: 48px;
+  padding: 0 8px 0 16px;
   border: 1px solid var(--input);
-  border-radius: var(--radius);
-  background: var(--input-bg);
-  box-shadow: var(--shadow-xs);
+  border-radius: 24px;
+  background: var(--bg);
+  box-shadow: 0 1px 3px light-dark(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.5));
   cursor: text;
   transition:
     border-color var(--dur-fast) var(--ease),
@@ -37,13 +37,16 @@
 
 .field:focus-within {
   border-color: var(--ring-color);
-  box-shadow: var(--ring);
+  box-shadow:
+    0 1px 3px light-dark(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.5)),
+    var(--ring);
 }
 
 .modal .field {
-  height: 46px;
-  padding: 0 8px 0 14px;
-  border-radius: var(--radius);
+  height: 52px;
+  padding: 0 10px 0 18px;
+  border-radius: 26px;
+  box-shadow: none;
 }
 
 .plus {
@@ -94,10 +97,11 @@
 .helpBtn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 6px 0 8px;
-  border-radius: var(--radius-sm);
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-full);
   flex-shrink: 0;
   font-size: var(--fs-xs);
   font-weight: 500;
@@ -110,11 +114,32 @@
     box-shadow var(--dur-fast) var(--ease);
 }
 
-.submit:hover,
 .helpBtn:hover,
 .helpBtn[data-active='true'] {
   background: var(--surface-2);
   color: var(--text);
+}
+
+/* send: a round primary button, like ChatGPT's ↑ */
+.submit {
+  width: 32px;
+  padding: 0;
+  background: var(--primary);
+  color: var(--on-primary);
+  animation: in var(--dur) var(--ease-out);
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.submit:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.modal .submit {
+  width: 34px;
+  height: 34px;
 }
 
 .submit:focus-visible,
@@ -124,20 +149,9 @@
 }
 
 .submit:disabled {
-  opacity: 0.5;
   cursor: default;
-  background: transparent;
-}
-
-.submit kbd {
-  height: 18px;
-  min-width: 20px;
-  padding: 0 4px;
-  font-size: var(--fs-2xs);
-}
-
-.submitLabel {
-  line-height: 1;
+  background: var(--surface-3);
+  color: var(--text-3);
 }
 
 .helpBtn {
@@ -153,7 +167,7 @@
   border-radius: 50%;
   border: 1.25px solid currentColor;
   font-size: var(--fs-2xs);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -166,12 +180,6 @@
   .active .helpLabel,
   .helpBtn[data-active='true'] .helpLabel {
     display: inline;
-  }
-}
-
-@container (max-width: 359px) {
-  .submitLabel {
-    display: none;
   }
 }
 
@@ -240,10 +248,9 @@ button.chip:focus-visible {
 
 .help {
   margin-top: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--tint);
   font-size: var(--fs-xs);
   color: var(--text-2);
   animation: in var(--dur) var(--ease-out);
@@ -325,7 +332,7 @@ button.chip:focus-visible {
 .helpFoot {
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px dashed var(--border);
+  border-top: 1px solid var(--border);
   font-size: var(--fs-xs);
   line-height: 1.55;
   color: var(--text-3);
@@ -374,17 +381,13 @@ button.chip:focus-visible {
   padding: 0 4px 0 2px;
   font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--c-violet-text);
+  color: var(--text-2);
 }
 
-.jevLabel[data-busy] svg {
-  animation: jev-spin 1.4s linear infinite;
-}
-
-@keyframes jev-spin {
-  to {
-    transform: rotate(360deg);
-  }
+span.jevSpin {
+  width: 12px;
+  height: 12px;
+  border-width: 1.5px;
 }
 
 .chips .jevChip,
@@ -394,7 +397,7 @@ button.chip:focus-visible {
   padding: 0 6px 0 8px;
   font-size: var(--fs-xs);
   cursor: pointer;
-  border: 1px dashed color-mix(in srgb, var(--c-violet) 45%, var(--border));
+  border: 1px dashed var(--border-strong);
   background: transparent;
   color: var(--text-2);
   animation: in var(--dur) var(--ease-out);
@@ -402,7 +405,7 @@ button.chip:focus-visible {
     background-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease),
-    transform var(--dur-fast) var(--ease-spring);
+    transform var(--dur-fast) var(--ease);
 }
 
 .jevRow .jevChip:hover {
@@ -413,12 +416,12 @@ button.chip:focus-visible {
 .jevRow .jevChip[data-on] {
   border-style: solid;
   border-color: transparent;
-  background: var(--c-violet-bg);
-  color: var(--c-violet-text);
+  background: var(--surface-3);
+  color: var(--text);
 }
 
 .jevRow .jevChip:active {
-  transform: scale(0.95);
+  transform: scale(0.96);
 }
 
 .jevHint {
@@ -435,8 +438,4 @@ button.chip:focus-visible {
   color: var(--text-2);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .jevLabel[data-busy] svg {
-    animation: none;
-  }
-}
+

@@ -69,7 +69,6 @@ export function OtherSpaces() {
               <span className={s.head}>
                 <WorkspaceMark ws={c.space} size="sm" />
                 <span className={s.name}>{workspaceLabel(c.space)}</span>
-                <span className={s.swatch} aria-hidden="true" />
               </span>
               <span className={s.stats}>
                 <Stat label="기한 지남" n={c.overdue} tone="danger" />

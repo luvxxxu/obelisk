@@ -1,5 +1,5 @@
-/* 파급 예측 — shadcn dashboard layout. Shared look comes from ui.module.css (card, badge, stat, table);
-   this module only handles layout and the few page-specific details. */
+/* 파급 예측 — a calm reading page. One status line + a quiet facts row, then hairline lists and tables.
+   No boxes around sections; severity is text/icon colour only (danger = conflict/overdue, warn = slipping). */
 
 /* ───────── "어떻게 계산하나요?" disclosure (under the page description) */
 
@@ -11,10 +11,10 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 8px;
-  margin-left: -8px;
-  border-radius: var(--radius-sm);
+  height: var(--control-sm);
+  padding: 0 10px;
+  margin-left: -10px;
+  border-radius: var(--radius-full);
   font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-2);
@@ -55,44 +55,22 @@
 }
 
 .howList {
-  list-style: none;
-  counter-reset: how;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   max-width: 640px;
   margin: 8px 0 0;
   padding: var(--inset-sm);
-  border: 1px solid var(--border);
+  padding-left: 36px;
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--surface-2) 45%, var(--surface));
+  background: var(--tint);
   font-size: var(--fs-sm);
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--text-2);
 }
 
-.howList li {
-  counter-increment: how;
-  position: relative;
-  padding-left: 30px;
-}
-
-.howList li::before {
-  content: counter(how);
-  position: absolute;
-  left: 0;
-  top: 1px;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--surface);
-  font-size: var(--fs-2xs);
-  font-weight: 600;
-  color: var(--text-2);
+.howList li::marker {
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -101,182 +79,164 @@
   color: var(--text);
 }
 
-/* ───────── status hero */
+/* ───────── status: line · muted follow-up · facts · apply */
 
-.hero {
-  margin-bottom: 40px;
-  overflow: hidden;
+.status {
+  margin-bottom: 48px;
 }
 
-.hero[data-tone='danger'] {
-  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
-}
-
-.hero[data-tone='warn'] {
-  border-color: color-mix(in srgb, var(--warn) 35%, var(--border));
-}
-
-.heroTop {
+.statusLine {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 24px 24px 20px;
-}
-
-.heroIcon {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius);
-  background: var(--ok-soft);
-  color: var(--ok-text);
-}
-
-.hero[data-tone='warn'] .heroIcon {
-  background: var(--warn-soft);
-  color: var(--warn-text);
-}
-
-.hero[data-tone='danger'] .heroIcon {
-  background: var(--danger-soft);
-  color: var(--danger-text);
-}
-
-.heroText {
-  flex: 1;
-  min-width: 0;
-}
-
-.heroEyebrow {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: var(--fs-xs);
-  color: var(--text-3);
-}
-
-.statusDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.heroTitle {
+  gap: 10px;
   font-size: var(--fs-xl);
   font-weight: 600;
   line-height: 1.4;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   color: var(--text);
   text-wrap: balance;
 }
 
-.heroSub {
+.statusIcon {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--ok);
+}
+
+.status[data-tone='warn'] .statusIcon {
+  color: var(--warn);
+}
+
+.status[data-tone='danger'] .statusIcon {
+  color: var(--danger);
+}
+
+.statusSub {
   margin-top: 4px;
+  padding-left: 28px; /* under the line's text, past the icon */
   font-size: var(--fs-base);
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--text-2);
 }
 
-.stats {
+.facts {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 20px 0 0;
   border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
-.stat {
-  padding: 16px 24px;
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 14px 0;
 }
 
-.stat + .stat {
+.fact + .fact {
+  padding-left: 20px;
   border-left: 1px solid var(--border);
 }
 
-.statValue {
+.factLabel {
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.factValue {
   display: flex;
   align-items: baseline;
   gap: 2px;
+  margin: 0;
+  font-size: var(--fs-3xl);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
-.statUnit {
+.fact[data-tone='danger'] .factValue {
+  color: var(--danger-text);
+}
+
+.factUnit {
   font-size: var(--fs-base);
   font-weight: 500;
   letter-spacing: 0;
   color: var(--text-3);
 }
 
-.stat[data-tone='danger'] .statValue {
-  color: var(--danger-text);
-}
-
-.stat[data-tone='warn'] .statValue {
-  color: var(--warn-text);
-}
-
-.heroFooter {
+.applyRow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px 16px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-2) 40%, var(--surface));
+  margin-top: 16px;
 }
 
-.heroNote {
+.applyNote {
   flex: 1 1 240px;
   min-width: 0;
   font-size: var(--fs-sm);
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--text-2);
 }
 
 /* ───────── sections */
 
 .section {
-  margin-bottom: 40px;
+  margin-bottom: 48px;
 }
 
 .sectionHead {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .sectionTitle {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
+}
+
+.count {
+  font-size: var(--fs-base);
+  font-weight: 500;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .lead {
   margin-top: 4px;
   font-size: var(--fs-base);
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--text-2);
 }
 
-/* ───────── overdue root cards */
+/* ───────── overdue roots: hairline-separated entries */
 
-.cards {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.roots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
 }
 
-.rootCard {
-  overflow: hidden;
+.root {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
 }
 
 .rootHead {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 16px 20px 0;
 }
 
 .rootHead > button:first-child {
@@ -292,9 +252,8 @@
   display: block;
   max-width: 100%;
   font-size: var(--fs-base);
-  font-weight: 600;
-  line-height: 1.4;
-  letter-spacing: -0.01em;
+  font-weight: 500;
+  line-height: 1.45;
   text-align: left;
   color: var(--text);
   overflow: hidden;
@@ -328,25 +287,26 @@
 .rootMeta > * + *::before {
   content: '·';
   margin-right: 6px;
-  color: var(--text-4);
+  color: var(--text-3);
 }
 
 .overdue {
-  margin-top: 2px;
+  color: var(--danger-text);
+  font-weight: 500;
 }
 
 .rootBody {
-  padding: 12px 20px 0;
+  padding-top: 10px;
 }
 
 .rootHeadline {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 0 0 6px 30px;
+  margin: 0 0 4px 30px;
   font-size: var(--fs-sm);
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--warn-text);
 }
 
@@ -368,7 +328,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 0 4px 30px;
+  padding-left: 30px;
   font-size: var(--fs-sm);
   color: var(--text-3);
 }
@@ -383,21 +343,13 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 14px;
-  padding: 12px 20px;
-  border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-2) 35%, var(--surface));
+  margin-top: 12px;
 }
 
 /* ───────── tables */
 
-.emptyCard {
-  padding: 8px;
-}
-
-.tableWrap {
-  background: var(--surface);
-  box-shadow: var(--shadow-xs);
+.emptyWrap {
+  border-top: 1px solid var(--border);
 }
 
 .table th,
@@ -410,7 +362,7 @@
 }
 
 .row:focus-within {
-  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  background: var(--surface-2);
 }
 
 .table .cellTitle {
@@ -425,7 +377,7 @@
   max-width: 100%;
   min-width: 0;
   text-align: left;
-  font-weight: 500;
+  font-size: var(--fs-base);
   color: var(--text);
   border-radius: var(--radius-xs);
   outline: none;
@@ -461,10 +413,31 @@
   font-variant-numeric: tabular-nums;
 }
 
-.badges {
+.effects {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* severity as text colour only */
+.toneText {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.toneText[data-tone='warn'] {
+  color: var(--warn-text);
+}
+
+.toneText[data-tone='danger'] {
+  color: var(--danger-text);
+}
+
+.postponed svg {
+  flex-shrink: 0;
 }
 
 .table .colNum {
@@ -484,61 +457,39 @@
 }
 
 @media (max-width: 640px) {
-  .heroTop {
-    padding: 20px 16px 16px;
-    gap: 12px;
-  }
-
-  .heroIcon {
-    width: 32px;
-    height: 32px;
-  }
-
-  .heroTitle {
+  .statusLine {
     font-size: var(--fs-lg);
   }
 
-  .stats {
+  .statusIcon {
+    margin-top: 2px;
+  }
+
+  .statusSub {
+    padding-left: 0;
+  }
+
+  .facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .stat {
-    padding: 14px 16px;
-  }
-
-  .stat:nth-child(3) {
+  .fact:nth-child(3) {
+    padding-left: 0;
     border-left: 0;
   }
 
-  .stat:nth-child(n + 3) {
+  .fact:nth-child(n + 3) {
     border-top: 1px solid var(--border);
   }
 
-  .heroFooter {
-    padding: 14px 16px;
-  }
-
-  .heroCta {
+  .applyBtn {
     width: 100%;
-  }
-
-  .rootHead {
-    padding: 14px 16px 0;
-    gap: 10px;
-  }
-
-  .rootBody {
-    padding: 10px 16px 0;
   }
 
   .rootHeadline,
   .noImpact {
     margin-left: 0;
     padding-left: 28px;
-  }
-
-  .rootActions {
-    padding: 10px 16px;
   }
 
   .rootActions > button {

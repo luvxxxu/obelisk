@@ -67,7 +67,7 @@ export function MoveProjectDialog({
       }
     >
       {targets.length === 0 ? (
-        <p className={s.empty}>옮길 수 있는 다른 공간이 없어요. 사이드바 왼쪽 위에서 조직을 먼저 만들어 보세요.</p>
+        <p className={s.empty}>옮길 수 있는 다른 공간이 없어요. 맨 위의 공간 이름을 눌러 조직을 먼저 만들어 보세요.</p>
       ) : (
         <div className={s.targets} role="radiogroup" aria-label="옮길 공간">
           {targets.map((w) => (
@@ -92,7 +92,7 @@ export function MoveProjectDialog({
       <ul className={s.notes}>
         <li>작업 번호(#)는 옮긴 공간에서 새로 매겨져요.</li>
         <li>이 프로젝트 밖의 작업과 연결된 선행·후속 관계는 끊어져요.</li>
-        <li>공유 설정은 초기화돼요 — 옮긴 곳에서는 나와 관리자만 볼 수 있어요.</li>
+        <li>공유 설정은 초기화돼요. 옮긴 곳에서는 나와 관리자만 볼 수 있어요.</li>
         <li>옮긴 공간의 멤버가 아닌 담당자는 해제돼요.</li>
       </ul>
     </Modal>

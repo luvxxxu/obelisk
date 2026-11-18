@@ -1,50 +1,36 @@
-/* Jev — suggestions from TypeSafe's decision model. Pure bases; violet only marks "Jev said this". */
+/* Jev — suggestions from TypeSafe's decision model. Monochrome: Jev has no colour of its own.
+   Its mark is the plain `scale` icon in muted ink; suggestions sit in --tint wells and hairline lists.
+   Colour appears only where it means something (warn = over capacity, priority ink on the flag). */
 
 .mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius);
-  background: var(--c-violet-bg);
-  color: var(--c-violet);
+  color: var(--text-2);
   flex-shrink: 0;
-}
-
-.mark[data-size='sm'] {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-sm);
 }
 
 /* ───────── priority pill + confidence */
 
+/* priority: plain text + a small flag in the priority's ink */
 .pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 22px;
-  padding: 0 8px 0 6px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--border);
+  height: 20px;
   font-size: var(--fs-xs);
-  color: var(--text-2);
+  color: var(--text-3);
   white-space: nowrap;
 }
 
 .pill[data-strong] {
-  border-color: color-mix(in srgb, var(--tone) 35%, var(--border));
-  background: color-mix(in srgb, var(--tone) 9%, transparent);
   color: var(--text);
-  font-weight: 600;
+  font-weight: 500;
 }
 
-.pillDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--tone);
+.pillFlag {
+  flex-shrink: 0;
+  color: var(--tone);
 }
 
 .conf {
@@ -62,7 +48,7 @@
   position: relative;
   width: 28px;
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-full);
   background: var(--surface-3);
   overflow: hidden;
 }
@@ -70,10 +56,8 @@
 .confBar {
   position: absolute;
   inset: 0 auto 0 0;
-  border-radius: 2px;
+  border-radius: var(--radius-full);
   background: var(--text-3);
-  transform-origin: left;
-  animation: grow var(--dur-slow) var(--ease-out) both;
 }
 
 .conf[data-sure] {
@@ -81,13 +65,7 @@
 }
 
 .conf[data-sure] .confBar {
-  background: var(--c-violet);
-}
-
-@keyframes grow {
-  from {
-    transform: scaleX(0);
-  }
+  background: var(--text);
 }
 
 /* ───────── dialog layout */
@@ -111,6 +89,7 @@
   color: var(--text-3);
 }
 
+/* "지금 할 일": a neutral well, no border */
 .focus {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -119,9 +98,7 @@
   row-gap: 2px;
   padding: var(--inset-sm);
   border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--c-violet) 22%, var(--border));
-  background: var(--c-violet-soft);
-  animation: rise var(--dur-slow) var(--ease-out) both;
+  background: var(--tint);
 }
 
 .focus .reasons {
@@ -133,9 +110,13 @@
   align-items: center;
   gap: 4px;
   font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--c-violet-text);
+  font-weight: 500;
+  color: var(--text-2);
   white-space: nowrap;
+}
+
+.focusLabel svg {
+  color: var(--text-3);
 }
 
 .calm {
@@ -179,9 +160,8 @@
 }
 
 .groupTitle {
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   font-weight: 600;
-  letter-spacing: 0.02em;
 }
 
 .groupCount {
@@ -216,20 +196,11 @@
   gap: 12px;
   padding: 10px 2px;
   border-bottom: 1px solid var(--border);
-  animation: rise var(--dur-mid) var(--ease-out) both;
-  transition: opacity var(--dur) var(--ease);
 }
 
 .row[data-off] .rowMain,
 .row[data-off] .rowSide {
   opacity: 0.55;
-}
-
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
 }
 
 .rowMain {
@@ -306,8 +277,7 @@
   color: transparent;
   transition:
     background-color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease),
-    transform var(--dur-fast) var(--ease-spring);
+    border-color var(--dur-fast) var(--ease);
 }
 
 .pick:hover {
@@ -318,10 +288,6 @@
   background: var(--primary);
   border-color: var(--primary);
   color: var(--on-primary);
-}
-
-.pick:active {
-  transform: scale(0.88);
 }
 
 .pick:focus-visible {
@@ -358,6 +324,12 @@
   color: var(--text-3);
 }
 
+.noEffect {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
 .failActions {
   margin-top: 8px;
 }
@@ -379,18 +351,20 @@
   color: var(--text-2);
 }
 
+/* "Jev가 살펴보는 중": a small neutral spinner while the request is really in flight */
 .pulse {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: var(--c-violet);
-  animation: pulse 1.2s var(--ease-in-out) infinite;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--text-2);
+  flex-shrink: 0;
+  animation: jev-spin 0.7s linear infinite;
 }
 
-@keyframes pulse {
-  50% {
-    transform: scale(0.6);
-    opacity: 0.4;
+@keyframes jev-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -400,7 +374,6 @@
   gap: 12px;
   padding: 11px 2px;
   border-bottom: 1px solid var(--border);
-  animation: rise var(--dur-mid) var(--ease-out) both;
 }
 
 .lists {
@@ -457,7 +430,7 @@
   gap: 8px;
   padding: var(--inset-sm);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
+  background: var(--tint);
 }
 
 .meterText {
@@ -499,7 +472,7 @@
   position: relative;
   height: 8px;
   border-radius: var(--radius-xs);
-  background: var(--surface-2);
+  background: var(--surface-3);
   overflow: visible;
 }
 
@@ -529,7 +502,7 @@
   bottom: -4px;
   width: 2px;
   margin-left: -1px;
-  border-radius: 1px;
+  border-radius: var(--radius-full);
   background: var(--text);
 }
 
@@ -539,7 +512,7 @@
   gap: 6px;
   padding: var(--inset-sm);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
+  background: var(--tint);
 }
 
 .load {
@@ -547,7 +520,6 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  animation: rise var(--dur-mid) var(--ease-out) both;
 }
 
 .loadBarBox {
@@ -590,7 +562,7 @@
   right: -4px;
   height: 2px;
   margin-bottom: -1px;
-  border-radius: 1px;
+  border-radius: var(--radius-full);
   background: var(--text);
   z-index: 1;
 }
@@ -610,7 +582,7 @@
 
 .loadNum {
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
@@ -646,12 +618,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .row,
-  .focus,
-  .load,
-  .skelRow,
-  .confBar {
-    animation: none;
+  .meterBefore,
+  .meterAfter,
+  .loadBefore,
+  .loadAfter {
+    transition: none;
   }
 }
 
@@ -669,7 +640,7 @@
 }
 
 .invite {
-  border-style: dashed;
+  min-height: 52px;
 }
 
 .inviteText {
@@ -693,10 +664,9 @@
 }
 
 .stripLabel {
-  font-size: var(--fs-2xs);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--c-violet-text);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--text-3);
 }
 
 .stripFocus {
@@ -704,11 +674,10 @@
   flex-direction: column;
   gap: 1px;
   min-width: 0;
-  animation: rise var(--dur-mid) var(--ease-out) both;
 }
 
 .stripFocus .taskName {
-  font-weight: 600;
+  font-weight: 500;
   flex-shrink: 1;
   min-width: 0;
 }
@@ -757,10 +726,10 @@
   height: 18px;
   padding: 0 6px;
   border-radius: var(--radius-full);
-  background: var(--c-violet-bg);
-  color: var(--c-violet-text);
+  background: var(--surface-3);
+  color: var(--text);
   font-size: var(--fs-2xs);
-  font-weight: 600;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
@@ -782,7 +751,7 @@
 /* ───────── task detail: link suggestions */
 
 .links {
-  border-top: 1px dashed color-mix(in srgb, var(--c-violet) 30%, var(--border));
+  border-top: 1px solid var(--border);
 }
 
 .linksHead {
@@ -831,7 +800,6 @@
   gap: 10px;
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
-  animation: rise var(--dur-mid) var(--ease-out) both;
 }
 
 .linkRow:last-child {

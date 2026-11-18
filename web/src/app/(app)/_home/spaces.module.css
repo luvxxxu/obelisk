@@ -1,5 +1,5 @@
 /* Home widget "다른 공간": one card per other space, three counts and the next thing up.
-   The space colour (--space) only marks the card's corner swatch; everything else stays black/white. */
+   Black/white only; the space's own mark (logo or initial) identifies it. */
 
 .wrap {
   container: spaces / inline-size;
@@ -21,28 +21,19 @@
   background: var(--card-bg);
   box-shadow: var(--shadow-card);
   color: var(--text);
-  animation: space-rise var(--dur-slow) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 45ms + 30ms);
   transition:
     box-shadow var(--dur-fast) var(--ease),
-    transform var(--dur) var(--ease);
+    background-color var(--dur-fast) var(--ease);
 }
 
 .card:hover {
-  box-shadow: var(--shadow-lift);
-  transform: translateY(-1px);
+  background: var(--tint);
+  box-shadow: 0 0 0 1px var(--border-strong);
 }
 
 .card:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
-}
-
-@keyframes space-rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
 }
 
 .head {
@@ -57,17 +48,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--fs-md);
+  font-size: var(--fs-base);
   font-weight: 600;
-}
-
-.swatch {
-  width: 8px;
-  height: 8px;
-  margin-left: auto;
-  border-radius: var(--radius-full);
-  background: var(--space);
-  flex-shrink: 0;
 }
 
 .stats {
@@ -84,9 +66,9 @@
 }
 
 .statNum {
-  font-size: var(--fs-2xl);
-  font-weight: 650;
-  line-height: 1.1;
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
@@ -180,13 +162,9 @@
 
 .emptyMark {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-full);
-  background: var(--surface-2);
-  color: var(--text-2);
+  align-self: flex-start;
+  margin-top: 2px;
+  color: var(--text-3);
   flex-shrink: 0;
 }
 

@@ -9,8 +9,8 @@ import { setUi } from '@/lib/ui-state';
 import s from '../home.module.css';
 
 /**
- * Notion-like building blocks for the Home page: H2, inline database (title + toolbar),
- * board columns/cards, list rows, tags. Purely presentational — callers pass data and handlers.
+ * Building blocks for the Home page: inline list header (title + toolbar), board columns/cards,
+ * list rows, tags. Purely presentational: callers pass data and handlers.
  */
 
 export type Hue = 'slate' | 'red' | 'orange' | 'amber' | 'green' | 'teal' | 'blue' | 'indigo' | 'violet' | 'pink';
@@ -33,7 +33,7 @@ export function Tag({ hue = 'slate', children, dot = false }: { hue?: Hue; child
   );
 }
 
-/** Inline database header: icon + title on the left, a few tools and a blue "새로 만들기" on the right. */
+/** Inline list header: a small title on the left, a few quiet tools and "새로 만들기" on the right. */
 export function Database({
   icon,
   title,
@@ -58,7 +58,7 @@ export function Database({
     <section className={s.db}>
       <div className={s.dbHead}>
         <div className={s.dbTitle}>
-          <Icon name={icon} size={20} strokeWidth={1.9} />
+          <Icon name={icon} size={16} />
           {href ? (
             <Link href={href} className={s.dbTitleLink}>
               {title}
@@ -141,9 +141,7 @@ export function Column({
       data-ghost={ghost || undefined}
     >
       <div className={s.columnHead}>
-        <Tag hue={hue} dot>
-          {title}
-        </Tag>
+        <span className={s.columnTitle}>{title}</span>
         <span className={s.columnCount}>{count}</span>
       </div>
       <div className={s.columnCards} data-col-cards={dropKey ? '' : undefined}>
@@ -203,7 +201,8 @@ export function BoardCard({
   actions,
   children,
 }: {
-  icon: IconName;
+  /** Optional leading glyph (e.g. a project's folder); plain task cards have none. */
+  icon?: IconName;
   iconColor?: string;
   title: string;
   done?: boolean;
@@ -224,9 +223,11 @@ export function BoardCard({
   const inner = (
     <>
       <span className={s.cardTitle} data-done={done || undefined}>
-        <span className={s.cardIcon} style={iconColor ? { color: iconColor } : undefined}>
-          <Icon name={icon} size={17} />
-        </span>
+        {icon && (
+          <span className={s.cardIcon} style={iconColor ? { color: iconColor } : undefined}>
+            <Icon name={icon} size={16} />
+          </span>
+        )}
         <span className={s.cardTitleText}>{title}</span>
       </span>
       {children}
@@ -291,7 +292,7 @@ export function ListRow({
   children,
   muted,
 }: {
-  icon: IconName;
+  icon?: IconName;
   iconColor?: string;
   title: string;
   onOpen: () => void;
@@ -300,9 +301,11 @@ export function ListRow({
 }) {
   return (
     <button type="button" className={cx(s.row, muted && s.rowMuted)} onClick={onOpen}>
-      <span className={s.rowIcon} style={iconColor ? { color: iconColor } : undefined}>
-        <Icon name={icon} size={17} />
-      </span>
+      {icon && (
+        <span className={s.rowIcon} style={iconColor ? { color: iconColor } : undefined}>
+          <Icon name={icon} size={16} />
+        </span>
+      )}
       <span className={s.rowTitle}>{title}</span>
       <span className={s.rowProps}>{children}</span>
     </button>

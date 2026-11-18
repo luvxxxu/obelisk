@@ -4,7 +4,7 @@ import { isOverdue, selectView } from '@obelisk/core';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { Icon } from '@/components/Icon';
-import { buttonClass, Progress, ui } from '@/components/primitives';
+import { buttonClass, ui } from '@/components/primitives';
 import { QuickAdd } from '@/components/QuickAdd';
 import { EmptyState, Page, TaskGroup, ViewHeader } from '@/components/View';
 import { cx, longDateKo } from '@/lib/format';
@@ -37,20 +37,18 @@ export default function TodayPage() {
   const planned = done.length + overdue.length + todays.length;
   const progress =
     planned > 0 ? (
-      <div className={s.todayProgress}>
-        <span className={s.todayProgressLabel}>오늘 진행</span>
-        <Progress value={done.length} max={planned} size="sm" label="오늘 진행률" className={s.todayProgressBar} tone={done.length === planned ? 'ok' : undefined} />
+      <span className={s.todayProgress} data-done={done.length === planned || undefined}>
+        {done.length === planned && <Icon name="check" size={14} />}
         <span className={s.todayProgressCount}>
           {done.length}/{planned}
         </span>
-      </div>
+        완료
+      </span>
     ) : undefined;
 
   return (
     <Page>
       <ViewHeader
-        icon="sun"
-        iconColor="var(--accent)"
         title="오늘"
         description={`${longDateKo(today)} · ${greeting}, ${user?.name}님`}
         actions={
@@ -63,7 +61,7 @@ export default function TodayPage() {
                   className={buttonClass({ variant: 'outline', size: 'sm' })}
                   onClick={() => setUi({ jev: { kind: 'postpone', scope: 'today' } })}
                 >
-                  <Icon name="sparkle" size={14} />
+                  <Icon name="scale" size={15} />
                   미룰 작업 고르기
                 </button>
               )}
@@ -86,12 +84,12 @@ export default function TodayPage() {
           </div>
           <span className={s.riskCta}>
             <span className={s.riskCtaText}>해결하기</span>
-            <Icon name="chevronRight" size={16} />
+            <Icon name="chevronRight" size={14} />
           </span>
         </Link>
       )}
 
-      <QuickAdd defaultDueDate={today} placeholder="오늘 할 일 추가 — 예: 견적서 보내기 !높음" />
+      <QuickAdd defaultDueDate={today} placeholder="오늘 할 일 추가 (예: 견적서 보내기 !높음)" />
 
       <TaskGroup title="기한 지남" tone="danger" tasks={overdue} />
       <TaskGroup title={overdue.length ? '오늘' : undefined} tasks={todays} />

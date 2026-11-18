@@ -24,23 +24,24 @@
   position: relative;
 }
 
+/* same field look as ui.input (36px, radius 10), with the level select tucked inside on the right */
 .adderField {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 38px;
-  padding: 0 4px 0 10px;
-  border: 1px solid var(--border-strong);
+  height: var(--control);
+  padding: 0 4px 0 12px;
+  border: 1px solid var(--input);
   border-radius: var(--radius);
-  background: var(--bg);
+  background: var(--input-bg);
   transition:
     border-color var(--dur-fast) var(--ease),
     box-shadow var(--dur-fast) var(--ease);
 }
 
 .adderField:focus-within {
-  border-color: var(--ring-color);
-  box-shadow: var(--ring);
+  border-color: transparent;
+  box-shadow: var(--focus-ring);
 }
 
 .adderIcon {
@@ -63,13 +64,14 @@
   color: var(--text-3);
 }
 
+/* in-flow suggestion list under the field (pushes the list down, so a hairline, not a shadow) */
 .suggest {
   margin-top: 6px;
   padding: 4px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg);
-  animation: share-in var(--dur-fast) var(--ease-out);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  animation: share-in var(--dur) var(--ease-out);
 }
 
 .none {
@@ -99,20 +101,16 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 48px;
+  min-height: 52px;
   padding: 6px 0;
   border-top: 1px solid var(--border);
-  animation: share-in var(--dur) var(--ease-out) both;
 }
 
 .row:first-child {
   border-top: 0;
 }
 
-.adminRow {
-  opacity: 0.85;
-}
-
+/* org / team / admin marks sit where an avatar would, so they look like one: round, muted fill */
 .orgMark,
 .teamMark {
   display: inline-flex;
@@ -120,20 +118,16 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--surface-3);
+  color: var(--text-2);
   flex-shrink: 0;
-}
-
-.teamMark {
-  border-radius: 50%;
 }
 
 span.avatar {
   width: 24px;
   height: 24px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   font-size: var(--fs-2xs);
 }
 
@@ -183,10 +177,10 @@ span.avatar {
 
 .select {
   appearance: none;
-  height: 28px;
-  padding: 0 24px 0 8px;
+  height: var(--control-sm);
+  padding: 0 26px 0 10px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   background: transparent;
   font: inherit;
   font-size: var(--fs-sm);
@@ -197,11 +191,16 @@ span.avatar {
     color var(--dur-fast) var(--ease);
 }
 
-.select:hover:not(:disabled),
+.select:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
 .select:focus-visible {
   background: var(--surface-2);
   color: var(--text);
   outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .select:disabled {
@@ -212,7 +211,7 @@ span.avatar {
 
 .selectChev {
   position: absolute;
-  right: 6px;
+  right: 8px;
   pointer-events: none;
   color: var(--text-3);
 }
@@ -226,11 +225,7 @@ span.avatar {
 @keyframes share-in {
   from {
     opacity: 0;
-    transform: translateY(2px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
+    transform: translateY(-4px);
   }
 }
 
@@ -241,7 +236,6 @@ span.avatar {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .row,
   .suggest {
     animation: none;
   }

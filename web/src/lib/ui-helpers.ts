@@ -30,7 +30,7 @@ export const PAGE_META: Record<string, PageMeta> = {
   '/forecast': { label: '파급 예측', icon: 'ripple' },
   '/logbook': { label: '완료 기록', icon: 'checkCircle' },
   '/settings': { label: '설정', icon: 'settings' },
-  '/settings/ai': { label: 'AI 연결', icon: 'sparkle' },
+  '/settings/ai': { label: 'AI 연결', icon: 'plug' },
   '/settings/org': { label: '조직 설정', icon: 'building' },
 };
 

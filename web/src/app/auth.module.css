@@ -1,5 +1,6 @@
-/* Auth (login / signup) + OAuth consent — shadcn "login-03" language:
-   pure page background, one centered bordered card, centered brand header, labelled fields. */
+/* Auth (login / signup / invite) + OAuth consent, ChatGPT's login language:
+   pure page, no card. A small logo, a 28px heading, one narrow centred column,
+   48px pill fields and pill buttons, muted helper links. Nothing else. */
 
 .page {
   min-height: 100vh;
@@ -8,33 +9,34 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 16px;
+  padding: 48px 16px;
   background: var(--bg);
 }
 
 .card {
   width: 100%;
-  max-width: 380px;
+  max-width: 352px;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 32px 24px 24px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
   color: var(--text);
-  box-shadow: var(--shadow-sm);
-  animation: enter var(--dur) var(--ease-out);
+  animation: enter var(--dur-mid) var(--ease-out);
 }
 
 .card[data-size='wide'] {
-  max-width: 420px;
+  max-width: 400px;
 }
 
 @keyframes enter {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
   }
 }
 
@@ -44,39 +46,27 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   text-align: center;
 }
 
-.logoTile {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius);
+.logo {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  background: var(--primary);
-  color: var(--on-primary);
-  box-shadow: var(--shadow-xs);
-}
-
-.header > .logoTile,
-.header > .pair {
-  margin-bottom: 12px;
+  color: var(--text);
+  margin-bottom: 20px;
 }
 
 .title {
-  font-size: var(--fs-2xl);
+  font-size: var(--fs-display);
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.25;
   letter-spacing: -0.02em;
   text-wrap: balance;
   word-break: keep-all;
 }
 
 .description {
-  font-size: var(--fs-base);
+  font-size: var(--fs-md);
   line-height: 1.55;
   color: var(--text-2);
   text-wrap: balance;
@@ -94,28 +84,48 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+}
+
+.form label {
+  padding-left: 4px;
+  color: var(--text-2);
+}
+
+/* 48px pill fields (the house .input is 36px; auth is touch-first) */
+.form input.pillInput {
+  height: 48px;
+  padding: 0 20px;
+  border-radius: var(--radius-full);
+  font-size: var(--fs-lg);
 }
 
 .inputWrap {
   position: relative;
 }
 
-.inputWrap > input {
-  padding-right: 40px;
+.inputWrap > input.pillInput {
+  padding-right: 52px;
 }
 
-/* hide the native reveal button (Edge/IE) — we draw our own */
+/* hide the native reveal button (Edge/IE); we draw our own */
 .inputWrap > input::-ms-reveal,
 .inputWrap > input::-ms-clear {
   display: none;
 }
 
-.reveal {
+button.reveal {
   position: absolute;
   top: 50%;
-  right: 4px;
+  right: 8px;
   transform: translateY(-50%);
+  width: var(--control-lg);
+  height: var(--control);
+  border-radius: var(--radius-full);
+}
+
+.help {
+  padding-left: 4px;
 }
 
 .help[data-warn] {
@@ -125,14 +135,21 @@
   color: var(--warn-text);
 }
 
+/* 48px full-width pill: the one main action (and its secondary below it) */
+.action.action {
+  height: 48px;
+  padding: 0 20px;
+  font-size: var(--fs-lg);
+}
+
 .submit {
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 /* ───────── footer link */
 
 .footer {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
   line-height: 1.55;
   text-align: center;
   color: var(--text-2);
@@ -142,7 +159,7 @@
   color: var(--text);
   font-weight: 500;
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-decoration-color: transparent;
   text-underline-offset: 4px;
   border-radius: var(--radius-xs);
   transition: text-decoration-color var(--dur-fast) var(--ease);
@@ -154,107 +171,47 @@
 
 /* ───────── OAuth consent */
 
-.pair {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.clientTile {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: var(--fs-lg);
-  font-weight: 600;
-  line-height: 1;
-}
-
-.connector {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 6px;
-}
-
-.connectorLine {
-  width: 14px;
-  height: 0;
-  border-top: 1.5px dashed var(--border-strong);
-}
-
-.connectorBadge {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-2);
-}
-
-.connectorBadge[data-tone='danger'] {
-  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
-  background: var(--danger-soft);
-  color: var(--danger-text);
-}
-
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .sectionLabel {
-  margin-bottom: 8px;
-  font-size: var(--fs-xs);
+  margin-bottom: 4px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   line-height: 1.4;
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
+/* a plain list separated by hairlines, no box */
 .scopes {
   list-style: none;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
 }
 
 .scope {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 12px 14px;
-}
-
-.scope + .scope {
+  padding: 12px 0;
   border-top: 1px solid var(--border);
 }
 
+.scope:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
 .scopeIcon {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius);
   display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
-  background: var(--surface-2);
-  color: var(--text);
+  margin-top: 2px;
+  color: var(--text-2);
 }
 
 .scopeIcon[data-tone='danger'] {
-  background: var(--danger-soft);
   color: var(--danger-text);
 }
 
@@ -263,15 +220,13 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  min-height: 32px;
+  gap: 2px;
 }
 
 .scopeTitle {
   font-size: var(--fs-base);
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .scopeDetail {
@@ -288,21 +243,11 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: var(--fs-xs);
+  gap: 4px;
+  font-size: var(--fs-sm);
   line-height: 1.55;
   color: var(--text-3);
-}
-
-.notes li {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.notes svg {
-  flex-shrink: 0;
-  margin-top: 2px;
+  text-align: center;
 }
 
 .notes .strong {
@@ -311,9 +256,9 @@
 }
 
 .buttons {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* ───────── small screens */
@@ -321,10 +266,10 @@
 @media (max-width: 420px) {
   .page {
     justify-content: flex-start;
-    padding-top: max(32px, 8vh);
+    padding-top: max(40px, 10vh);
   }
 
-  .card {
-    padding: 28px 20px 20px;
+  .title {
+    font-size: var(--fs-3xl);
   }
 }

@@ -2,12 +2,12 @@
 
 import { addDays, diffDays, startOfWeek, type ISODate, type Task } from '@obelisk/core';
 import { memo, useMemo, useRef, useState } from 'react';
-import { cx, dateTone, overdueLabel, spanLabel, type DateTone } from '@/lib/format';
+import { cx, dateTone, overdueLabel, spanLabel } from '@/lib/format';
 import { previewFor, requestDateChange } from '@/lib/reschedule';
 import { canEdit, memberName, selectTask, toggleDone, useApp } from '@/lib/store';
 import { DatePickerPanel } from './DatePicker';
 import { Icon } from './Icon';
-import { Avatar, Popover, tip, ui, type BadgeTone } from './primitives';
+import { Avatar, Popover, tip, ui } from './primitives';
 import s from './TaskRow.module.css';
 
 export function shiftSpan(t: Pick<Task, 'startDate' | 'dueDate'>, days: number) {
@@ -58,7 +58,7 @@ export function Checkbox({
         onToggle();
       }}
       aria-label={disabled ? '보기 전용' : done ? '완료 취소' : '완료'}
-      {...tip(disabled && '보기 전용 — 쓰기 권한이 없어요', { side: 'top' })}
+      {...tip(disabled && '보기 전용: 쓰기 권한이 없어요', { side: 'top' })}
     >
       <svg viewBox="0 0 24 24" width={size - 6} height={size - 6} aria-hidden="true">
         <path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -116,7 +116,7 @@ function PostponeMenu({ task, onClose }: { task: Task; onClose: () => void }) {
             onClose();
           }}
         >
-          <Icon name="postpone" size={15} />
+          <Icon name="postpone" size={16} />
           {o.label}
           <span className={cx(ui.badge, s.effect)} data-tone={o.conflicts ? 'danger' : o.delayed ? 'warn' : 'ok'}>
             {o.conflicts ? `충돌 ${o.conflicts}` : o.delayed ? `${o.delayed}개 밀림` : '영향 없음'}
@@ -125,21 +125,12 @@ function PostponeMenu({ task, onClose }: { task: Task; onClose: () => void }) {
       ))}
       <div className={ui.menuSep} />
       <button className={ui.menuItem} onClick={() => setPicking(true)}>
-        <Icon name="calendar" size={15} />
+        <Icon name="calendar" size={16} />
         날짜 선택…
       </button>
     </div>
   );
 }
-
-/** Date badge colour by urgency: overdue red · today blue · soon amber · otherwise muted. */
-const DATE_BADGE: Record<DateTone, BadgeTone> = {
-  overdue: 'danger',
-  today: 'info',
-  soon: 'warn',
-  default: 'secondary',
-  done: 'secondary',
-};
 
 export const TaskRow = memo(function TaskRow({
   task,
@@ -224,37 +215,37 @@ export const TaskRow = memo(function TaskRow({
             <div className={s.meta}>
               {label && (
                 <span
-                  className={cx(ui.badge, s.badge, s.date)}
-                  data-tone={DATE_BADGE[tone]}
-                  {...tip(task.fixed ? '고정 일정 — 날짜가 움직이지 않아요' : null, { side: 'top' })}
+                  className={cx(s.item, s.date)}
+                  data-tone={tone}
+                  {...tip(task.fixed ? '고정 일정: 날짜가 움직이지 않아요' : null, { side: 'top' })}
                 >
-                  <Icon name={task.fixed ? 'pin' : 'calendar'} size={12} />
+                  {task.fixed && <Icon name="pin" size={13} />}
                   {tone === 'overdue' && task.dueDate ? overdueLabel(task.dueDate, today) : label}
                 </span>
               )}
               {!label && task.fixed && (
-                <span className={cx(ui.badge, s.badge)} data-tone="outline" {...tip('날짜가 움직이지 않는 고정 일정', { side: 'top' })}>
-                  <Icon name="pin" size={12} /> 고정
+                <span className={s.item} {...tip('날짜가 움직이지 않는 고정 일정', { side: 'top' })}>
+                  <Icon name="pin" size={13} /> 고정
                 </span>
               )}
               {waitingOn > 0 && active && (
-                <span className={cx(ui.badge, s.badge)} data-tone="outline" {...tip(`먼저 끝나야 하는 작업 ${waitingOn}개`, { side: 'top' })}>
-                  <Icon name="lock" size={12} /> 대기 {waitingOn}
+                <span className={s.item} {...tip(`먼저 끝나야 하는 작업 ${waitingOn}개`, { side: 'top' })}>
+                  <Icon name="lock" size={13} /> 대기 {waitingOn}
                 </span>
               )}
               {blocking > 0 && active && (
-                <span className={cx(ui.badge, s.badge)} data-tone="outline" {...tip(`이 작업을 기다리는 작업 ${blocking}개`, { side: 'top' })}>
-                  <Icon name="link" size={12} /> 후속 {blocking}
+                <span className={s.item} {...tip(`이 작업을 기다리는 작업 ${blocking}개`, { side: 'top' })}>
+                  <Icon name="link" size={13} /> 후속 {blocking}
                 </span>
               )}
               {task.postponedCount > 1 && active && (
-                <span className={cx(ui.badge, s.badge)} data-tone="warn" {...tip(`${task.postponedCount}번 미뤘어요`, { side: 'top' })}>
-                  <Icon name="postpone" size={12} /> {task.postponedCount}회 미룸
+                <span className={s.item} data-tone="warn" {...tip(`${task.postponedCount}번 미뤘어요`, { side: 'top' })}>
+                  <Icon name="postpone" size={13} /> {task.postponedCount}회 미룸
                 </span>
               )}
               {project && (
-                <span className={s.project}>
-                  <span className={ui.dot} style={{ background: `var(--c-${project.color})` }} />
+                <span className={cx(s.item, s.project)}>
+                  <span className={s.swatch} style={{ background: `var(--c-${project.color})` }} aria-hidden="true" />
                   <span className={s.projectName}>{project.name}</span>
                 </span>
               )}

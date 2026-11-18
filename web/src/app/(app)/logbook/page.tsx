@@ -34,8 +34,6 @@ export default function LogbookPage() {
   return (
     <Page>
       <ViewHeader
-        icon="checkCircle"
-        iconColor="var(--ok)"
         title="완료 기록"
         description={`최근 30일 동안 ${total}개를 끝냈어요. 동그라미를 다시 누르면 완료를 취소해요.`}
       />

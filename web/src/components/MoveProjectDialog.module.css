@@ -24,6 +24,7 @@
 
 .target[data-selected='true'] {
   border-color: var(--text);
+  background: transparent;
 }
 
 .target:focus-visible {
@@ -58,7 +59,7 @@
   border: 1.5px solid var(--border-strong);
   flex-shrink: 0;
   transition:
-    border-width var(--dur-fast) var(--ease-spring),
+    border-width var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease);
 }
 
@@ -66,14 +67,23 @@
   border: 5px solid var(--text);
 }
 
+/* what changes on the way: a quiet well, not a grey box */
 .notes {
-  margin: 14px 0 0;
-  padding: 12px 14px 12px 28px;
-  border-radius: var(--radius);
-  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 16px 0 0;
+  padding: var(--inset-sm);
+  padding-left: 32px;
+  border-radius: var(--radius-lg);
+  background: var(--tint);
   font-size: var(--fs-sm);
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--text-2);
+}
+
+.notes li::marker {
+  color: var(--text-3);
 }
 
 .empty {

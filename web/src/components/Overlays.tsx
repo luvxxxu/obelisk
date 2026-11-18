@@ -136,8 +136,8 @@ export function CommandPalette() {
       { id: 'forecast', label: '파급 예측', icon: 'ripple', keys: ['G', 'F'], group: '이동', run: go('/forecast') },
       { id: 'all', label: '전체 작업', icon: 'layers', keys: ['G', 'A'], group: '이동', run: go('/all') },
       { id: 'logbook', label: '완료 기록', icon: 'checkCircle', keys: ['G', 'L'], group: '이동', run: go('/logbook') },
-      { id: 'ai', label: 'AI 연결 (MCP · Skill)', icon: 'sparkle', group: '이동', run: go('/settings/ai') },
-      { id: 'jev', label: 'Jev 설정', hint: 'TypeSafe API 키', icon: 'sparkle', group: '이동', run: go('/settings/jev') },
+      { id: 'ai', label: 'AI 연결 (MCP · Skill)', icon: 'plug', group: '이동', run: go('/settings/ai') },
+      { id: 'jev', label: 'Jev 설정', hint: 'TypeSafe API 키', icon: 'scale', group: '이동', run: go('/settings/jev') },
       { id: 'settings', label: '설정', icon: 'settings', group: '이동', run: go('/settings') },
       ...(app.workspace?.kind === 'org'
         ? [

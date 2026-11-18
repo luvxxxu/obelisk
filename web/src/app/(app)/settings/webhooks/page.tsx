@@ -14,32 +14,18 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { Code, CopyField } from '@/components/Copy';
 import { Icon } from '@/components/Icon';
-import {
-  Badge,
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  ConfirmModal,
-  Modal,
-  Skeleton,
-  Spinner,
-  Switch,
-  ui,
-} from '@/components/primitives';
-import { EmptyState, Page, ViewHeader } from '@/components/View';
+import { ConfirmModal, Modal, Skeleton, Spinner, Switch, ui } from '@/components/primitives';
+import { Page, ViewHeader } from '@/components/View';
 import { workspaceLabel, WorkspaceMark } from '@/components/WorkspaceSwitcher';
 import { api } from '@/lib/api';
 import { cx, relativeTime } from '@/lib/format';
 import { useApp } from '@/lib/store';
 import { toast } from '@/lib/toast';
-import { SettingsNav } from '../SettingsNav';
+import { SettingsNav, SettingsRow, SettingsSection } from '../SettingsNav';
 import base from '../settings.module.css';
 import { Deliveries } from './Deliveries';
 import { IncomingForm } from './IncomingForm';
-import { FormatMark, hookStatus, hourLabel, RowMenu } from './shared';
+import { hookStatus, hourLabel, RowMenu } from './shared';
 import { WebhookForm } from './WebhookForm';
 import s from './webhooks.module.css';
 
@@ -53,7 +39,7 @@ type Confirm =
   | { kind: 'rotate-secret'; hook: Webhook }
   | { kind: 'rotate-url'; hook: IncomingWebhook };
 
-const VERIFY_SNIPPET = `// Node.js — 요청이 Obelisk에서 왔는지 확인 (rawBody = 받은 본문 그대로)
+const VERIFY_SNIPPET = `// Node.js: 요청이 Obelisk에서 왔는지 확인 (rawBody = 받은 본문 그대로)
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 function fromObelisk(rawBody, headers, secret) {
@@ -67,7 +53,7 @@ function fromObelisk(rawBody, headers, secret) {
 function incomingExamples(url: string, allowUpdates: boolean, due: string): { title: string; code: string }[] {
   const out = [
     {
-      title: '한 줄로 만들기 — 빠른 추가와 같은 문법',
+      title: '한 줄로 만들기 (빠른 추가와 같은 문법)',
       code: `curl -X POST "${url}" \\\n  -H "content-type: text/plain" \\\n  --data "보고서 초안 내일 !높음"`,
     },
     {
@@ -177,225 +163,197 @@ export default function WebhooksSettingsPage() {
 
   return (
     <Page>
-      <ViewHeader
-        icon="link"
-        iconColor="var(--text)"
-        title="웹훅"
-        subtitle="작업이 바뀌거나 마감이 다가오면 Slack·Discord·내 서버로 알리고, 다른 서비스에서 Obelisk로 작업을 만들거나 바꿔요."
-      >
+      <ViewHeader title="설정">
         <SettingsNav />
       </ViewHeader>
 
       <div className={base.stack}>
-        {ws && (
-          <div className={s.scope}>
-            <WorkspaceMark ws={ws} size="sm" />
-            <span>
-              <b>{workspaceLabel(ws)}</b>의 웹훅이에요.{' '}
-              {app.workspaces.length > 1 ? '다른 공간은 왼쪽 위에서 공간을 바꿔 설정하세요.' : ''}
-            </span>
-          </div>
-        )}
+        <div className={base.intro}>
+          <p>작업이 바뀌거나 마감이 다가오면 Slack·Discord·내 서버로 알리고, 다른 서비스에서 Obelisk로 작업을 만들거나 바꿔요.</p>
+          {ws && (
+            <p className={s.scope}>
+              <WorkspaceMark ws={ws} size="sm" />
+              <span>
+                <b>{workspaceLabel(ws)}</b>의 웹훅이에요.{' '}
+                {app.workspaces.length > 1 ? '다른 공간은 맨 위의 공간 이름을 눌러 바꾼 뒤 설정하세요.' : ''}
+              </span>
+            </p>
+          )}
+        </div>
 
         {!canManage ? (
-          <Card className={base.section}>
-            <CardContent>
-              <div className={ui.alert} role="note">
-                <Icon name="lock" size={16} />
-                <p className={ui.alertTitle}>웹훅은 조직 소유자와 관리자만 설정할 수 있어요</p>
-                <p className={ui.alertDescription}>
-                  웹훅은 이 조직의 변경 내용을 외부로 보내거나 외부 요청으로 작업을 바꾸기 때문에 관리자만 다룰 수 있어요. 필요하면 관리자에게 요청하세요.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className={ui.alert} role="note">
+            <Icon name="lock" size={16} />
+            <p className={ui.alertTitle}>웹훅은 조직 소유자와 관리자만 설정할 수 있어요</p>
+            <p className={ui.alertDescription}>
+              웹훅은 이 조직의 변경 내용을 외부로 보내거나 외부 요청으로 작업을 바꾸기 때문에 관리자만 다룰 수 있어요. 필요하면 관리자에게 요청하세요.
+            </p>
+          </div>
         ) : (
           <>
             {/* ───────── outgoing */}
-            <Card className={base.section}>
-              <CardHeader>
-                <CardTitle>
-                  <Icon name="arrowUpRight" size={16} className={s.titleIcon} /> 보내는 웹훅
-                </CardTitle>
-                <CardDescription>작업 변경과 일정 알림을 Slack, Discord, 또는 JSON을 받는 서버로 보내요.</CardDescription>
-                {!loading && !!data!.webhooks.length && (
-                  <CardAction>
-                    <button type="button" className={cx(ui.btn, ui.sm, ui.primary)} onClick={() => setEditOut('new')}>
-                      <Icon name="plus" size={14} /> 추가
-                    </button>
-                  </CardAction>
-                )}
-              </CardHeader>
-              <CardContent className={s.flush}>
-                {loading ? (
-                  <ListSkeleton />
-                ) : !data!.webhooks.length ? (
-                  <EmptyState
-                    icon="arrowUpRight"
-                    title="아직 보내는 웹훅이 없어요"
-                    body="팀 채널에서 완료, 기한 지남, 고정 일정 충돌 알림을 받아 보세요."
-                    action={
-                      <button type="button" className={cx(ui.btn, ui.primary)} onClick={() => setEditOut('new')}>
-                        <Icon name="plus" size={15} /> 보내는 웹훅 추가
-                      </button>
-                    }
-                  />
-                ) : (
-                  <ul className={s.list}>
-                    {data!.webhooks.map((h, i) => {
-                      const st = hookStatus(h);
-                      const labels = eventSummary(h);
-                      const schedule = h.events.some(isScheduleEvent);
-                      return (
-                        <li key={h.id} className={s.row} data-off={!h.enabled || undefined} style={{ animationDelay: `${i * 40}ms` }}>
-                          <FormatMark format={h.format} />
-                          <div className={s.main}>
-                            <div className={s.titleLine}>
-                              <span className={s.name}>{h.name}</span>
-                              <span className={s.formatTag}>{WEBHOOK_FORMAT_LABEL[h.format]}</span>
-                            </div>
-                            <code className={s.url} title={maskWebhookUrl(h.url)}>
-                              {maskWebhookUrl(h.url)}
-                            </code>
-                            <div className={s.chips}>
-                              {labels.slice(0, 5).map((l) => (
-                                <Badge key={l} tone="outline">
-                                  {l}
-                                </Badge>
-                              ))}
-                              {labels.length > 5 && <Badge tone="outline">+{labels.length - 5}</Badge>}
+            <SettingsSection
+              title="보내는 웹훅"
+              lead="작업 변경과 일정 알림을 Slack, Discord, 또는 JSON을 받는 서버로 보내요."
+              action={
+                !loading && !!data!.webhooks.length ? (
+                  <button type="button" className={cx(ui.btn, ui.sm, ui.outline)} onClick={() => setEditOut('new')}>
+                    <Icon name="plus" size={14} /> 추가
+                  </button>
+                ) : undefined
+              }
+            >
+              {loading ? (
+                <ListSkeleton />
+              ) : !data!.webhooks.length ? (
+                <SettingsRow label="아직 보내는 웹훅이 없어요" description="팀 채널에서 완료, 기한 지남, 고정 일정 충돌 알림을 받아 보세요.">
+                  <button type="button" className={cx(ui.btn, ui.sm, ui.outline)} onClick={() => setEditOut('new')}>
+                    <Icon name="plus" size={14} /> 보내는 웹훅 추가
+                  </button>
+                </SettingsRow>
+              ) : (
+                <ul className={s.list}>
+                  {data!.webhooks.map((h) => {
+                    const st = hookStatus(h);
+                    const labels = eventSummary(h);
+                    const schedule = h.events.some(isScheduleEvent);
+                    return (
+                      <li key={h.id} className={s.row} data-off={!h.enabled || undefined}>
+                        <div className={s.main}>
+                          <div className={s.titleLine}>
+                            <span className={s.name}>{h.name}</span>
+                            <span className={s.formatTag}>{WEBHOOK_FORMAT_LABEL[h.format]}</span>
+                          </div>
+                          <code className={s.url} title={maskWebhookUrl(h.url)}>
+                            {maskWebhookUrl(h.url)}
+                          </code>
+                          <p className={s.meta}>
+                            {labels.slice(0, 5).join(' · ')}
+                            {labels.length > 5 && ` 외 ${labels.length - 5}개`}
+                          </p>
+                          {(h.projectIds || schedule) && (
+                            <p className={s.meta}>
                               {h.projectIds && (
-                                <Badge tone="secondary">
-                                  <Icon name="folder" size={11} /> 프로젝트 {h.projectIds.length}개
-                                </Badge>
+                                <span className={s.metaItem}>
+                                  <Icon name="folder" size={12} /> 프로젝트 {h.projectIds.length}개
+                                </span>
                               )}
                               {schedule && (
-                                <Badge tone="secondary">
-                                  <Icon name="clock" size={11} /> 매일 {hourLabel(h.alertHour)}
-                                </Badge>
+                                <span className={s.metaItem}>
+                                  <Icon name="clock" size={12} /> 매일 {hourLabel(h.alertHour)}
+                                </span>
                               )}
-                            </div>
-                            {h.disabledReason && !h.enabled && (
-                              <p className={s.warnLine}>
-                                <Icon name="alert" size={13} /> {h.disabledReason}. 주소를 확인하고 다시 켜세요.
-                              </p>
-                            )}
-                          </div>
-                          <div className={s.side}>
-                            <span className={s.status} data-tone={st.tone}>
-                              <span className={ui.dot} data-tone={st.tone} />
-                              <span>{st.label}</span>
-                              {st.detail && <span className={s.statusDetail}>{st.detail}</span>}
-                            </span>
-                            <Switch checked={h.enabled} onChange={(v) => void setEnabled(h, v)} label={`${h.name} 켜기`} />
-                            {testing === h.id ? (
-                              <span className={s.menuSpin}>
-                                <Spinner label="테스트 보내는 중" />
-                              </span>
-                            ) : (
-                              <RowMenu
-                                label={`${h.name} 메뉴`}
-                                actions={[
-                                  { label: '테스트 보내기', icon: 'play', onSelect: () => void test(h) },
-                                  { label: '전달 기록', icon: 'listChecks', onSelect: () => setLog(h) },
-                                  { label: '수정', icon: 'squarePen', onSelect: () => setEditOut(h) },
-                                  {
-                                    label: '서명 키 다시 만들기',
-                                    icon: 'key',
-                                    hidden: h.format !== 'json',
-                                    onSelect: () => setConfirm({ kind: 'rotate-secret', hook: h }),
-                                  },
-                                  { label: '삭제', icon: 'trash', danger: true, onSelect: () => setConfirm({ kind: 'delete-out', hook: h }) },
-                                ]}
-                              />
-                            )}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* ───────── incoming */}
-            <Card className={base.section}>
-              <CardHeader>
-                <CardTitle>
-                  <Icon name="download" size={16} className={s.titleIcon} /> 받는 웹훅
-                </CardTitle>
-                <CardDescription>비밀 URL로 POST하면 작업이 만들어지거나 바뀌어요. 만든 사람의 권한으로 실행되고 활동 기록에 남아요.</CardDescription>
-                {!loading && !!data!.incoming.length && (
-                  <CardAction>
-                    <button type="button" className={cx(ui.btn, ui.sm, ui.primary)} onClick={() => setEditIn('new')}>
-                      <Icon name="plus" size={14} /> 추가
-                    </button>
-                  </CardAction>
-                )}
-              </CardHeader>
-              <CardContent className={s.flush}>
-                {loading ? (
-                  <ListSkeleton />
-                ) : !data!.incoming.length ? (
-                  <EmptyState
-                    icon="download"
-                    title="아직 받는 웹훅이 없어요"
-                    body="GitHub Actions, 아이폰 단축어, Zapier, Slack 슬래시 명령에서 작업을 만들거나 완료해 보세요."
-                    action={
-                      <button type="button" className={cx(ui.btn, ui.primary)} onClick={() => setEditIn('new')}>
-                        <Icon name="plus" size={15} /> 받는 웹훅 추가
-                      </button>
-                    }
-                  />
-                ) : (
-                  <ul className={s.list}>
-                    {data!.incoming.map((h, i) => {
-                      const target = projectName(h.projectId);
-                      return (
-                        <li key={h.id} className={s.row} style={{ animationDelay: `${i * 40}ms` }}>
-                          <span className={s.mark} aria-hidden="true">
-                            <Icon name="download" size={15} />
+                            </p>
+                          )}
+                          {h.disabledReason && !h.enabled && (
+                            <p className={s.warnLine}>
+                              <Icon name="alert" size={13} /> {h.disabledReason}. 주소를 확인하고 다시 켜세요.
+                            </p>
+                          )}
+                        </div>
+                        <div className={s.side}>
+                          <span className={s.status} data-tone={st.tone}>
+                            <span>{st.label}</span>
+                            {st.detail && <span className={s.statusDetail}>{st.detail}</span>}
                           </span>
-                          <div className={s.main}>
-                            <div className={s.titleLine}>
-                              <span className={s.name}>{h.name}</span>
-                              <code className={s.hint}>obh_…{h.hint}</code>
-                            </div>
-                            <div className={s.chips}>
-                              <Badge tone="outline">
-                                <Icon name={target ? 'folder' : 'inbox'} size={11} /> {target ?? '인박스'}
-                              </Badge>
-                              <Badge tone="outline">{h.allowUpdates ? '만들기 · 바꾸기' : '만들기만'}</Badge>
-                              {h.createdBy && <Badge tone="secondary">{h.createdBy.name} 권한</Badge>}
-                            </div>
-                            {h.lastError && (
-                              <p className={s.errorLine}>
-                                <Icon name="alertCircle" size={13} /> 마지막 요청 실패 · {h.lastError}
-                              </p>
-                            )}
-                          </div>
-                          <div className={s.side}>
-                            <span className={s.status} data-tone={h.useCount ? 'ok' : 'muted'}>
-                              <span>{h.useCount ? `${h.useCount.toLocaleString('ko-KR')}번 받음` : '아직 받은 적 없음'}</span>
-                              {h.lastUsedAt && <span className={s.statusDetail}>{relativeTime(h.lastUsedAt)}</span>}
+                          <Switch checked={h.enabled} onChange={(v) => void setEnabled(h, v)} label={`${h.name} 켜기`} />
+                          {testing === h.id ? (
+                            <span className={s.menuSpin}>
+                              <Spinner label="테스트 보내는 중" />
                             </span>
+                          ) : (
                             <RowMenu
                               label={`${h.name} 메뉴`}
                               actions={[
-                                { label: '수정', icon: 'squarePen', onSelect: () => setEditIn(h) },
-                                { label: 'URL 다시 만들기', icon: 'key', onSelect: () => setConfirm({ kind: 'rotate-url', hook: h }) },
-                                { label: '삭제', icon: 'trash', danger: true, onSelect: () => setConfirm({ kind: 'delete-in', hook: h }) },
+                                { label: '테스트 보내기', icon: 'play', onSelect: () => void test(h) },
+                                { label: '전달 기록', icon: 'listChecks', onSelect: () => setLog(h) },
+                                { label: '수정', icon: 'squarePen', onSelect: () => setEditOut(h) },
+                                {
+                                  label: '서명 키 다시 만들기',
+                                  icon: 'key',
+                                  hidden: h.format !== 'json',
+                                  onSelect: () => setConfirm({ kind: 'rotate-secret', hook: h }),
+                                },
+                                { label: '삭제', icon: 'trash', danger: true, onSelect: () => setConfirm({ kind: 'delete-out', hook: h }) },
                               ]}
                             />
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </SettingsSection>
+
+            {/* ───────── incoming */}
+            <SettingsSection
+              title="받는 웹훅"
+              lead="비밀 URL로 POST하면 작업이 만들어지거나 바뀌어요. 만든 사람의 권한으로 실행되고 활동 기록에 남아요."
+              action={
+                !loading && !!data!.incoming.length ? (
+                  <button type="button" className={cx(ui.btn, ui.sm, ui.outline)} onClick={() => setEditIn('new')}>
+                    <Icon name="plus" size={14} /> 추가
+                  </button>
+                ) : undefined
+              }
+            >
+              {loading ? (
+                <ListSkeleton />
+              ) : !data!.incoming.length ? (
+                <SettingsRow
+                  label="아직 받는 웹훅이 없어요"
+                  description="GitHub Actions, 아이폰 단축어, Zapier, Slack 슬래시 명령에서 작업을 만들거나 완료해 보세요."
+                >
+                  <button type="button" className={cx(ui.btn, ui.sm, ui.outline)} onClick={() => setEditIn('new')}>
+                    <Icon name="plus" size={14} /> 받는 웹훅 추가
+                  </button>
+                </SettingsRow>
+              ) : (
+                <ul className={s.list}>
+                  {data!.incoming.map((h) => {
+                    const target = projectName(h.projectId);
+                    return (
+                      <li key={h.id} className={s.row}>
+                        <div className={s.main}>
+                          <div className={s.titleLine}>
+                            <span className={s.name}>{h.name}</span>
+                            <code className={s.hint}>obh_…{h.hint}</code>
                           </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                {!loading && <IncomingHelp due={addDays(app.today, 3)} />}
-              </CardContent>
-            </Card>
+                          <p className={s.meta}>
+                            <span className={s.metaItem}>
+                              <Icon name={target ? 'folder' : 'inbox'} size={12} /> {target ?? '인박스'}
+                            </span>
+                            <span className={s.metaItem}>{h.allowUpdates ? '만들기 · 바꾸기' : '만들기만'}</span>
+                            {h.createdBy && <span className={s.metaItem}>{h.createdBy.name} 권한</span>}
+                          </p>
+                          {h.lastError && (
+                            <p className={s.errorLine}>
+                              <Icon name="alertCircle" size={13} /> 마지막 요청 실패 · {h.lastError}
+                            </p>
+                          )}
+                        </div>
+                        <div className={s.side}>
+                          <span className={s.status}>
+                            <span>{h.useCount ? `${h.useCount.toLocaleString('ko-KR')}번 받음` : '아직 받은 적 없음'}</span>
+                            {h.lastUsedAt && <span className={s.statusDetail}>{relativeTime(h.lastUsedAt)}</span>}
+                          </span>
+                          <RowMenu
+                            label={`${h.name} 메뉴`}
+                            actions={[
+                              { label: '수정', icon: 'squarePen', onSelect: () => setEditIn(h) },
+                              { label: 'URL 다시 만들기', icon: 'key', onSelect: () => setConfirm({ kind: 'rotate-url', hook: h }) },
+                              { label: '삭제', icon: 'trash', danger: true, onSelect: () => setConfirm({ kind: 'delete-in', hook: h }) },
+                            ]}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {!loading && <IncomingHelp due={addDays(app.today, 3)} />}
+            </SettingsSection>
           </>
         )}
       </div>
@@ -474,8 +432,7 @@ function ListSkeleton() {
   return (
     <ul className={s.list} aria-hidden="true">
       {[0, 1].map((i) => (
-        <li key={i} className={s.row} style={{ animation: 'none' }}>
-          <Skeleton width={32} height={32} />
+        <li key={i} className={s.row}>
           <div className={s.main}>
             <Skeleton width={140 + i * 30} height={14} />
             <Skeleton width={220} height={11} style={{ marginTop: 6 }} />
@@ -499,7 +456,7 @@ function IncomingHelp({ due }: { due: string }) {
           <div>
             <dt>텍스트</dt>
             <dd>
-              <code>보고서 초안 내일 !높음 #런칭</code> — 빠른 추가와 같은 문법이에요. 둘째 줄부터는 메모가 돼요.
+              <code>보고서 초안 내일 !높음 #런칭</code>처럼 빠른 추가와 같은 문법으로 써요. 둘째 줄부터는 메모가 돼요.
               <br />
               <code>#12 완료</code> · <code>#12 시작</code> · <code>#12 취소</code> · <code>#12 다시 열기</code> · <code>#12 금요일까지</code> ·{' '}
               <code>#12 !높음</code>
@@ -567,11 +524,6 @@ function RevealModal({
       onClose={onClose}
       width={600}
       title={title}
-      icon={
-        <span className={s.revealIcon}>
-          <Icon name="checkCircle" size={18} />
-        </span>
-      }
       footer={
         <button type="button" className={cx(ui.btn, ui.primary)} onClick={onClose}>
           완료
@@ -585,7 +537,7 @@ function RevealModal({
               <div className={ui.field}>
                 <span className={ui.label}>서명 키</span>
                 <CopyField value={reveal.secret} label="서명 키" done="서명 키를 복사했어요" />
-                <span className={ui.help}>지금 복사해 두세요 — 다시 볼 수 없어요. 모든 요청에 X-Obelisk-Signature 헤더로 서명이 붙어요.</span>
+                <span className={ui.help}>지금 복사해 두세요. 다시 볼 수 없어요. 모든 요청에 X-Obelisk-Signature 헤더로 서명이 붙어요.</span>
               </div>
               <div>
                 <p className={s.bodyLabel}>받는 쪽에서 서명 확인하기</p>
@@ -617,7 +569,7 @@ function RevealModal({
           <div className={ui.field}>
             <span className={ui.label}>URL</span>
             <CopyField value={reveal.url} label="받는 웹훅 URL" done="URL을 복사했어요" />
-            <span className={ui.help}>이 URL을 아는 누구나 내 권한으로 작업을 만들 수 있어요. 지금 복사해 두세요 — 다시 볼 수 없어요.</span>
+            <span className={ui.help}>이 URL을 아는 누구나 내 권한으로 작업을 만들 수 있어요. 지금 복사해 두세요. 다시 볼 수 없어요.</span>
           </div>
           {incomingExamples(reveal.url, reveal.hook.allowUpdates, due).map((ex) => (
             <div key={ex.title}>

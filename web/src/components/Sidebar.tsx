@@ -25,10 +25,9 @@ import {
   setSidebarCollapsed,
   type ThemePref,
 } from '@/lib/ui-helpers';
-import { Icon, type IconName } from './Icon';
+import { Icon, Logo, type IconName } from './Icon';
 import { Popover, tip, ui, useDisclosure } from './primitives';
 import s from './Sidebar.module.css';
-import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
 type Tone = 'danger' | 'warn';
 
@@ -56,9 +55,9 @@ function page(href: string, extra?: Partial<NavItem>): NavItem {
 }
 
 /**
- * Notion-style workspace sidebar.
- * search · home switcher (홈 / 인박스 / 예정) · 다가오는 일정 · 작업 · 프로젝트 · AI card · account footer.
- * Desktop collapse hides it completely (the top bar shows » to bring it back); on small screens it is a sheet.
+ * ChatGPT-style sidebar: logo · 새 작업 · 검색 · pages · 프로젝트 · 다가오는 일정 · account.
+ * Plain 36px rows with a quiet hover fill; counts are muted numbers (red only when something is overdue).
+ * Desktop collapse hides it completely (the top bar brings it back); on small screens it is a sheet.
  */
 export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: boolean }) {
   const app = useApp();
@@ -98,21 +97,17 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
     };
   }, [app]);
 
-  // 모아보기 gathers every space, so it only earns a place once there is more than one.
-  const switcher: NavItem[] = [
-    page('/'),
-    ...(app.workspaces.length > 1 ? [page('/overview')] : []),
-    page('/inbox', { count: data.inbox }),
-    page('/upcoming'),
-  ];
-  const activeSwitch = switcher.find((n) => pathname === n.href)?.href ?? null;
-
   const org = app.workspace?.kind === 'org';
-  const views: NavItem[] = [
-    page('/today', { count: data.today, tone: data.overdue ? 'danger' : undefined }),
+  const pages: NavItem[] = [
+    page('/'),
+    // 모아보기 gathers every space, so it only earns a place once there is more than one.
+    ...(app.workspaces.length > 1 ? [page('/overview')] : []),
+    page('/inbox', { count: data.inbox || undefined }),
+    page('/today', { count: data.today || undefined, tone: data.overdue ? 'danger' : undefined }),
+    page('/upcoming'),
     ...(org ? [page('/mine', { count: data.mine || undefined })] : []),
     page('/all'),
-    page('/forecast', { count: data.risk || undefined, tone: data.conflicts ? 'danger' : 'warn' }),
+    page('/forecast', { count: data.risk || undefined, tone: data.conflicts ? 'danger' : data.risk ? 'warn' : undefined }),
     page('/logbook'),
   ];
 
@@ -141,152 +136,77 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
 
   return (
     <nav className={s.sidebar} data-mobile={mobile} aria-label="주 메뉴">
-      {/* ───── top: brand · collapse · new */}
+      {/* ───── top: logo · collapse */}
       <div className={s.top}>
-        <WorkspaceSwitcher onNavigate={close} />
-        <div className={s.topActions}>
-          {mobile ? (
-            <button className={s.topBtn} onClick={close} aria-label="메뉴 닫기">
-              <Icon name="x" size={18} />
-            </button>
-          ) : (
-            <button
-              className={cx(s.topBtn, s.collapseBtn)}
-              onClick={() => setSidebarCollapsed(true)}
-              aria-label="사이드바 접기"
-              {...tip('사이드바 접기', { side: 'bottom', kbd: modCombo('B') })}
-            >
-              <Icon name="chevronsLeft" size={18} />
-            </button>
-          )}
+        <Link href="/" className={s.logo} onClick={close} aria-label="Obelisk 홈">
+          <Logo size={20} />
+        </Link>
+        {mobile ? (
+          <button className={s.topBtn} onClick={close} aria-label="메뉴 닫기">
+            <Icon name="x" size={18} />
+          </button>
+        ) : (
           <button
             className={s.topBtn}
-            onClick={() => setUi({ quickAdd: true, nav: false })}
-            aria-label="새 작업"
-            {...tip('새 작업', { side: 'bottom', kbd: 'N' })}
+            onClick={() => setSidebarCollapsed(true)}
+            aria-label="사이드바 닫기"
+            {...tip('사이드바 닫기', { side: 'right', kbd: modCombo('B') })}
           >
-            <Icon name="squarePen" size={17} />
+            <Icon name="panelLeft" size={18} />
           </button>
-        </div>
+        )}
       </div>
 
-      <div className={s.head}>
-        <button className={s.search} onClick={() => setUi({ palette: true, nav: false })} aria-label="검색 및 명령">
-          <span className={s.searchText}>검색 또는 명령</span>
-          <kbd className={s.searchKbd}>{modCombo('K')}</kbd>
-        </button>
+      {/* ───── everything between the top and the account scrolls */}
+      <div className={s.content}>
+        <ul className={s.menu}>
+          <li>
+            <button className={s.item} onClick={() => setUi({ quickAdd: true, nav: false })}>
+              <span className={s.itemIcon}>
+                <Icon name="squarePen" size={18} />
+              </span>
+              <span className={s.label}>새 작업</span>
+              <kbd className={s.hint}>N</kbd>
+            </button>
+          </li>
+          <li>
+            <button className={s.item} onClick={() => setUi({ palette: true, nav: false })}>
+              <span className={s.itemIcon}>
+                <Icon name="search" size={18} />
+              </span>
+              <span className={s.label}>검색</span>
+              <kbd className={s.hint}>{modCombo('K')}</kbd>
+            </button>
+          </li>
+        </ul>
 
-        <div className={s.switcher} role="group" aria-label="빠른 이동">
-          {switcher.map((n) => {
+        <ul className={cx(s.menu, s.group)}>
+          {pages.map((n) => {
             const active = pathname === n.href;
-            const expanded = active || (!activeSwitch && n.href === '/');
             return (
-              <Link
-                key={n.href}
-                href={n.href}
-                className={s.switch}
-                data-active={active}
-                data-expanded={expanded}
-                aria-current={active ? 'page' : undefined}
-                aria-label={n.label}
-                onClick={close}
-                {...tip(!expanded && n.label, { side: 'bottom', meta: n.count || undefined })}
-              >
-                <Icon name={n.icon} size={17} strokeWidth={active ? 2 : 1.75} />
-                <span className={s.switchLabel} aria-hidden={!expanded || undefined}>
-                  {n.label}
-                </span>
-                {!expanded && !!n.count && <span className={s.switchDot} aria-hidden="true" />}
-              </Link>
+              <li key={n.href}>
+                <Link href={n.href} className={s.item} data-active={active} aria-current={active ? 'page' : undefined} onClick={close}>
+                  <span className={s.itemIcon}>
+                    <Icon name={n.icon} size={18} />
+                  </span>
+                  <span className={s.label}>{n.label}</span>
+                  {!!n.count && (
+                    <span className={s.count} data-tone={n.tone}>
+                      {n.count}
+                    </span>
+                  )}
+                </Link>
+              </li>
             );
           })}
-        </div>
-      </div>
+        </ul>
 
-      {/* ───── scrollable sections */}
-      <div className={s.content}>
-        <section className={s.section}>
-          <div className={s.sectionLabel}>다가오는 일정</div>
-          {visibleEvents.length ? (
-            <ul className={s.events}>
-              {visibleEvents.map(({ task, date }) => {
-                const project = task.projectId ? app.projects.find((p) => p.id === task.projectId) : undefined;
-                return (
-                  <li key={task.id}>
-                    <button
-                      className={s.event}
-                      onClick={() => {
-                        selectTask(task.id);
-                        close();
-                      }}
-                    >
-                      <span className={s.eventBar} style={{ background: `var(--c-${project?.color ?? 'red'})` }} />
-                      <span className={s.eventText}>
-                        <span className={s.eventTitle}>{task.title}</span>
-                        <span className={s.eventMeta}>
-                          {formatRelativeKo(date, app.today)}
-                          {project ? ` · ${project.name}` : ''}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-              {data.events.length > EVENT_CAP && (
-                <li>
-                  <Link href="/upcoming" className={s.eventMore} onClick={close}>
-                    외 {data.events.length - EVENT_CAP}개 일정
-                  </Link>
-                </li>
-              )}
-            </ul>
-          ) : (
-            <button className={s.eventEmpty} onClick={() => setUi({ quickAdd: true, nav: false })}>
-              <Icon name="plus" size={16} />
-              <span className={s.eventText}>
-                <span className={s.eventTitle}>고정 일정 추가</span>
-                <span className={s.eventMeta}>회의·마감을 @고정 으로 적으면 2주 안의 일정이 여기에 보여요.</span>
-              </span>
-            </button>
-          )}
-        </section>
-
-        <section className={s.section}>
-          <div className={s.sectionLabel}>작업</div>
-          <ul className={s.menu}>
-            {views.map((n) => {
-              const active = pathname === n.href;
-              return (
-                <li key={n.href}>
-                  <Link
-                    href={n.href}
-                    className={s.item}
-                    data-active={active}
-                    aria-current={active ? 'page' : undefined}
-                    onClick={close}
-                  >
-                    <span className={s.itemIcon}>
-                      <Icon name={n.icon} size={17} />
-                    </span>
-                    <span className={s.label}>{n.label}</span>
-                    {!!n.count && (
-                      <span className={s.count} data-tone={n.tone}>
-                        {n.count}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-
-        <section className={s.section}>
+        <section className={s.section} aria-labelledby="sb-projects">
           <div className={s.sectionLabel}>
-            <span>프로젝트</span>
+            <span id="sb-projects">프로젝트</span>
             {canCreate && (
-              <button className={s.sectionAction} onClick={() => setAdding(true)} aria-label="프로젝트 추가" {...tip('프로젝트 추가')}>
-                <Icon name="plus" size={15} />
+              <button className={s.sectionAction} onClick={() => setAdding(true)} aria-label="프로젝트 추가" {...tip('프로젝트 추가', { side: 'right' })}>
+                <Icon name="plus" size={16} />
               </button>
             )}
           </div>
@@ -297,15 +217,9 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
               const count = data.byProject.get(p.id);
               return (
                 <li key={p.id}>
-                  <Link
-                    href={href}
-                    className={s.item}
-                    data-active={active}
-                    aria-current={active ? 'page' : undefined}
-                    onClick={close}
-                  >
-                    <span className={s.itemIcon} style={{ color: `var(--c-${p.color})` }}>
-                      <Icon name="folder" size={17} />
+                  <Link href={href} className={s.item} data-active={active} aria-current={active ? 'page' : undefined} onClick={close}>
+                    <span className={s.itemIcon}>
+                      <span className={s.swatch} style={{ background: `var(--c-${p.color})` }} aria-hidden="true" />
                     </span>
                     <span className={s.label}>{p.name}</span>
                     {org && p.access === 'view' && (
@@ -322,7 +236,7 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
               <li>
                 <div className={s.item} data-editing="true">
                   <span className={s.itemIcon}>
-                    <Icon name="folder" size={17} />
+                    <span className={s.swatch} aria-hidden="true" />
                   </span>
                   <input
                     className={s.projectInput}
@@ -343,42 +257,55 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
                 </div>
               </li>
             ) : !canCreate ? (
-              projects.length === 0 && (
-                <li className={s.emptyNote}>아직 볼 수 있는 프로젝트가 없어요. 관리자에게 공유를 요청하세요.</li>
-              )
+              projects.length === 0 && <li className={s.emptyNote}>아직 볼 수 있는 프로젝트가 없어요. 관리자에게 공유를 요청하세요.</li>
             ) : (
-              <li>
-                <button className={cx(s.item, s.addItem)} onClick={() => setAdding(true)}>
-                  <span className={s.itemIcon}>
-                    <Icon name="plus" size={16} />
-                  </span>
-                  <span className={s.label}>{projects.length ? '새 프로젝트' : '첫 프로젝트 만들기'}</span>
-                </button>
-              </li>
+              projects.length === 0 && (
+                <li>
+                  <button className={cx(s.item, s.addItem)} onClick={() => setAdding(true)}>
+                    <span className={s.itemIcon}>
+                      <Icon name="plus" size={16} />
+                    </span>
+                    <span className={s.label}>첫 프로젝트 만들기</span>
+                  </button>
+                </li>
+              )
             )}
           </ul>
         </section>
+
+        {visibleEvents.length > 0 && (
+          <section className={s.section} aria-labelledby="sb-events">
+            <div className={s.sectionLabel}>
+              <span id="sb-events">다가오는 일정</span>
+            </div>
+            <ul className={s.menu}>
+              {visibleEvents.map(({ task, date }) => (
+                <li key={task.id}>
+                  <button
+                    className={s.item}
+                    onClick={() => {
+                      selectTask(task.id);
+                      close();
+                    }}
+                  >
+                    <span className={cx(s.label, s.eventLabel)}>{task.title}</span>
+                    <span className={s.eventDate}>{formatRelativeKo(date, app.today)}</span>
+                  </button>
+                </li>
+              ))}
+              {data.events.length > EVENT_CAP && (
+                <li>
+                  <Link href="/upcoming" className={cx(s.item, s.addItem)} onClick={close}>
+                    <span className={cx(s.label, s.eventLabel)}>외 {data.events.length - EVENT_CAP}개 더 보기</span>
+                  </Link>
+                </li>
+              )}
+            </ul>
+          </section>
+        )}
       </div>
 
-      {/* ───── AI card */}
-      {pathname !== '/settings/ai' && (
-        <div className={s.cardWrap}>
-          <Link href="/settings/ai" className={s.aiCard} onClick={close}>
-            <span className={s.aiIcon}>
-              <Icon name="sparkle" size={16} />
-            </span>
-            <span className={s.aiText}>
-              <span className={s.aiTitle}>Claude·ChatGPT 연결</span>
-              <span className={s.aiBody}>AI에게 할 일 정리와 일정 조정을 맡겨 보세요.</span>
-              <span className={s.aiCta}>
-                연결하기 <Icon name="arrowRight" size={13} strokeWidth={2} />
-              </span>
-            </span>
-          </Link>
-        </div>
-      )}
-
-      {/* ───── footer: account switcher · help · settings */}
+      {/* ───── footer: account menu */}
       <div className={s.footer}>
         <button
           ref={userRef}
@@ -389,51 +316,22 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
           aria-label="계정 메뉴"
         >
           <span className={s.avatar}>{initial}</span>
-          <span className={s.accountName}>{app.user?.name ?? '계정'}</span>
-          <Icon name="chevronDown" size={14} className={s.accountChevron} />
+          <span className={s.accountText}>
+            <span className={s.accountName}>{app.user?.name ?? '계정'}</span>
+            <span className={s.accountMeta}>{app.user?.email}</span>
+          </span>
         </button>
-        <div className={s.footerActions}>
-          <button
-            className={s.topBtn}
-            onClick={() => setUi({ shortcuts: true, nav: false })}
-            aria-label="단축키 도움말"
-            {...tip('단축키', { side: 'top', kbd: '?' })}
-          >
-            <Icon name="help" size={18} />
-          </button>
-          <Link
-            href="/settings"
-            className={s.topBtn}
-            data-active={pathname === '/settings'}
-            onClick={close}
-            aria-label="설정"
-            {...tip('설정', { side: 'top' })}
-          >
-            <Icon name="settings" size={18} />
-          </Link>
-        </div>
-        <Popover anchor={userRef} open={menu.open} onClose={menu.close} width={264}>
-          <div className={s.menuUser}>
-            <span className={s.avatar} data-size="lg">
-              {initial}
-            </span>
-            <span className={s.userText}>
-              <span className={s.userName}>{app.user?.name}</span>
-              <span className={s.userEmail}>{app.user?.email}</span>
-            </span>
-          </div>
-          <div className={ui.menuSep} />
+        <Popover anchor={userRef} open={menu.open} onClose={menu.close} width={260}>
           <button className={ui.menuItem} onClick={() => (menu.close(), close(), router.push('/settings'))}>
-            <Icon name="settings" size={16} /> 설정
+            <Icon name="settings" size={18} /> 설정
           </button>
           <button className={ui.menuItem} onClick={() => (menu.close(), close(), router.push('/settings/ai'))}>
-            <Icon name="sparkle" size={16} /> AI 연결
+            <Icon name="link" size={18} /> AI 연결
           </button>
-          <button className={ui.menuItem} onClick={() => (menu.close(), setUi({ shortcuts: true }))}>
-            <Icon name="keyboard" size={16} /> 단축키 <span className={ui.menuHint}>?</span>
+          <button className={ui.menuItem} onClick={() => (menu.close(), close(), setUi({ shortcuts: true }))}>
+            <Icon name="keyboard" size={18} /> 단축키 <span className={ui.menuHint}>?</span>
           </button>
           <div className={ui.menuSep} />
-          <div className={ui.menuTitle}>테마</div>
           <div className={s.themeRow}>
             <div className={ui.segmented} data-full="true" data-size="sm" role="group" aria-label="테마">
               {THEMES.map((t) => (
@@ -463,7 +361,7 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
               router.replace('/login');
             }}
           >
-            <Icon name="logout" size={16} /> 로그아웃
+            <Icon name="logout" size={18} /> 로그아웃
           </button>
         </Popover>
       </div>

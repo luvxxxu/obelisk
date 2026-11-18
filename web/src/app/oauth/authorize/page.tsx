@@ -78,19 +78,9 @@ export default function AuthorizePage() {
     <div className={s.page}>
       <main className={s.card} data-size="wide" aria-busy={loading || busy}>
         <header className={s.header}>
-          <div className={s.pair} aria-hidden="true">
-            <div className={s.clientTile}>{info?.clientName?.slice(0, 1).toUpperCase() ?? '·'}</div>
-            <div className={s.connector}>
-              <span className={s.connectorLine} />
-              <span className={s.connectorBadge} data-tone={error ? 'danger' : undefined}>
-                <Icon name={error ? 'x' : 'link'} size={12} strokeWidth={2} />
-              </span>
-              <span className={s.connectorLine} />
-            </div>
-            <div className={s.logoTile}>
-              <Logo size={22} />
-            </div>
-          </div>
+          <span className={s.logo}>
+            <Logo size={28} />
+          </span>
           {error ? (
             <>
               <h1 className={s.title}>연결할 수 없어요</h1>
@@ -115,7 +105,7 @@ export default function AuthorizePage() {
               <div className={ui.alertTitle}>{error}</div>
               <div className={ui.alertDescription}>연결하려던 앱에서 처음부터 다시 시도해 주세요.</div>
             </div>
-            <Link href="/" className={buttonClass({ variant: 'outline', size: 'lg', block: true })}>
+            <Link href="/" className={buttonClass({ variant: 'outline', size: 'lg', block: true, className: s.action })}>
               Obelisk로 이동
             </Link>
           </div>
@@ -125,7 +115,7 @@ export default function AuthorizePage() {
           <div className={s.scopes} aria-hidden="true">
             {PERMISSIONS.map((p) => (
               <div key={p.icon} className={s.scope}>
-                <Skeleton width={32} height={32} style={{ borderRadius: 'var(--radius)' }} />
+                <Skeleton width={16} height={16} style={{ borderRadius: 'var(--radius-xs)' }} />
                 <div className={s.scopeText}>
                   <Skeleton width="45%" height={12} />
                   <Skeleton width="80%" height={10} />
@@ -144,7 +134,7 @@ export default function AuthorizePage() {
               <ul className={s.scopes}>
                 {PERMISSIONS.map((p) => (
                   <li key={p.icon} className={s.scope}>
-                    <span className={s.scopeIcon} data-tone={p.tone}>
+                    <span className={s.scopeIcon} data-tone={p.tone} aria-hidden="true">
                       <Icon name={p.icon} size={16} />
                     </span>
                     <div className={s.scopeText}>
@@ -156,35 +146,10 @@ export default function AuthorizePage() {
               </ul>
             </section>
 
-            <ul className={s.notes}>
-              <li>
-                <Icon name="arrowUpRight" size={14} />
-                <span>
-                  허용하면 <b className={s.strong}>{info.redirectHost}</b>(으)로 돌아가요.
-                </span>
-              </li>
-              <li>
-                <Icon name="shield" size={14} />
-                <span>언제든 설정 → AI 연결에서 연결을 끊을 수 있어요.</span>
-              </li>
-            </ul>
-
             <div className={s.buttons}>
               <button
                 type="button"
-                className={buttonClass({ variant: 'outline', size: 'lg' })}
-                disabled={busy}
-                onClick={() => {
-                  setChoice(false);
-                  void decide(false);
-                }}
-              >
-                {busy && choice === false && spinner}
-                거부
-              </button>
-              <button
-                type="button"
-                className={buttonClass({ variant: 'primary', size: 'lg' })}
+                className={buttonClass({ variant: 'primary', size: 'lg', block: true, className: s.action })}
                 disabled={busy}
                 onClick={() => {
                   setChoice(true);
@@ -195,7 +160,26 @@ export default function AuthorizePage() {
                 {busy && choice === true && spinner}
                 허용
               </button>
+              <button
+                type="button"
+                className={buttonClass({ variant: 'outline', size: 'lg', block: true, className: s.action })}
+                disabled={busy}
+                onClick={() => {
+                  setChoice(false);
+                  void decide(false);
+                }}
+              >
+                {busy && choice === false && spinner}
+                거부
+              </button>
             </div>
+
+            <ul className={s.notes}>
+              <li>
+                허용하면 <b className={s.strong}>{info.redirectHost}</b>(으)로 돌아가요.
+              </li>
+              <li>설정 › AI 연결에서 언제든 연결을 끊을 수 있어요.</li>
+            </ul>
           </div>
         )}
       </main>

@@ -1,42 +1,19 @@
-.titleRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+/* /settings/jev — Jev connection. Shared settings layout lives in ../settings.module.css. */
 
-.content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.keyRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  color: var(--text-2);
-  font-size: var(--fs-sm);
+.alert {
+  margin-bottom: 14px;
 }
 
 .keyMask {
   font-family: var(--font-mono);
   color: var(--text);
-  letter-spacing: 0.04em;
-}
-
-.keyNote {
-  margin-right: auto;
-  font-size: var(--fs-xs);
-  color: var(--text-3);
 }
 
 .inputRow {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
 }
 
 .inputRow input {
@@ -54,60 +31,35 @@
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-color: var(--border-strong);
+  transition: text-decoration-color var(--dur-fast) var(--ease);
 }
 
-.privacy {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: var(--fs-xs);
-  line-height: 1.55;
-  color: var(--text-2);
+.link:hover {
+  text-decoration-color: currentColor;
 }
 
-.privacy svg {
-  margin-top: 3px;
-  flex-shrink: 0;
-  color: var(--text-3);
-}
-
-.privacy strong {
-  color: var(--text);
-  font-weight: 600;
-}
+/* ───────── what Jev does: hairline rows, title + where on one line, body under */
 
 .features {
   margin: 0;
   padding: 0;
   list-style: none;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px 24px;
 }
 
 .feature {
-  display: flex;
-  gap: 12px;
-}
-
-.featureIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  color: var(--text-2);
-  flex-shrink: 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
 }
 
 .featureTitle {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   font-size: var(--fs-base);
-  font-weight: 600;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text);
 }
 
 .featureWhere {
@@ -117,25 +69,8 @@
 }
 
 .featureBody {
-  margin-top: 3px;
+  margin-top: 2px;
   font-size: var(--fs-sm);
   line-height: 1.55;
   color: var(--text-2);
-}
-
-.tryRow {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 20px;
-}
-
-@media (max-width: 640px) {
-  .features {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .keyNote {
-    display: none;
-  }
 }

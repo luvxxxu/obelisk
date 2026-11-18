@@ -18,12 +18,6 @@ import { Icon, type IconName } from '@/components/Icon';
 import {
   Avatar,
   Badge,
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
   ConfirmModal,
   isEnter,
   Modal,
@@ -34,21 +28,20 @@ import {
   useDisclosure,
 } from '@/components/primitives';
 import { EmptyState, Page, ViewHeader } from '@/components/View';
-import { WorkspaceMark } from '@/components/WorkspaceSwitcher';
 import { api } from '@/lib/api';
 import { cx, relativeTime } from '@/lib/format';
 import { refresh, switchWorkspace, useApp } from '@/lib/store';
 import { toast } from '@/lib/toast';
-import { SettingsNav } from '../SettingsNav';
+import { SettingsNav, SettingsRow, SettingsSection } from '../SettingsNav';
 import base from '../settings.module.css';
 import s from './org.module.css';
 
 type Tab = 'members' | 'teams' | 'activity' | 'general';
-const TABS: { id: Tab; label: string; icon: IconName }[] = [
-  { id: 'members', label: '멤버', icon: 'users' },
-  { id: 'teams', label: '팀', icon: 'layers' },
-  { id: 'activity', label: '활동', icon: 'activity' },
-  { id: 'general', label: '일반', icon: 'settings' },
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'members', label: '멤버' },
+  { id: 'teams', label: '팀' },
+  { id: 'activity', label: '활동' },
+  { id: 'general', label: '일반' },
 ];
 
 export default function OrgSettingsPage() {
@@ -70,13 +63,13 @@ function OrgSettings() {
   if (ws && ws.kind !== 'org') {
     return (
       <Page>
-        <ViewHeader icon="building" title="조직 설정" description="지금은 개인 공간이 열려 있어요.">
+        <ViewHeader title="설정">
           <SettingsNav />
         </ViewHeader>
         <EmptyState
           icon="building"
           title="조직을 열면 여기서 관리할 수 있어요"
-          body="사이드바 왼쪽 위 공간 이름을 눌러 조직으로 전환하거나 새 조직을 만들어 보세요."
+          body="지금은 개인 공간이 열려 있어요. 맨 위의 공간 이름을 눌러 조직으로 전환하거나 새 조직을 만들어 보세요."
         />
       </Page>
     );
@@ -84,23 +77,26 @@ function OrgSettings() {
 
   return (
     <Page>
-      <ViewHeader
-        icon="building"
-        title={ws?.name ?? '조직'}
-        description={
-          ws ? `${ROLE_LABEL_KO[ws.role]}로 참여 중 · 멤버 ${app.members.length}명 · 팀 ${app.teams.length}개` : undefined
-        }
-      >
+      <ViewHeader title="설정">
         <SettingsNav />
       </ViewHeader>
 
-      <div className={cx(ui.tabs, s.tabs)} role="tablist" aria-label="조직 설정">
-        {TABS.map((t) => (
-          <button key={t.id} role="tab" className={ui.tab} aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
-            <Icon name={t.icon} size={15} />
-            {t.label}
-          </button>
-        ))}
+      <div className={s.orgHead}>
+        <div className={s.orgHeadText}>
+          <p className={s.orgName}>{ws?.name ?? '조직'}</p>
+          {ws && (
+            <p className={s.orgMeta}>
+              {ROLE_LABEL_KO[ws.role]}로 참여 중 · 멤버 {app.members.length}명 · 팀 {app.teams.length}개
+            </p>
+          )}
+        </div>
+        <div className={ui.segmented} role="tablist" aria-label="조직 설정">
+          {TABS.map((t) => (
+            <button key={t.id} role="tab" className={ui.segment} aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className={cx(base.stack, s.panel)} key={tab}>
@@ -160,76 +156,71 @@ function MembersTab({ openInvite }: { openInvite: boolean }) {
 
   return (
     <>
-      <Card className={base.section}>
-        <CardHeader className={admin ? s.headWrap : undefined}>
-          <CardTitle>멤버 {app.members.length}명</CardTitle>
-          <CardDescription>
-            멤버는 공유받은 프로젝트만 볼 수 있어요. 소유자와 관리자는 모든 프로젝트를 관리하고 멤버·팀·초대 링크를 다뤄요.
-          </CardDescription>
-          {admin && (
-            <div className={s.headAction}>
-              <button className={cx(ui.btn, ui.primary, ui.sm)} onClick={() => invite.setOpen(true)}>
-                <Icon name="userPlus" size={15} /> 멤버 초대
-              </button>
-            </div>
-          )}
-        </CardHeader>
-        <CardContent className={s.flush}>
-          {app.members.length > 6 && (
-            <div className={s.search}>
-              <Icon name="search" size={15} />
-              <input placeholder="이름이나 이메일로 찾기" aria-label="멤버 찾기" value={q} onChange={(e) => setQ(e.target.value)} />
-            </div>
-          )}
-          <ul className={s.people}>
-            {list.map((m) => {
-              const me = m.id === app.user?.id;
-              // Owners are changed only by owners; admins handle admins and members.
-              const editable = admin && !(m.role === 'owner' && !owner);
-              return (
-                <li key={m.id} className={s.person}>
-                  <Avatar name={m.name} className={s.personAvatar} />
-                  <div className={s.personText}>
-                    <span className={s.personName}>
-                      {m.name}
-                      {me && <span className={s.muted}> (나)</span>}
+      <SettingsSection
+        title={`멤버 ${app.members.length}명`}
+        lead="멤버는 공유받은 프로젝트만 볼 수 있어요. 소유자와 관리자는 모든 프로젝트를 관리하고 멤버·팀·초대 링크를 다뤄요."
+        action={
+          admin ? (
+            <button className={cx(ui.btn, ui.primary, ui.sm)} onClick={() => invite.setOpen(true)}>
+              <Icon name="userPlus" size={14} /> 멤버 초대
+            </button>
+          ) : undefined
+        }
+      >
+        {app.members.length > 6 && (
+          <div className={s.search}>
+            <Icon name="search" size={15} />
+            <input placeholder="이름이나 이메일로 찾기" aria-label="멤버 찾기" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+        )}
+        <ul className={s.people}>
+          {list.map((m) => {
+            const me = m.id === app.user?.id;
+            // Owners are changed only by owners; admins handle admins and members.
+            const editable = admin && !(m.role === 'owner' && !owner);
+            return (
+              <li key={m.id} className={s.person}>
+                <Avatar name={m.name} />
+                <div className={s.personText}>
+                  <span className={s.personName}>
+                    {m.name}
+                    {me && <span className={s.muted}> (나)</span>}
+                  </span>
+                  <span className={s.personMeta}>
+                    {m.email} · {relativeTime(m.joinedAt).replace('사용 기록 없음', '')} 참여
+                  </span>
+                </div>
+                <div className={s.personTeams}>
+                  {m.teamIds.slice(0, 3).map((id) => (
+                    <span key={id} className={ui.chip}>
+                      {teamName.get(id)}
                     </span>
-                    <span className={s.personMeta}>
-                      {m.email} · {relativeTime(m.joinedAt).replace('사용 기록 없음', '')} 참여
-                    </span>
-                  </div>
-                  <div className={s.personTeams}>
-                    {m.teamIds.slice(0, 3).map((id) => (
-                      <span key={id} className={ui.chip}>
-                        {teamName.get(id)}
-                      </span>
-                    ))}
-                    {m.teamIds.length > 3 && <span className={ui.chip}>+{m.teamIds.length - 3}</span>}
-                  </div>
-                  {editable ? (
-                    <RoleSelect value={m.role} canOwner={owner} onChange={(r) => void setRole(m, r)} label={`${m.name} 역할`} />
-                  ) : (
-                    <span className={s.roleText} data-role={m.role}>
-                      {m.role === 'owner' && <Icon name="crown" size={13} />}
-                      {ROLE_LABEL_KO[m.role]}
-                    </span>
-                  )}
-                  {(editable || me) && (
-                    <button
-                      className={cx(ui.iconBtn, s.removeBtn)}
-                      aria-label={me ? '조직 나가기' : `${m.name} 내보내기`}
-                      title={me ? '조직 나가기' : '내보내기'}
-                      onClick={() => setRemove(m)}
-                    >
-                      <Icon name={me ? 'logout' : 'x'} size={15} />
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </CardContent>
-      </Card>
+                  ))}
+                  {m.teamIds.length > 3 && <span className={ui.chip}>+{m.teamIds.length - 3}</span>}
+                </div>
+                {editable ? (
+                  <RoleSelect value={m.role} canOwner={owner} onChange={(r) => void setRole(m, r)} label={`${m.name} 역할`} />
+                ) : (
+                  <span className={s.roleText} data-role={m.role}>
+                    {m.role === 'owner' && <Icon name="crown" size={13} />}
+                    {ROLE_LABEL_KO[m.role]}
+                  </span>
+                )}
+                {(editable || me) && (
+                  <button
+                    className={cx(ui.iconBtn, s.removeBtn)}
+                    aria-label={me ? '조직 나가기' : `${m.name} 내보내기`}
+                    title={me ? '조직 나가기' : '내보내기'}
+                    onClick={() => setRemove(m)}
+                  >
+                    <Icon name={me ? 'logout' : 'x'} size={15} />
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </SettingsSection>
 
       {admin && <InvitesCard onCreate={() => invite.setOpen(true)} />}
 
@@ -340,51 +331,43 @@ function InvitesCard({ onCreate }: { onCreate: () => void }) {
   };
 
   return (
-    <Card className={base.section}>
-      <CardHeader className={s.headWrap}>
-        <CardTitle>초대 링크</CardTitle>
-        <CardDescription>
-          링크를 받은 사람은 가입하거나 로그인한 뒤 바로 들어와요. 서버가 새 가입을 막아 두었어도 초대 링크로는 가입할 수 있어요.
-        </CardDescription>
-        <div className={s.headAction}>
-          <button className={cx(ui.btn, ui.outline, ui.sm)} onClick={onCreate}>
-            <Icon name="link" size={15} /> 새 링크
-          </button>
+    <SettingsSection
+      title="초대 링크"
+      lead="링크를 받은 사람은 가입하거나 로그인한 뒤 바로 들어와요. 서버가 새 가입을 막아 두었어도 초대 링크로는 가입할 수 있어요."
+      action={
+        <button className={cx(ui.btn, ui.outline, ui.sm)} onClick={onCreate}>
+          <Icon name="link" size={14} /> 새 링크
+        </button>
+      }
+    >
+      {invites === null ? (
+        <div className={s.pad}>
+          <Skeleton height={14} width="60%" />
         </div>
-      </CardHeader>
-      <CardContent className={s.flush}>
-        {invites === null ? (
-          <div className={s.pad}>
-            <Skeleton height={14} width="60%" />
-          </div>
-        ) : invites.length === 0 ? (
-          <p className={s.emptyLine}>사용할 수 있는 초대 링크가 없어요.</p>
-        ) : (
-          <ul className={s.people}>
-            {invites.map((inv) => (
-              <li key={inv.id} className={s.person}>
-                <span className={s.linkMark}>
-                  <Icon name="link" size={15} />
+      ) : invites.length === 0 ? (
+        <p className={base.empty}>사용할 수 있는 초대 링크가 없어요.</p>
+      ) : (
+        <ul className={s.people}>
+          {invites.map((inv) => (
+            <li key={inv.id} className={s.person}>
+              <div className={s.personText}>
+                <span className={s.personName}>
+                  <code className={s.hint}>…{inv.hint}</code> · {ROLE_LABEL_KO[inv.role]}로 초대
                 </span>
-                <div className={s.personText}>
-                  <span className={s.personName}>
-                    <code className={s.hint}>…{inv.hint}</code> · {ROLE_LABEL_KO[inv.role]}로 초대
-                  </span>
-                  <span className={s.personMeta}>
-                    {inv.maxUses ? `${inv.uses}/${inv.maxUses}회 사용` : `${inv.uses}회 사용`} ·{' '}
-                    {inv.expiresAt ? `${new Date(inv.expiresAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}까지` : '만료 없음'}
-                    {inv.createdBy ? ` · ${inv.createdBy}` : ''}
-                  </span>
-                </div>
-                <button className={cx(ui.btn, ui.ghost, ui.sm)} onClick={() => void revoke(inv)}>
-                  취소
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+                <span className={s.personMeta}>
+                  {inv.maxUses ? `${inv.uses}/${inv.maxUses}회 사용` : `${inv.uses}회 사용`} ·{' '}
+                  {inv.expiresAt ? `${new Date(inv.expiresAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}까지` : '만료 없음'}
+                  {inv.createdBy ? ` · ${inv.createdBy}` : ''}
+                </span>
+              </div>
+              <button className={cx(ui.btn, ui.ghost, ui.sm)} onClick={() => void revoke(inv)}>
+                취소
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </SettingsSection>
   );
 }
 
@@ -441,7 +424,6 @@ function InviteModal({ open, onClose }: { open: boolean; onClose: () => void }) 
       open={open}
       onClose={onClose}
       width={500}
-      icon={<Icon name="userPlus" size={18} />}
       title={url ? '초대 링크가 준비됐어요' : `${workspace?.name ?? '조직'}에 초대`}
       description={
         url
@@ -526,61 +508,53 @@ function TeamsTab() {
 
   return (
     <>
-      <Card className={base.section}>
-        <CardHeader className={admin ? s.headWrap : undefined}>
-          <CardTitle>팀 {app.teams.length}개</CardTitle>
-          <CardDescription>
-            팀에 프로젝트를 공유하면 팀원 모두가 같은 권한을 받아요. 사람이 바뀌어도 팀 구성만 고치면 돼요.
-          </CardDescription>
-          {admin && (
-            <div className={s.headAction}>
-              <button className={cx(ui.btn, ui.primary, ui.sm)} onClick={() => setEditing('new')}>
-                <Icon name="plus" size={15} /> 새 팀
-              </button>
-            </div>
-          )}
-        </CardHeader>
-        <CardContent className={s.flush}>
-          {app.teams.length === 0 ? (
-            <p className={s.emptyLine}>{admin ? '아직 팀이 없어요. ‘디자인’, ‘개발’처럼 자주 함께 공유받는 사람들을 묶어 보세요.' : '아직 팀이 없어요.'}</p>
-          ) : (
-            <ul className={s.people}>
-              {app.teams.map((t) => {
-                const members = t.memberIds.map((id) => app.members.find((m) => m.id === id)).filter(Boolean) as Member[];
-                return (
-                  <li key={t.id} className={s.person}>
-                    <span className={s.teamMark}>
-                      <Icon name="users" size={15} />
+      <SettingsSection
+        title={`팀 ${app.teams.length}개`}
+        lead="팀에 프로젝트를 공유하면 팀원 모두가 같은 권한을 받아요. 사람이 바뀌어도 팀 구성만 고치면 돼요."
+        action={
+          admin ? (
+            <button className={cx(ui.btn, ui.primary, ui.sm)} onClick={() => setEditing('new')}>
+              <Icon name="plus" size={14} /> 새 팀
+            </button>
+          ) : undefined
+        }
+      >
+        {app.teams.length === 0 ? (
+          <p className={base.empty}>{admin ? '아직 팀이 없어요. ‘디자인’, ‘개발’처럼 자주 함께 공유받는 사람들을 묶어 보세요.' : '아직 팀이 없어요.'}</p>
+        ) : (
+          <ul className={s.people}>
+            {app.teams.map((t) => {
+              const members = t.memberIds.map((id) => app.members.find((m) => m.id === id)).filter(Boolean) as Member[];
+              return (
+                <li key={t.id} className={s.person}>
+                  <div className={s.personText}>
+                    <span className={s.personName}>{t.name}</span>
+                    <span className={s.personMeta}>
+                      {members.length ? members.map((m) => m.name).join(', ') : '팀원 없음'}
                     </span>
-                    <div className={s.personText}>
-                      <span className={s.personName}>{t.name}</span>
-                      <span className={s.personMeta}>
-                        {members.length ? members.map((m) => m.name).join(', ') : '팀원 없음'}
-                      </span>
-                    </div>
-                    <div className={s.stack}>
-                      {members.slice(0, 4).map((m) => (
-                        <Avatar key={m.id} name={m.name} size="sm" className={s.stackAvatar} />
-                      ))}
-                      {members.length > 4 && <span className={s.stackMore}>+{members.length - 4}</span>}
-                    </div>
-                    {admin && (
-                      <>
-                        <button className={cx(ui.btn, ui.ghost, ui.sm)} onClick={() => setEditing(t)}>
-                          편집
-                        </button>
-                        <button className={cx(ui.iconBtn, s.removeBtn)} aria-label={`${t.name} 팀 삭제`} onClick={() => setDel(t)}>
-                          <Icon name="trash" size={15} />
-                        </button>
-                      </>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+                  </div>
+                  <div className={s.stack}>
+                    {members.slice(0, 4).map((m) => (
+                      <Avatar key={m.id} name={m.name} size="sm" className={s.stackAvatar} />
+                    ))}
+                    {members.length > 4 && <span className={s.stackMore}>+{members.length - 4}</span>}
+                  </div>
+                  {admin && (
+                    <>
+                      <button className={cx(ui.btn, ui.ghost, ui.sm)} onClick={() => setEditing(t)}>
+                        편집
+                      </button>
+                      <button className={cx(ui.iconBtn, s.removeBtn)} aria-label={`${t.name} 팀 삭제`} onClick={() => setDel(t)}>
+                        <Icon name="trash" size={15} />
+                      </button>
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </SettingsSection>
       <TeamModal team={editing} onClose={() => setEditing(null)} />
       <ConfirmModal
         open={!!del}
@@ -641,7 +615,6 @@ function TeamModal({ team, onClose }: { team: Team | 'new' | null; onClose: () =
       open={!!team}
       onClose={onClose}
       width={480}
-      icon={<Icon name="users" size={18} />}
       title={isNew ? '새 팀' : '팀 편집'}
       footer={
         <>
@@ -802,101 +775,98 @@ function ActivityTab() {
   const project = (id: string | null) => (id ? app.projects.find((p) => p.id === id) : undefined);
 
   return (
-    <Card className={base.section}>
-      <CardHeader>
-        <CardTitle>활동</CardTitle>
-        <CardDescription>
-          {admin
-            ? '조직에서 일어난 모든 변경이에요. AI 앱이나 API 토큰으로 한 일도 표시돼요.'
-            : '볼 수 있는 프로젝트와 내 작업에서 일어난 변경이에요. 멤버·팀 관련 기록은 관리자만 볼 수 있어요.'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className={s.flush}>
-        <div className={s.filters}>
-          <div className={ui.segmented} data-size="sm" role="group" aria-label="종류">
-            {KIND_FILTERS.filter((f) => admin || f.id !== 'people').map((f) => (
-              <button key={f.id} className={ui.segment} aria-pressed={kind === f.id} onClick={() => setKind(f.id)}>
-                {f.label}
-              </button>
-            ))}
-          </div>
-          <select className={cx(ui.input, s.actorSelect)} value={actor} onChange={(e) => setActor(e.target.value)} aria-label="사람">
-            <option value="">모든 사람</option>
-            {app.members.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
+    <SettingsSection
+      title="활동"
+      lead={
+        admin
+          ? '조직에서 일어난 모든 변경이에요. AI 앱이나 API 토큰으로 한 일도 표시돼요.'
+          : '볼 수 있는 프로젝트와 내 작업에서 일어난 변경이에요. 멤버·팀 관련 기록은 관리자만 볼 수 있어요.'
+      }
+    >
+      <div className={s.filters}>
+        <div className={ui.segmented} data-size="sm" role="group" aria-label="종류">
+          {KIND_FILTERS.filter((f) => admin || f.id !== 'people').map((f) => (
+            <button key={f.id} className={ui.segment} aria-pressed={kind === f.id} onClick={() => setKind(f.id)}>
+              {f.label}
+            </button>
+          ))}
         </div>
+        <select className={cx(ui.input, s.actorSelect)} value={actor} onChange={(e) => setActor(e.target.value)} aria-label="사람">
+          <option value="">모든 사람</option>
+          {app.members.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
-        {entries === null ? (
-          <div className={s.pad}>
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} height={14} width={`${70 - i * 10}%`} style={{ marginBottom: 14 }} />
-            ))}
-          </div>
-        ) : shown.length === 0 ? (
-          <p className={s.emptyLine}>기록된 활동이 없어요.</p>
-        ) : (
-          <div className={s.feed}>
-            {days.map((d) => (
-              <section key={d.day} className={s.day}>
-                <h4 className={s.dayLabel}>{d.day}</h4>
-                <ol className={s.entries}>
-                  {d.items.map((e) => {
-                    const via = viaLabelKo(e.via, e.client);
-                    const p = project(e.projectId);
-                    const k = activityKind(e.action);
-                    return (
-                      <li key={e.id} className={s.entry}>
-                        <span className={s.entryIcon} data-kind={k}>
-                          <Icon name={KIND_ICON[k]} size={13} />
-                        </span>
-                        <div className={s.entryBody}>
-                          <p className={s.entryText}>
-                            <strong>{e.actor.name}</strong>
-                            {e.subject && !e.action.startsWith('workspace.') && (
-                              <>
-                                {' · '}
-                                <span className={s.subject}>{e.subject}</span>
-                              </>
-                            )}
-                            <span className={s.what}> — {describeActivity(e)}</span>
-                          </p>
-                          <p className={s.entryMeta}>
-                            <time dateTime={e.createdAt}>
-                              {new Date(e.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
-                            </time>
-                            {p && k === 'task' && (
-                              <span className={s.entryProject}>
-                                <span className={ui.dot} style={{ background: `var(--c-${p.color})` }} /> {p.name}
-                              </span>
-                            )}
-                            {via && (
-                              <Badge tone="outline" className={s.viaBadge}>
-                                <Icon name={e.via === 'oauth' ? 'sparkle' : e.via === 'webhook' ? 'link' : 'key'} size={11} /> {via}
-                              </Badge>
-                            )}
-                          </p>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ol>
-              </section>
-            ))}
-            {more && (
-              <div className={s.moreRow}>
-                <button className={cx(ui.btn, ui.outline, ui.sm)} disabled={loadingMore} onClick={() => void loadMore()}>
-                  {loadingMore ? '불러오는 중…' : '이전 기록 더 보기'}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {entries === null ? (
+        <div className={s.pad}>
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} height={14} width={`${70 - i * 10}%`} style={{ marginBottom: 14 }} />
+          ))}
+        </div>
+      ) : shown.length === 0 ? (
+        <p className={base.empty}>기록된 활동이 없어요.</p>
+      ) : (
+        <div className={s.feed}>
+          {days.map((d) => (
+            <section key={d.day} className={s.day}>
+              <h4 className={s.dayLabel}>{d.day}</h4>
+              <ol className={s.entries}>
+                {d.items.map((e) => {
+                  const via = viaLabelKo(e.via, e.client);
+                  const p = project(e.projectId);
+                  const k = activityKind(e.action);
+                  return (
+                    <li key={e.id} className={s.entry}>
+                      <span className={s.entryIcon} data-kind={k}>
+                        <Icon name={KIND_ICON[k]} size={13} />
+                      </span>
+                      <div className={s.entryBody}>
+                        <p className={s.entryText}>
+                          <strong>{e.actor.name}</strong>
+                          {e.subject && !e.action.startsWith('workspace.') && (
+                            <>
+                              {' · '}
+                              <span className={s.subject}>{e.subject}</span>
+                            </>
+                          )}
+                          <span className={s.what}>: {describeActivity(e)}</span>
+                        </p>
+                        <p className={s.entryMeta}>
+                          <time dateTime={e.createdAt}>
+                            {new Date(e.createdAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                          </time>
+                          {p && k === 'task' && (
+                            <span className={s.entryProject}>
+                              <span className={ui.dot} style={{ background: `var(--c-${p.color})` }} /> {p.name}
+                            </span>
+                          )}
+                          {via && (
+                            <Badge tone="outline" className={s.viaBadge}>
+                              <Icon name={e.via === 'oauth' ? 'plug' : e.via === 'webhook' ? 'link' : 'key'} size={11} /> {via}
+                            </Badge>
+                          )}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          ))}
+          {more && (
+            <div className={s.moreRow}>
+              <button className={cx(ui.btn, ui.outline, ui.sm)} disabled={loadingMore} onClick={() => void loadMore()}>
+                {loadingMore ? '불러오는 중…' : '이전 기록 더 보기'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </SettingsSection>
   );
 }
 
@@ -929,23 +899,15 @@ function GeneralTab() {
 
   return (
     <>
-      <Card className={base.section}>
-        <CardHeader>
-          <CardTitle>조직 정보</CardTitle>
-          <CardDescription>사이드바와 초대 화면에 보이는 이름이에요.</CardDescription>
-        </CardHeader>
-        <CardContent className={s.orgInfo}>
-          <WorkspaceMark ws={{ kind: 'org', name: name || ws.name }} size="lg" />
-          <div className={cx(ui.field, s.grow)}>
-            <label className={ui.label} htmlFor="org-name">
-              이름
-            </label>
-            <input id="org-name" className={ui.input} value={name} disabled={!admin} maxLength={80} onChange={(e) => setName(e.target.value)} />
-          </div>
-        </CardContent>
+      <SettingsSection title="조직 정보" lead="사이드바와 초대 화면에 보이는 이름이에요.">
+        <SettingsRow label="이름" htmlFor="org-name" field description={admin ? undefined : '소유자와 관리자만 바꿀 수 있어요.'}>
+          <input id="org-name" className={ui.input} value={name} disabled={!admin} maxLength={80} onChange={(e) => setName(e.target.value)} />
+        </SettingsRow>
         {admin && (
-          <CardFooter className={base.footer}>
-            <span className={base.footerNote}>{name.trim() !== ws.name ? '저장하지 않은 변경 사항이 있어요' : ' '}</span>
+          <div className={base.footer}>
+            <span className={base.footerNote} data-dirty={name.trim() !== ws.name}>
+              {name.trim() !== ws.name ? '저장하지 않은 변경 사항이 있어요' : '바꾸면 저장 버튼이 켜져요'}
+            </span>
             <button
               className={cx(ui.btn, ui.primary)}
               disabled={!name.trim() || name.trim() === ws.name}
@@ -953,61 +915,38 @@ function GeneralTab() {
             >
               저장
             </button>
-          </CardFooter>
+          </div>
         )}
-      </Card>
+      </SettingsSection>
 
-      <Card className={base.section}>
-        <CardHeader>
-          <CardTitle>권한 기본값</CardTitle>
-          <CardDescription>새 프로젝트는 항상 비공개로 시작해요. 만든 사람이 관리 권한을 갖고 필요한 사람에게 공유해요.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className={base.row}>
-            <div className={base.rowText}>
-              <p className={base.rowTitle}>멤버도 프로젝트를 만들 수 있어요</p>
-              <p className={base.rowDesc}>끄면 소유자와 관리자만 새 프로젝트를 만들 수 있어요.</p>
-            </div>
-            <Switch
-              checked={ws.membersCanCreateProjects}
-              label="멤버 프로젝트 생성 허용"
-              onChange={(v) =>
-                admin
-                  ? void patch({ membersCanCreateProjects: v }, v ? '멤버도 프로젝트를 만들 수 있어요' : '이제 관리자만 프로젝트를 만들 수 있어요')
-                  : toast.error('관리자만 바꿀 수 있어요')
-              }
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <SettingsSection title="권한 기본값" lead="새 프로젝트는 항상 비공개로 시작해요. 만든 사람이 관리 권한을 갖고 필요한 사람에게 공유해요.">
+        <SettingsRow label="멤버도 프로젝트를 만들 수 있어요" description="끄면 소유자와 관리자만 새 프로젝트를 만들 수 있어요.">
+          <Switch
+            checked={ws.membersCanCreateProjects}
+            label="멤버 프로젝트 생성 허용"
+            onChange={(v) =>
+              admin
+                ? void patch({ membersCanCreateProjects: v }, v ? '멤버도 프로젝트를 만들 수 있어요' : '이제 관리자만 프로젝트를 만들 수 있어요')
+                : toast.error('관리자만 바꿀 수 있어요')
+            }
+          />
+        </SettingsRow>
+      </SettingsSection>
 
-      <Card className={base.section}>
-        <CardHeader>
-          <CardTitle>조직 나가기 · 삭제</CardTitle>
-        </CardHeader>
-        <CardContent className={s.dangerStack}>
-          <div className={base.dangerRow}>
-            <div className={base.rowText}>
-              <p className={base.rowTitle}>조직 나가기</p>
-              <p className={base.rowDesc}>이 조직의 프로젝트에 더 이상 접근할 수 없어요. 마지막 소유자는 나갈 수 없어요.</p>
-            </div>
-            <button className={cx(ui.btn, ui.outline)} onClick={() => leave.setOpen(true)}>
-              <Icon name="logout" size={15} /> 나가기
+      <SettingsSection title="조직 나가기 · 삭제">
+        <SettingsRow label="조직 나가기" description="이 조직의 프로젝트에 더 이상 접근할 수 없어요. 마지막 소유자는 나갈 수 없어요.">
+          <button className={cx(ui.btn, ui.outline, ui.sm)} onClick={() => leave.setOpen(true)}>
+            나가기
+          </button>
+        </SettingsRow>
+        {owner && (
+          <SettingsRow label="조직 삭제" description="모든 프로젝트·작업·활동 기록이 영구히 지워져요. 되돌릴 수 없어요.">
+            <button className={cx(ui.btn, ui.danger, ui.sm)} onClick={() => (setConfirm(''), del.setOpen(true))}>
+              조직 삭제
             </button>
-          </div>
-          {owner && (
-            <div className={base.dangerRow}>
-              <div className={base.rowText}>
-                <p className={base.rowTitle}>조직 삭제</p>
-                <p className={base.rowDesc}>모든 프로젝트·작업·활동 기록이 영구히 지워져요. 되돌릴 수 없어요.</p>
-              </div>
-              <button className={cx(ui.btn, ui.danger)} onClick={() => (setConfirm(''), del.setOpen(true))}>
-                <Icon name="trash" size={15} /> 조직 삭제
-              </button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </SettingsRow>
+        )}
+      </SettingsSection>
 
       <ConfirmModal
         open={leave.open}

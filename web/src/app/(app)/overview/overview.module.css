@@ -1,6 +1,6 @@
 /* 모아보기 — every space's own work on one page, on pure black/white.
-   Space colour (--space / --space-text) is the only hue: chips, the week strip and each row's tag.
-   Motion: sections rise in with a stagger (--i); week bars grow up from the baseline. */
+   Space colour (--space / --space-text) is the only hue: chips, the week strip and each row's dot.
+   No entrance motion: the page is a list you scan, not a show. */
 
 .descDanger {
   color: var(--danger-text);
@@ -46,7 +46,6 @@
 
 .spaceChip[aria-pressed='false'] {
   color: var(--text-3);
-  border-style: dashed;
 }
 
 .spaceChip[aria-pressed='false'] .spaceSwatch {
@@ -91,13 +90,13 @@
   font-size: var(--fs-sm);
 }
 
-/* ───────── week load strip */
+/* ───────── week load strip (between hairlines, no box) */
 
 .load {
   margin: 0 0 32px;
-  padding: var(--inset) var(--inset) 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
 .loadCols {
@@ -142,13 +141,24 @@
 
 /* a 56px box on a hairline baseline; the stack inside is --h of it, one segment per space */
 .loadBar {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
   width: 100%;
   height: 56px;
-  background: linear-gradient(to top, var(--border) 0 1px, transparent 1px) no-repeat center bottom / min(28px, 80%) 100%;
+}
+
+.loadBar::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: min(28px, 80%);
+  height: 1px;
+  transform: translateX(-50%);
+  background: var(--border);
 }
 
 .loadStack {
@@ -157,22 +167,13 @@
   gap: 2px;
   width: min(22px, 70%);
   height: max(6px, calc(var(--h, 0) * 100%));
-  transform-origin: bottom;
-  animation: bar-grow var(--dur-slow) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 35ms + 60ms);
 }
 
 .loadSeg {
   flex: 1 1 0;
   min-height: 2px;
-  border-radius: 3px;
+  border-radius: calc(var(--radius-xs) / 2);
   background: var(--space);
-}
-
-@keyframes bar-grow {
-  from {
-    transform: scaleY(0);
-  }
 }
 
 .loadDay {
@@ -189,7 +190,7 @@
 
 .loadCol[data-today] .loadDay {
   color: var(--text);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .loadCol[data-weekend] .loadDay {
@@ -228,16 +229,7 @@
 /* ───────── sections */
 
 .section {
-  animation: ov-rise var(--dur-slow) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 50ms + 40ms);
   scroll-margin-top: calc(var(--header-h) + 16px);
-}
-
-@keyframes ov-rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
 }
 
 .hint {
@@ -279,27 +271,19 @@
   margin-left: auto;
 }
 
-/* ───────── rows: the shared task row plus a space tag */
+/* ───────── rows: the shared task row plus the space it lives in (plain meta text, round hue dot;
+   projects use a square swatch, so the two never read alike) */
 
 .spaceTag {
-  display: inline-flex;
-  align-items: center;
   gap: 6px;
   min-width: 0;
   max-width: 160px;
-  height: 20px;
-  padding: 0 8px 0 6px;
-  border-radius: var(--radius-full);
-  box-shadow: inset 0 0 0 1px var(--border);
-  color: var(--text-2);
-  font-size: var(--fs-xs);
-  white-space: nowrap;
   order: 8;
 }
 
 .spaceTagDot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: var(--radius-full);
   background: var(--space);
   flex-shrink: 0;
@@ -313,7 +297,7 @@
 
 @media (max-width: 520px) {
   .load {
-    padding: 12px 8px 8px;
+    padding: 8px 0;
   }
 
   .loadCols {
