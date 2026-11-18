@@ -15,7 +15,6 @@ export function PostponeDialog() {
   const { summary } = p.preview.report;
   const others = p.preview.cascade.length - 1;
   const days = p.preview.shiftDays;
-  const tone = summary.conflictCount ? 'danger' : 'warn';
   // Name the target date: for an overdue task "이틀 미루기" (from today) is a 4-day shift
   // from its old due date, and "4일 미루면" alone read like a mismatch with the menu.
   const target = p.next.dueDate ?? p.next.startDate;
@@ -25,11 +24,6 @@ export function PostponeDialog() {
       open
       onClose={() => void resolvePending('cancel')}
       width={600}
-      icon={
-        <span className={s.icon} data-tone={tone}>
-          <Icon name="ripple" size={18} />
-        </span>
-      }
       title={
         days === 0
           ? `“${p.title}” 일정을 바꾸면`
@@ -61,7 +55,7 @@ export function PostponeDialog() {
               {p.preview.startsBeforeBlockers.map((b) => (
                 <li key={b.taskId}>
                   {b.number ? `#${b.number} ` : ''}
-                  {b.title} — {formatShortKo(b.dueDate)} 마감, {daysLabel(b.overlapDays)} 겹침
+                  {b.title} · {formatShortKo(b.dueDate)} 마감, {daysLabel(b.overlapDays)} 겹침
                 </li>
               ))}
             </ul>

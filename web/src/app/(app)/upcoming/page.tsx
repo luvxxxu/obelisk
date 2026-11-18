@@ -60,7 +60,6 @@ export default function UpcomingPage() {
     return (
       <Page wide>
         <ViewHeader
-          icon="calendar"
           title="예정"
           description="막대를 끌어 일정을 옮겨보세요. 밀리는 작업이 실시간으로 표시돼요."
           actions={toggle}
@@ -74,12 +73,11 @@ export default function UpcomingPage() {
   return (
     <Page>
       <ViewHeader
-        icon="calendar"
         title="예정"
         description="앞으로 2주는 날짜별로, 그 이후는 월별로 보여드려요."
         actions={toggle}
       />
-      <QuickAdd defaultDueDate={addDays(today, 1)} placeholder="예정된 할 일 추가 — 예: 치과 예약 다음 주 화요일" />
+      <QuickAdd defaultDueDate={addDays(today, 1)} placeholder="예정된 할 일 추가 (예: 치과 예약 다음 주 화요일)" />
       {nothing && (
         <EmptyState
           icon="calendar"

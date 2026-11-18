@@ -340,8 +340,6 @@ function TaskCard({
 
   return (
     <BoardCard
-      icon={task.fixed ? 'pin' : 'fileText'}
-      iconColor={task.fixed ? 'var(--c-red)' : undefined}
       title={task.title}
       done={done}
       index={index}
@@ -377,7 +375,7 @@ function TaskCard({
         </CardProps>
       )}
       {date && !done && (
-        <CardMeta icon={overdue ? 'alertCircle' : 'calendar'} tone={overdue ? 'danger' : undefined}>
+        <CardMeta icon={task.fixed ? 'pin' : overdue ? 'alertCircle' : 'calendar'} tone={overdue ? 'danger' : undefined}>
           {date}
         </CardMeta>
       )}

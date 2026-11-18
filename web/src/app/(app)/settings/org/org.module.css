@@ -1,41 +1,47 @@
 /* Organization settings — members, invites, teams, activity, general.
-   Lists are hairline-separated rows inside cards (no grey fills), per the pure black/white base. */
+   Sections and rows come from ../settings.module.css; lists here are hairline-separated rows, no boxes. */
 
-.tabs {
-  margin: 4px 0 20px;
+/* ───────── org name + sub-tabs */
+
+.orgHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-bottom: 32px;
 }
 
+.orgHeadText {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.orgName {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orgMeta {
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+/* One short fade when switching sub-tabs. */
 .panel {
   animation: org-fade var(--dur) var(--ease-out);
 }
 
-/* Card header with an action on the right (title/description stay left). */
-div.headWrap {
-  position: relative;
-  padding-right: 150px;
-}
-
-.headAction {
-  position: absolute;
-  top: var(--card-pad, 24px);
-  right: var(--card-pad, 24px);
-}
-
-.flush {
-  padding-left: 0;
-  padding-right: 0;
-  padding-bottom: 6px;
-}
-
 .pad {
-  padding: 8px var(--card-pad, 24px) 16px;
-}
-
-.emptyLine {
-  padding: 4px var(--card-pad, 24px) 16px;
-  font-size: var(--fs-base);
-  line-height: 1.55;
-  color: var(--text-3);
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
 }
 
 .muted {
@@ -48,16 +54,19 @@ div.headWrap {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 34px;
-  margin: 0 var(--card-pad, 24px) 8px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
+  height: var(--control);
+  margin-bottom: 12px;
+  padding: 0 12px;
+  border: 1px solid var(--input);
   border-radius: var(--radius);
   color: var(--text-3);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .search[data-boxed='true'] {
-  margin: 0 0 6px;
+  margin-bottom: 6px;
 }
 
 .search:focus-within {
@@ -76,7 +85,7 @@ div.headWrap {
   color: var(--text);
 }
 
-/* ───────── people rows */
+/* ───────── people / invite / team rows */
 
 .people {
   list-style: none;
@@ -88,19 +97,9 @@ div.headWrap {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 56px;
-  padding: 8px var(--card-pad, 24px);
+  min-height: 60px;
+  padding: 10px 0;
   border-top: 1px solid var(--border);
-  transition: background-color var(--dur-fast) var(--ease);
-  animation: org-fade var(--dur) var(--ease-out) both;
-}
-
-.person:hover {
-  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
-}
-
-span.personAvatar {
-  border-radius: 50%;
 }
 
 .personText {
@@ -113,6 +112,7 @@ span.personAvatar {
 
 .personName {
   font-size: var(--fs-base);
+  font-weight: 500;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -136,11 +136,15 @@ span.personAvatar {
 .removeBtn {
   color: var(--text-3);
   opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease);
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .person:hover .removeBtn,
-.removeBtn:focus-visible {
+.removeBtn:focus-visible,
+.removeBtn[aria-expanded='true'] {
   opacity: 1;
 }
 
@@ -157,9 +161,9 @@ span.personAvatar {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: var(--radius-sm);
+  height: var(--control-sm);
+  padding: 0 10px;
+  border-radius: var(--radius-full);
   font-size: var(--fs-sm);
   color: var(--text-2);
   white-space: nowrap;
@@ -167,6 +171,7 @@ span.personAvatar {
 }
 
 .roleBtn {
+  outline: none;
   transition:
     background-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease);
@@ -176,6 +181,10 @@ span.personAvatar {
 .roleBtn[aria-expanded='true'] {
   background: var(--surface-2);
   color: var(--text);
+}
+
+.roleBtn:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .roleBtn[data-role='owner'],
@@ -207,26 +216,10 @@ button.roleItem {
 
 /* ───────── invites */
 
-.linkMark,
-.teamMark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
-  flex-shrink: 0;
-}
-
-.linkMark {
-  border-radius: var(--radius);
-}
-
 .hint {
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
+  font-weight: 400;
 }
 
 .inviteForm {
@@ -250,15 +243,14 @@ p.choiceHelp {
   align-items: center;
   gap: 8px;
   padding: 6px 6px 6px 12px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--input);
   border-radius: var(--radius);
-  animation: org-pop var(--dur) var(--ease-spring);
 }
 
 .linkUrl {
   flex: 1;
   min-width: 0;
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   font-size: var(--fs-xs);
   color: var(--text);
   overflow-wrap: anywhere;
@@ -273,9 +265,8 @@ p.choiceHelp {
 }
 
 span.stackAvatar {
-  border-radius: 50%;
   margin-left: -6px;
-  box-shadow: 0 0 0 2px var(--surface, var(--bg));
+  box-shadow: 0 0 0 2px var(--bg);
 }
 
 span.stackAvatar:first-child {
@@ -357,20 +348,20 @@ span.stackAvatar:first-child {
   color: var(--text-3);
 }
 
-/* ───────── activity feed */
+/* ───────── activity feed: day label, then plain rows (small muted icon, text, meta) */
 
 .filters {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  padding: 0 var(--card-pad, 24px) 12px;
+  padding-bottom: 14px;
 }
 
 select.actorSelect {
   width: auto;
-  height: 28px;
-  padding: 0 28px 0 10px;
+  height: var(--control-sm);
+  padding: 0 30px 0 12px;
   font-size: var(--fs-sm);
   margin-left: auto;
 }
@@ -379,54 +370,36 @@ select.actorSelect {
   border-top: 1px solid var(--border);
 }
 
-.day {
-  padding: 10px var(--card-pad, 24px) 4px;
+.day + .day {
+  margin-top: 8px;
 }
 
 .dayLabel {
+  padding: 16px 0 4px;
   font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-3);
-  margin: 4px 0 6px;
 }
 
 .entries {
   list-style: none;
   margin: 0;
   padding: 0;
-  position: relative;
-}
-
-.entries::before {
-  content: '';
-  position: absolute;
-  left: 11px;
-  top: 14px;
-  bottom: 14px;
-  width: 1px;
-  background: var(--border);
 }
 
 .entry {
-  position: relative;
   display: flex;
   gap: 12px;
   padding: 8px 0;
-  animation: org-fade var(--dur) var(--ease-out) both;
 }
 
 .entryIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 23px;
-  height: 23px;
-  border-radius: 50%;
-  background: var(--surface, var(--bg));
-  box-shadow:
-    inset 0 0 0 1px var(--border-strong),
-    0 0 0 3px var(--surface, var(--bg));
-  color: var(--text-2);
+  width: 16px;
+  height: 22px;
+  color: var(--text-3);
   flex-shrink: 0;
 }
 
@@ -444,7 +417,7 @@ select.actorSelect {
 
 .entryText strong {
   color: var(--text);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .subject {
@@ -480,62 +453,16 @@ span.viaBadge {
 .moreRow {
   display: flex;
   justify-content: center;
-  padding: 12px 0 16px;
-}
-
-/* ───────── general */
-
-.orgInfo {
-  display: flex;
-  align-items: flex-end;
-  gap: 16px;
-}
-
-.grow {
-  flex: 1;
-}
-
-.dangerStack {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  padding: 16px 0 0;
 }
 
 @keyframes org-fade {
   from {
     opacity: 0;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes org-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: none;
   }
 }
 
 @media (max-width: 640px) {
-  div.headWrap {
-    padding-right: var(--card-pad, 18px);
-    padding-bottom: 56px;
-  }
-
-  .headAction {
-    top: auto;
-    bottom: 12px;
-    left: var(--card-pad, 18px);
-    right: auto;
-  }
-
   .personTeams,
   .stack {
     display: none;
@@ -547,10 +474,7 @@ span.viaBadge {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .panel,
-  .person,
-  .entry,
-  .linkBox {
+  .panel {
     animation: none;
   }
 }

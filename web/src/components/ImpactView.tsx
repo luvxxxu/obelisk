@@ -115,13 +115,13 @@ export function ImpactView({
           <div className={s.summaryBody}>
             <div className={s.summaryTitle}>{head.text}</div>
             <div className={s.stats}>
-              <span className={s.stat} data-k="shifted">
+              <span className={s.stat}>
                 밀림 <b>{delayedCount}</b>
               </span>
-              <span className={s.stat} data-k="conflict">
+              <span className={s.stat}>
                 충돌 <b>{conflictCount}</b>
               </span>
-              <span className={s.stat} data-k="absorbed">
+              <span className={s.stat}>
                 흡수 <b>{absorbedCount}</b>
               </span>
             </div>
@@ -135,14 +135,12 @@ export function ImpactView({
             const proj = projects.get(p.projectId);
             return (
               <li key={p.projectId} className={s.slip}>
-                <span className={s.dot} style={{ background: `var(--c-${proj?.color ?? 'slate'})` }} />
+                <span className={s.dot} style={{ background: `var(--c-${proj?.color ?? 'slate'})` }} aria-hidden="true" />
                 <span className={s.slipName}>{proj?.name ?? '프로젝트'}</span>
                 <span className={s.slipDates}>
                   완료 {formatShortKo(p.from)} <Icon name="arrowRight" size={11} /> {formatShortKo(p.to)}
                 </span>
-                <span className={ui.badge} data-tone="warn">
-                  +{daysLabel(p.shiftDays)}
-                </span>
+                <span className={s.slipShift}>+{daysLabel(p.shiftDays)}</span>
               </li>
             );
           })}

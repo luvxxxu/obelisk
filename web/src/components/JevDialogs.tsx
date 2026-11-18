@@ -28,19 +28,20 @@ export const PRIORITY_TONE: Record<Priority, string> = {
   3: 'var(--danger)',
 };
 
-/** "Jev" mark: a small violet sparkle badge, the only colour Jev adds to a screen. */
+/** "Jev" mark: a small monochrome scale (Jev weighs decisions); Jev adds no colour of its own. */
 export function JevMark({ size = 'md' }: { size?: 'sm' | 'md' }) {
   return (
     <span className={s.mark} data-size={size} aria-hidden="true">
-      <Icon name="sparkle" size={size === 'sm' ? 12 : 15} strokeWidth={2} />
+      <Icon name="scale" size={size === 'sm' ? 13 : 16} />
     </span>
   );
 }
 
+/** Priority as plain text with a small flag in the priority's ink (no pill, no dot). */
 export function PriorityPill({ p, strong }: { p: Priority; strong?: boolean }) {
   return (
     <span className={s.pill} data-strong={strong || undefined} style={{ '--tone': PRIORITY_TONE[p] } as React.CSSProperties}>
-      <span className={s.pillDot} />
+      <Icon name="flag" size={12} className={s.pillFlag} />
       {p === 0 ? '없음' : PRIORITY_LABEL_KO[p]}
     </span>
   );
@@ -90,7 +91,7 @@ function Loading({ label }: { label: string }) {
         {label}
       </div>
       {[0, 1, 2, 3].map((i) => (
-        <div key={i} className={s.skelRow} style={{ animationDelay: `${i * 80}ms` }}>
+        <div key={i} className={s.skelRow}>
           <Skeleton width={18} height={18} />
           <Skeleton width={`${46 - i * 6}%`} height={14} />
           <Skeleton width={64} height={20} style={{ marginLeft: 'auto' }} />
@@ -226,16 +227,16 @@ function PriorityDialog() {
             </div>
           ) : (
             <Group title="바꿀 작업" count={changes.length} hint={changes.length > 1 ? '애매한 건 비워 뒀어요' : undefined}>
-              {changes.map((c, i) => (
-                <PriorityRow key={c.taskId} sg={c} task={app.tasks[c.taskId]!} checked={picked.has(c.taskId)} onChange={(v) => toggle(c.taskId, v)} index={i} />
+              {changes.map((c) => (
+                <PriorityRow key={c.taskId} sg={c} task={app.tasks[c.taskId]!} checked={picked.has(c.taskId)} onChange={(v) => toggle(c.taskId, v)} />
               ))}
             </Group>
           )}
 
           {same.length > 0 && (
             <Group title="그대로 둘 작업" count={same.length} collapsible>
-              {same.map((c, i) => (
-                <PriorityRow key={c.taskId} sg={c} task={app.tasks[c.taskId]!} index={i} />
+              {same.map((c) => (
+                <PriorityRow key={c.taskId} sg={c} task={app.tasks[c.taskId]!} />
               ))}
             </Group>
           )}
@@ -250,17 +251,15 @@ function PriorityRow({
   task,
   checked,
   onChange,
-  index,
 }: {
   sg: PrioritySuggestion;
   task: Task;
   checked?: boolean;
   onChange?: (v: boolean) => void;
-  index: number;
 }) {
   const change = onChange !== undefined;
   return (
-    <li className={s.row} style={{ animationDelay: `${Math.min(index, 12) * 28}ms` }} data-off={change && !checked ? true : undefined}>
+    <li className={s.row} data-off={change && !checked ? true : undefined}>
       {change ? <Pick checked={!!checked} onChange={onChange!} label={`${task.title} 우선순위 바꾸기`} /> : <span className={s.pickSpacer} />}
       <div className={s.rowMain}>
         <TaskName task={task} />
@@ -415,22 +414,22 @@ function PostponeDialog({ initialScope }: { initialScope: 'today' | 'week' }) {
             ) : null}
             {groups.postpone.length > 0 && (
               <Group title="미룰 작업" count={groups.postpone.length}>
-                {groups.postpone.map((c, i) => (
-                  <PostponeRow key={c.taskId} c={c} task={app.tasks[c.taskId]!} today={app.today} checked={picked.has(c.taskId)} onChange={(v) => toggle(c.taskId, v)} index={i} />
+                {groups.postpone.map((c) => (
+                  <PostponeRow key={c.taskId} c={c} task={app.tasks[c.taskId]!} today={app.today} checked={picked.has(c.taskId)} onChange={(v) => toggle(c.taskId, v)} />
                 ))}
               </Group>
             )}
             {groups.could.length > 0 && (
               <Group title="미뤄도 되는 작업" count={groups.could.length} hint="필요하면 골라서 함께 미루세요">
-                {groups.could.map((c, i) => (
-                  <PostponeRow key={c.taskId} c={c} task={app.tasks[c.taskId]!} today={app.today} checked={picked.has(c.taskId)} onChange={(v) => toggle(c.taskId, v)} index={i} />
+                {groups.could.map((c) => (
+                  <PostponeRow key={c.taskId} c={c} task={app.tasks[c.taskId]!} today={app.today} checked={picked.has(c.taskId)} onChange={(v) => toggle(c.taskId, v)} />
                 ))}
               </Group>
             )}
             {groups.keep.length > 0 && (
               <Group title="그대로 둘 작업" count={groups.keep.length} collapsible>
-                {groups.keep.map((c, i) => (
-                  <PostponeRow key={c.taskId} c={c} task={app.tasks[c.taskId]!} today={app.today} index={i} />
+                {groups.keep.map((c) => (
+                  <PostponeRow key={c.taskId} c={c} task={app.tasks[c.taskId]!} today={app.today} />
                 ))}
               </Group>
             )}
@@ -477,7 +476,7 @@ function LoadBars({ plan, after }: { plan: PostponePlan; after: Map<string, numb
       {plan.days.map((d, i) => {
         const now = after.get(d.date) ?? d.after;
         return (
-          <div key={d.date} className={s.load} style={{ animationDelay: `${i * 40}ms` }}>
+          <div key={d.date} className={s.load}>
             <div className={s.loadBarBox} aria-hidden="true">
               <span className={s.loadCap} style={{ bottom: `${(plan.capacity / max) * 100}%` }} />
               <span className={s.loadBefore} data-over={d.load > plan.capacity || undefined} style={{ height: `${(d.load / max) * 100}%` }} />
@@ -508,18 +507,16 @@ function PostponeRow({
   today,
   checked,
   onChange,
-  index,
 }: {
   c: PostponeCandidate;
   task: Task;
   today: string;
   checked?: boolean;
   onChange?: (v: boolean) => void;
-  index: number;
 }) {
   const movable = onChange !== undefined && !!c.toDate;
   return (
-    <li className={s.row} style={{ animationDelay: `${Math.min(index, 12) * 28}ms` }} data-off={movable && !checked ? true : undefined}>
+    <li className={s.row} data-off={movable && !checked ? true : undefined}>
       {movable ? (
         <Pick checked={!!checked} onChange={onChange!} label={`${task.title} 미루기`} />
       ) : (
@@ -540,19 +537,15 @@ function PostponeRow({
               <span className={s.moveDate}>{formatShortKo(c.toDate)}</span>
             </span>
             {c.delayed > 0 ? (
-              <span className={cx(ui.badge)} data-tone="warn">
+              <span className={ui.badge} data-tone="warn">
                 함께 {c.delayed}개
               </span>
             ) : (
-              <span className={cx(ui.badge)} data-tone="secondary">
-                영향 없음
-              </span>
+              <span className={s.noEffect}>영향 없음</span>
             )}
           </>
         ) : c.verdict === 'fixed' ? (
-          <span className={ui.badge} data-tone="outline">
-            고정
-          </span>
+          <span className={s.noEffect}>고정 일정</span>
         ) : null}
       </div>
     </li>

@@ -1,6 +1,6 @@
 'use client';
 
-import type { Webhook, WebhookDelivery, WebhookFormat } from '@obelisk/core';
+import type { Webhook, WebhookDelivery } from '@obelisk/core';
 import { useRef, type ReactNode } from 'react';
 import { Icon, type IconName } from '@/components/Icon';
 import { Popover, ui, useDisclosure } from '@/components/primitives';
@@ -11,17 +11,6 @@ export function hourLabel(h: number): string {
   if (h === 0) return '자정';
   if (h === 12) return '정오';
   return h < 12 ? `오전 ${h}시` : `오후 ${h - 12}시`;
-}
-
-export const FORMAT_MARK: Record<WebhookFormat, string> = { json: '{ }', slack: 'S', discord: 'D' };
-
-/** Monogram tile for a webhook's format (no brand logos; pure black/white UI). */
-export function FormatMark({ format }: { format: WebhookFormat }) {
-  return (
-    <span className={s.mark} data-format={format} aria-hidden="true">
-      {FORMAT_MARK[format]}
-    </span>
-  );
 }
 
 export type Tone = 'ok' | 'danger' | 'warn' | 'info' | 'muted';

@@ -81,12 +81,10 @@ export default function OverviewPage() {
   const nothing = listed === 0 && sections.fixed.length === 0;
 
   const rowProps = { today, hues, multi, selectedTaskId };
-  let n = 0; // section stagger
 
   return (
     <Page>
       <ViewHeader
-        icon="grid"
         title="모아보기"
         description={
           <>
@@ -155,7 +153,7 @@ export default function OverviewPage() {
         />
       ) : (
         <>
-          <Section id="ov-overdue" title="기한 지남" tone="danger" count={sections.overdue.length} index={n++}>
+          <Section id="ov-overdue" title="기한 지남" tone="danger" count={sections.overdue.length}>
             {sections.overdue.map((i) => (
               <Row key={i.task.id} item={i} {...rowProps} date="overdue" />
             ))}
@@ -164,7 +162,6 @@ export default function OverviewPage() {
             id={`ov-day-${today}`}
             title="오늘"
             count={sections.today.length}
-            index={n++}
             hint="진행 중인 작업 포함"
             empty={sections.today.length === 0 ? '오늘 남은 일이 없어요.' : undefined}
           >
@@ -173,7 +170,7 @@ export default function OverviewPage() {
             ))}
           </Section>
           {sections.week.some((d) => d.items.length) && (
-            <section className={cx(v.group, s.section)} style={{ '--i': n++ } as CSSProperties}>
+            <section className={cx(v.group, s.section)}>
               <div className={v.groupHeader}>
                 <span className={v.groupTitle}>앞으로 {OVERVIEW_DAYS}일</span>
                 <span className={v.count}>{sections.week.reduce((m, d) => m + d.items.length, 0)}</span>
@@ -196,7 +193,7 @@ export default function OverviewPage() {
                 ))}
             </section>
           )}
-          <Section id="ov-fixed" title="고정 일정" count={sections.fixed.length} index={n++} hint={`${OVERVIEW_FIXED_DAYS}일 안`}>
+          <Section id="ov-fixed" title="고정 일정" count={sections.fixed.length} hint={`${OVERVIEW_FIXED_DAYS}일 안`}>
             {sections.fixed.map(({ item, date }) => (
               <Row key={item.task.id} item={item} {...rowProps} date="fixed" fixedDate={date} />
             ))}
@@ -220,7 +217,6 @@ function Section({
   tone,
   count,
   hint,
-  index,
   empty,
   children,
 }: {
@@ -229,13 +225,12 @@ function Section({
   tone?: 'danger';
   count: number;
   hint?: string;
-  index: number;
   empty?: string;
   children: ReactNode;
 }) {
   if (!count && !empty) return null;
   return (
-    <section id={id} className={cx(v.group, s.section)} data-tone={tone} style={{ '--i': index } as CSSProperties}>
+    <section id={id} className={cx(v.group, s.section)} data-tone={tone}>
       <div className={v.groupHeader} data-tone={tone}>
         <span className={v.groupTitle}>{title}</span>
         {count > 0 && <span className={v.count}>{count}</span>}
@@ -276,7 +271,7 @@ function WeekLoad({
   return (
     <div className={s.load} role="group" aria-label="날짜별 할 일 수">
       <div className={s.loadCols}>
-        {cols.map((c, i) => {
+        {cols.map((c) => {
           const isToday = c.date === today;
           const weekend = [0, 6].includes(weekday(c.date));
           const label = c.counts.map((x) => `${workspaceLabel(x.space)} ${x.n}`).join(' · ');
@@ -289,9 +284,8 @@ function WeekLoad({
               data-busy={busy?.date === c.date || undefined}
               disabled={!c.total}
               onClick={() => jump(c.date)}
-              aria-label={`${isToday ? '오늘(기한 지남 포함)' : formatRelativeKo(c.date, today)} ${c.total}개${label ? ` — ${label}` : ''}`}
+              aria-label={`${isToday ? '오늘(기한 지남 포함)' : formatRelativeKo(c.date, today)} ${c.total}개${label ? `: ${label}` : ''}`}
               {...tip(c.total ? label : null, { side: 'top', meta: isToday ? '기한 지남 포함' : undefined })}
-              style={{ '--i': i } as CSSProperties}
             >
               <span className={s.loadNum}>{c.total || ''}</span>
               <span className={s.loadBar}>
@@ -358,19 +352,20 @@ const Row = memo(function Row({
   };
   const open = () => void openOverviewItem(item, spaceName);
 
+  // Same date language as the shared task row: overdue red, today bold, the rest muted.
   let label: string | null = null;
-  let tone: 'danger' | 'info' | 'secondary' = 'secondary';
+  let tone: 'overdue' | 'today' | undefined;
   if (date === 'overdue' && task.dueDate) {
     label = overdueLabel(task.dueDate, today);
-    tone = 'danger';
+    tone = 'overdue';
   } else if (date === 'span') {
     label = spanLabel(task, today);
-    tone = 'info';
+    tone = 'today';
   } else if (date === 'span-if-range' && task.startDate && task.dueDate && task.startDate !== task.dueDate) {
     label = spanLabel(task, today);
   } else if (date === 'fixed' && fixedDate) {
     label = formatRelativeKo(fixedDate, today);
-    tone = fixedDate === today ? 'info' : 'secondary';
+    tone = fixedDate === today ? 'today' : undefined;
   }
 
   return (
@@ -396,29 +391,37 @@ const Row = memo(function Row({
           </div>
           <div className={r.meta}>
             {label && (
-              <span className={cx(ui.badge, r.badge, r.date)} data-tone={tone}>
-                <Icon name={task.fixed ? 'pin' : 'calendar'} size={12} />
+              <span
+                className={cx(r.item, r.date)}
+                data-tone={tone}
+                {...tip(task.fixed ? '고정 일정: 날짜가 움직이지 않아요' : null, { side: 'top' })}
+              >
+                {task.fixed && <Icon name="pin" size={13} />}
                 {label}
               </span>
             )}
             {!label && task.fixed && date !== 'fixed' && (
-              <span className={cx(ui.badge, r.badge)} data-tone="outline" {...tip('날짜가 움직이지 않는 고정 일정', { side: 'top' })}>
-                <Icon name="pin" size={12} /> 고정
+              <span className={r.item} {...tip('날짜가 움직이지 않는 고정 일정', { side: 'top' })}>
+                <Icon name="pin" size={13} /> 고정
               </span>
             )}
             {!editable && (
-              <span className={cx(ui.badge, r.badge)} data-tone="outline" {...tip('보기 전용 — 쓰기 권한이 없어요', { side: 'top' })}>
-                <Icon name="eye" size={12} /> 보기 전용
+              <span className={r.item} {...tip('보기 전용: 쓰기 권한이 없어요', { side: 'top' })}>
+                <Icon name="eye" size={13} /> 보기 전용
               </span>
             )}
             {project && (
-              <span className={r.project}>
-                <span className={ui.dot} style={{ background: `var(--c-${project.color})` }} />
+              <span className={cx(r.item, r.project)}>
+                <span className={r.swatch} style={{ background: `var(--c-${project.color})` }} aria-hidden="true" />
                 <span className={r.projectName}>{project.name}</span>
               </span>
             )}
             {multi && (
-              <span className={s.spaceTag} style={hueStyle(hues.get(space.id) ?? 'slate')} {...tip(item.live ? '지금 열린 공간' : `열면 ${spaceName}(으)로 전환해요`, { side: 'top' })}>
+              <span
+                className={cx(r.item, s.spaceTag)}
+                style={hueStyle(hues.get(space.id) ?? 'slate')}
+                {...tip(item.live ? '지금 열린 공간' : `열면 ${spaceName}(으)로 전환해요`, { side: 'top' })}
+              >
                 <span className={s.spaceTagDot} aria-hidden="true" />
                 <span className={s.spaceTagName}>{spaceName}</span>
               </span>

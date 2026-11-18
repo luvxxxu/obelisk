@@ -36,7 +36,6 @@ export default function AllPage() {
   return (
     <Page>
       <ViewHeader
-        icon="layers"
         title="전체 작업"
         description={`진행 중인 작업 ${total}개를 프로젝트별로 모았어요. 머리글을 눌러 접거나 펼칠 수 있어요.`}
       />

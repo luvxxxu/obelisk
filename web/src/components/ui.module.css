@@ -1,10 +1,10 @@
 /* ═════════════════════════════════════════════════════════════════════════════
-   Obelisk UI primitives — Notion-style, zero dependencies.
+   Obelisk UI primitives — calm ChatGPT-like chrome, zero dependencies.
    Use:  import { ui } from '@/components/primitives';   className={`${ui.btn} ${ui.outline}`}
    Tokens live in app/globals.css. Colour only for meaning (data-tone).
 
    BUTTONS (combine .btn + one variant + optional size)
-     .btn            base: --control (32px) tall, --radius, 14px/500, gap 6, focus ring. Alone = plain text button
+     .btn            base: --control (36px) tall pill, 14px/500, gap 6, focus ring. Alone = plain text button
      .primary        monochrome filled (black on light, white on dark) — the one main action
      .secondary      muted filled (--surface-2)
      .outline        1px border on page bg, hover muted
@@ -12,14 +12,14 @@
      .danger         filled red, white text (destructive confirm)
      .dangerGhost    red text, hover red tint (destructive in menus/rows)
      .link           text link look (underline on hover); also usable on <a> without .btn
-     .xs / .sm / .lg 24 / 28 / 36px heights (≤ 28px tall controls use --radius-sm, taller ones --radius)
-     .icon           square icon-only button (32; with .sm 28, .xs 24, .lg 36)
+     .xs / .sm / .lg 24 / 30 / 40px heights (all pills)
+     .icon           round icon-only button (36; with .sm 30, .xs 24, .lg 40)
      .block          full width
-     .iconBtn        standalone compact 28px ghost icon button (muted icon); [data-active='true'] = pressed
+     .iconBtn        standalone compact 30px ghost icon button (muted icon, --radius); [data-active='true'] = pressed
      inside a button: <kbd> is auto-tinted (e.g. "새 작업  N")
 
    FORMS
-     .input          32px text field / <select> (auto chevron) / <textarea class=input> (multi-line box)
+     .input          36px text field / <select> (auto chevron) / <textarea class=input> (multi-line box)
                      [aria-invalid='true'] = red border + ring
      .textarea       borderless auto-growing textarea (AutoTextarea)
      .label          13px/500 field label
@@ -29,39 +29,40 @@
 
    MENUS / POPOVERS
      .popover        floating panel (bg surface, hairline ring, --radius-lg, shadow-md, padding 6) — use <Popover>
-     .menuItem       28px row (--radius-sm, concentric with the popover); :hover / [data-active='true'] highlighted; [data-selected='true'] = current;
+     .menuItem       36px row (--radius, concentric with the popover); :hover / [data-active='true'] highlighted; [data-selected='true'] = current;
                      [data-tone='danger'] = destructive
      .menuHint       right-aligned shortcut / meta text inside .menuItem
      .menuSep        1px divider
      .menuTitle      12px/500 muted group label inside a menu
 
    TABS / SEGMENTED
-     .segmented / .tabs     muted pill container (32px; [data-size='sm'] = 28px; [data-full='true'] = stretch)
+     .segmented / .tabs     muted pill container (36px; [data-size='sm'] = 30px; [data-full='true'] = stretch)
      .segment / .tab        trigger; active when aria-pressed='true' | aria-selected='true' | data-active='true'
 
    DIALOG
-     .overlay        fixed backdrop (rgba black .5 + slight blur) — use <Modal>
-     .modal          dialog box (radius 12, border, shadow-xl); bottom sheet on ≤640px
+     .overlay        fixed backdrop (flat rgba black, no blur) — use <Modal>
+     .modal          dialog box (--radius-xl, hairline ring, shadow-xl); bottom sheet on ≤640px
      .modalHeader    title row (24px padding) · .modalTitle 18/600 · .modalDescription 14 muted
      .modalBody      scrollable content (24px padding)
      .modalFooter    right-aligned actions row
 
    CARDS (shadcn Card) — inner padding = --card-pad (20px; override via style)
-     .card           surface, 1px border, radius 12, shadow-xs. Add .interactive on <a>/<button> cards
+     .card           surface, 1px hairline, --radius-lg, no shadow. Add .interactive on <a>/<button> cards
      .cardHeader     grid: title/description left, .cardAction right
      .cardTitle      15px/600
      .cardDescription 13px muted
      .cardAction     top-right slot in header (button / link / badge)
      .cardContent    body
      .cardFooter     bottom row (flex, gap 8)
-     .stat           KPI block helper: .statLabel (13/500 muted) · .statValue (30/600 tabular) · .statMeta (12 muted)
+     .stat           figure block helper: .statLabel (13/500 muted) · .statValue (24/600 tabular) · .statMeta (12 muted)
 
    DATA DISPLAY
      .badge          small label; data-tone = default (filled) | secondary (muted, also the default) |
                      outline | danger | warn | ok | info
      .chip           pill-ish muted meta chip (legacy, task meta)
-     .dot            8px circle (project colour via style, or data-tone = danger|warn|ok|info|muted)
-     .avatar         32px rounded square initial; [data-size='sm'] 24px, [data-size='lg'] 40px
+     .dot            8px status circle (data-tone = danger|warn|ok|info|muted); without data-tone it is a
+                     rounded-square project swatch (colour via style)
+     .avatar         32px round initial; [data-size='sm'] 24px, [data-size='lg'] 40px
      .progress       track (4px; [data-size='sm'] 3px, [data-size='lg'] 6px; data-tone on track tints bar)
      .progressBar    the fill — set style={{ width: '40%' }}
      .skeleton       pulsing placeholder block (set width/height)
@@ -74,7 +75,7 @@
                      For overflow-clipped places use the JS layer instead: tip(label) / data-tip (see primitives)
 
    TYPE HELPERS
-     .pageSection    20px/700 heading for a top-level section of a page (홈 · 파급 예측)
+     .pageSection    20px/600 heading for a top-level section of a page (홈 · 파급 예측)
      .sectionTitle   15px/600 heading for a block inside a section or card
      .muted          text-2 colour · .subtle text-3 colour · .tabular tabular numbers · .truncate ellipsis
    ═════════════════════════════════════════════════════════════════════════════ */
@@ -88,9 +89,9 @@
   justify-content: center;
   gap: 6px;
   height: var(--control);
-  padding: 0 12px;
+  padding: 0 14px;
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: var(--radius-full);
   font-size: var(--fs-base);
   font-weight: 500;
   line-height: 1;
@@ -138,11 +139,10 @@
 .primary {
   background: var(--primary);
   color: var(--on-primary);
-  box-shadow: var(--shadow-xs);
 }
 
 .btn:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 .primary:hover:not(:disabled) {
@@ -160,7 +160,7 @@
 
 .outline {
   background: transparent;
-  border-color: var(--border-strong);
+  border-color: var(--input);
   color: var(--text);
 }
 
@@ -220,23 +220,22 @@
 
 .xs {
   height: var(--control-xs);
-  padding: 0 8px;
+  padding: 0 10px;
   gap: 4px;
   font-size: var(--fs-xs);
-  border-radius: var(--radius-sm);
 }
 
 .sm {
   height: var(--control-sm);
-  padding: 0 10px;
+  padding: 0 12px;
   gap: 6px;
   font-size: var(--fs-sm);
-  border-radius: var(--radius-sm);
 }
 
 .lg {
   height: var(--control-lg);
-  padding: 0 16px;
+  padding: 0 18px;
+  font-size: var(--fs-md);
 }
 
 .icon {
@@ -267,8 +266,8 @@
   justify-content: center;
   width: var(--control-sm);
   height: var(--control-sm);
-  border-radius: var(--radius-sm);
-  color: var(--text-3);
+  border-radius: var(--radius);
+  color: var(--text-2);
   outline: none;
   transition:
     background-color var(--dur-fast) var(--ease),
@@ -303,7 +302,7 @@
   width: 100%;
   min-width: 0;
   height: var(--control);
-  padding: 0 10px;
+  padding: 0 12px;
   border-radius: var(--radius);
   border: 1px solid var(--input);
   background: var(--input-bg);
@@ -348,8 +347,8 @@ select.input {
 
 textarea.input {
   height: auto;
-  min-height: 72px;
-  padding: 8px 12px;
+  min-height: 80px;
+  padding: 10px 12px;
   line-height: 1.55;
   resize: vertical;
 }
@@ -410,25 +409,25 @@ textarea.input {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   padding: 6px;
-  animation: pop var(--dur-fast) var(--ease-out);
+  animation: pop var(--dur) var(--ease-out);
   transform-origin: top center;
 }
 
 @keyframes pop {
   from {
     opacity: 0;
-    transform: translateY(-2px) scale(0.97);
+    transform: translateY(-4px);
   }
 }
 
 .menuItem {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  min-height: var(--control-sm);
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
+  min-height: var(--control);
+  padding: 6px 10px;
+  border-radius: var(--radius);
   font-size: var(--fs-base);
   line-height: 1.4;
   text-align: left;
@@ -455,7 +454,7 @@ textarea.input {
 }
 
 .menuItem svg {
-  color: var(--text-3);
+  color: var(--text-2);
   flex-shrink: 0;
 }
 
@@ -477,7 +476,6 @@ textarea.input {
   margin-left: auto;
   padding-left: 12px;
   font-size: var(--fs-xs);
-  letter-spacing: 0.04em;
   color: var(--text-3);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -485,12 +483,12 @@ textarea.input {
 
 .menuSep {
   height: 1px;
-  margin: 4px -6px;
+  margin: 6px 10px;
   background: var(--border);
 }
 
 .menuTitle {
-  padding: 6px 8px 4px;
+  padding: 8px 10px 4px;
   font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--text-3);
@@ -582,6 +580,11 @@ textarea.input {
   flex-shrink: 0;
 }
 
+/* a project colour (no data-tone) is an identity swatch: a small rounded square, as in the sidebar */
+.dot:not([data-tone]) {
+  border-radius: 2px;
+}
+
 .dot[data-tone='danger'] {
   background: var(--danger);
 }
@@ -608,7 +611,7 @@ textarea.input {
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-full);
   background: var(--surface-3);
   color: var(--text);
   font-size: var(--fs-sm);
@@ -621,14 +624,14 @@ textarea.input {
 .avatar[data-size='sm'] {
   width: 24px;
   height: 24px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   font-size: var(--fs-2xs);
 }
 
 .avatar[data-size='lg'] {
   width: 40px;
   height: 40px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-full);
   font-size: var(--fs-md);
 }
 
@@ -637,12 +640,11 @@ textarea.input {
 .switch {
   position: relative;
   display: inline-flex;
-  width: 32px;
-  height: 18px;
+  width: 34px;
+  height: 20px;
   border-radius: var(--radius-full);
   border: 1px solid transparent;
-  background: var(--input);
-  box-shadow: var(--shadow-xs);
+  background: var(--border-strong);
   outline: none;
   transition: background-color var(--dur-fast) var(--ease);
   flex-shrink: 0;
@@ -653,11 +655,11 @@ textarea.input {
   position: absolute;
   top: 1px;
   left: 1px;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--bg);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
   transition: transform var(--dur) var(--ease);
 }
 
@@ -693,9 +695,9 @@ textarea.input {
   display: inline-flex;
   align-items: center;
   height: var(--control);
-  padding: 2px;
+  padding: 3px;
   gap: 2px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-full);
   background: var(--surface-2);
   color: var(--text-2);
   max-width: 100%;
@@ -731,8 +733,8 @@ textarea.input {
   justify-content: center;
   gap: 6px;
   height: 100%;
-  padding: 0 10px;
-  border-radius: var(--radius-sm);
+  padding: 0 12px;
+  border-radius: var(--radius-full);
   border: 1px solid transparent;
   font-size: var(--fs-sm);
   font-weight: 500;
@@ -765,7 +767,7 @@ textarea.input {
 .tab[data-active='true'] {
   background: var(--segment-bg);
   color: var(--text);
-  box-shadow: var(--shadow-xs);
+  box-shadow: 0 0 0 1px var(--border), 0 1px 2px light-dark(rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.4));
 }
 
 /* ───────── dialog */
@@ -798,16 +800,16 @@ textarea.input {
   background: var(--surface);
   color: var(--text);
   border: 0;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-xl);
   overflow: hidden;
-  animation: rise var(--dur) var(--ease-out);
+  animation: rise var(--dur-mid) var(--ease-out);
 }
 
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.97);
+    transform: translateY(8px);
   }
 }
 
@@ -822,8 +824,8 @@ textarea.input {
 .modalTitle {
   font-size: var(--fs-xl);
   font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
   min-width: 0;
 }
 
@@ -923,7 +925,7 @@ textarea.input {
 
 .interactive:hover {
   border-color: var(--border-strong);
-  background: color-mix(in srgb, var(--surface-2) 60%, var(--card-bg));
+  background: var(--tint);
 }
 
 .interactive:focus-visible {
@@ -1019,7 +1021,7 @@ textarea.input {
   font-size: var(--fs-3xl);
   font-weight: 600;
   line-height: 1.25;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
@@ -1095,7 +1097,7 @@ textarea.input {
   display: block;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
-  animation: pulse 1.6s ease-in-out infinite;
+  animation: pulse 1.8s var(--ease-in-out) infinite;
 }
 
 @keyframes pulse {
@@ -1381,7 +1383,7 @@ textarea.input {
   gap: 8px;
   max-width: 280px;
   padding: 6px 10px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--primary);
   color: var(--on-primary);
   font-size: var(--fs-xs);
@@ -1418,9 +1420,9 @@ textarea.input {
 
 .pageSection {
   font-size: var(--fs-2xl);
-  font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
   color: var(--text);
 }
 

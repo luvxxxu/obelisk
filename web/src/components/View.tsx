@@ -2,22 +2,19 @@
 
 import type { Task } from '@obelisk/core';
 import { useState, type ReactNode } from 'react';
-import { Icon, Logo, type IconName } from './Icon';
+import { Icon, type IconName } from './Icon';
 import { TaskRow } from './TaskRow';
 import s from './View.module.css';
 
 /**
- * Notion-style page header: a large page icon, a 40px bold title, one muted description line.
- * `actions` sit at the right of the title row; `children` render under the description.
- * `subtitle` and `description` are aliases. `logo` shows the Obelisk mark instead of `icon`.
+ * Page header: a 28px title, one muted line under it, actions on the right of the title row.
+ * No page icon — the sidebar already says where you are. `subtitle` and `description` are aliases.
+ * (`icon`, `iconColor` and `logo` are accepted for compatibility and ignored.)
  */
 export function ViewHeader({
   title,
   subtitle,
   description,
-  icon,
-  iconColor,
-  logo = false,
   actions,
   children,
 }: {
@@ -27,7 +24,7 @@ export function ViewHeader({
   icon?: IconName;
   iconColor?: string;
   logo?: boolean;
-  /** @deprecated the page icon is always shown now */
+  /** @deprecated */
   showIcon?: boolean;
   actions?: ReactNode;
   children?: ReactNode;
@@ -35,11 +32,6 @@ export function ViewHeader({
   const desc = description ?? subtitle;
   return (
     <header className={s.header}>
-      {(logo || icon) && (
-        <div className={s.pageIcon} style={iconColor ? { color: iconColor } : undefined} aria-hidden="true">
-          {logo ? <Logo size={60} /> : <Icon name={icon!} size={64} strokeWidth={1.35} />}
-        </div>
-      )}
       <div className={s.titleRow}>
         <h1 className={s.title}>
           <span className={s.titleText}>{title}</span>
@@ -124,9 +116,7 @@ export function EmptyState({
 }) {
   return (
     <div className={s.empty}>
-      <div className={s.emptyIcon}>
-        <Icon name={icon} size={20} strokeWidth={1.75} />
-      </div>
+      <Icon name={icon} size={22} className={s.emptyIcon} />
       <div className={s.emptyTitle}>{title}</div>
       {body && <div className={s.emptyBody}>{body}</div>}
       {action && <div className={s.emptyAction}>{action}</div>}
@@ -135,7 +125,7 @@ export function EmptyState({
   );
 }
 
-/** Page container: Notion default width (760px content), `wide` = full width. Both keep --page-pad gutters. */
+/** Page container: a centred 760px reading column, or `wide` (1200px) for boards and dashboards. */
 export function Page({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return <div className={wide ? s.pageWide : s.page}>{children}</div>;
 }

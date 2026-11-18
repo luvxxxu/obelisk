@@ -1,14 +1,11 @@
 /* /settings/webhooks — outgoing and incoming webhooks.
-   Hairline-separated rows inside cards, pure black/white bases; colour only for status. */
-
-.titleIcon {
-  color: var(--text-3);
-}
+   Sections and rows come from ../settings.module.css; lists here are hairline-separated rows.
+   Colour only for status that needs attention (failed, turned off by errors). */
 
 .scope {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   font-size: var(--fs-sm);
   line-height: 1.5;
@@ -16,92 +13,51 @@
 }
 
 .scope b {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text);
 }
 
 /* ───────── lists */
 
-div.flush {
-  padding-left: 0;
-  padding-right: 0;
-  padding-bottom: 4px;
-}
-
 .list {
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--border);
 }
 
 .row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
-  gap: 14px;
-  padding: 14px var(--card-pad, 24px);
-  border-bottom: 1px solid var(--border);
-  animation: wh-in var(--dur-slow) var(--ease-out) both;
-  transition: opacity var(--dur) var(--ease);
-}
-
-.row:last-child {
-  border-bottom: 0;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
 }
 
 .row[data-off='true'] .main {
-  opacity: 0.6;
-}
-
-@keyframes wh-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-}
-
-.mark {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-family: var(--font-mono);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text);
-}
-
-.mark[data-format='json'] {
-  font-size: var(--fs-2xs);
+  opacity: 0.55;
 }
 
 .main {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   transition: opacity var(--dur) var(--ease);
 }
 
 .titleLine {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   min-width: 0;
-  min-height: 20px;
 }
 
 .name {
   min-width: 0;
   font-size: var(--fs-base);
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.45;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -109,10 +65,7 @@ div.flush {
 
 .formatTag {
   flex-shrink: 0;
-  font-size: var(--fs-2xs);
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -132,11 +85,24 @@ div.flush {
   flex-shrink: 0;
 }
 
-.chips {
+.meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
-  margin-top: 5px;
+}
+
+.metaItem svg {
+  color: var(--text-3);
 }
 
 .warnLine,
@@ -144,18 +110,18 @@ div.flush {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: var(--fs-xs);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
 .warnLine {
-  color: var(--warn);
+  color: var(--warn-text);
 }
 
 .errorLine {
-  color: var(--danger);
+  color: var(--danger-text);
 }
 
 .warnLine svg,
@@ -168,12 +134,12 @@ div.flush {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 32px;
+  min-height: var(--control-sm);
 }
 
 .status {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
   font-size: var(--fs-sm);
   color: var(--text-2);
@@ -181,21 +147,11 @@ div.flush {
 }
 
 .status[data-tone='danger'] {
-  color: var(--danger);
+  color: var(--danger-text);
 }
 
 .status[data-tone='warn'] {
-  color: var(--warn);
-}
-
-.status[data-tone='info'] > span:first-child {
-  animation: wh-pulse 1.6s var(--ease) infinite;
-}
-
-@keyframes wh-pulse {
-  50% {
-    opacity: 0.4;
-  }
+  color: var(--warn-text);
 }
 
 .statusDetail {
@@ -204,17 +160,16 @@ div.flush {
 }
 
 .menuSpin {
-  width: 32px;
-  height: 32px;
+  width: var(--control-sm);
+  height: var(--control-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-/* ───────── incoming help */
+/* ───────── incoming help (collapsed) */
 
 .help {
-  margin: 4px var(--card-pad, 24px) 12px;
   border-top: 1px solid var(--border);
   padding-top: 10px;
 }
@@ -250,7 +205,7 @@ div.flush {
 }
 
 .helpBody {
-  padding: 8px 0 6px;
+  padding: 8px 0 4px;
   animation: wh-in var(--dur) var(--ease-out);
 }
 
@@ -291,7 +246,7 @@ div.flush {
   color: var(--text);
 }
 
-/* ───────── forms */
+/* ───────── forms (dialogs) */
 
 .form {
   display: flex;
@@ -317,12 +272,8 @@ input.mono {
 }
 
 .auto {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
   font-size: var(--fs-xs);
   color: var(--text-3);
-  animation: wh-in var(--dur) var(--ease-out);
 }
 
 .footHint {
@@ -331,23 +282,22 @@ input.mono {
   color: var(--text-3);
 }
 
+/* Event groups: hairline-separated, no outer box. */
 .groups {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
 }
 
 .group {
   margin: 0;
-  padding: 10px 10px 8px;
+  padding: 10px 0 8px;
   border: 0;
-  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
   min-width: 0;
 }
 
 .group:last-child {
-  border-bottom: 0;
+  border-bottom: 1px solid var(--border);
 }
 
 .groupHead {
@@ -355,11 +305,10 @@ input.mono {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 0 4px 4px;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--text-3);
+  padding: 0 0 4px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
   float: left; /* lets the legend span the fieldset's width */
 }
 
@@ -384,6 +333,7 @@ input.mono {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2px 8px;
+  margin: 0 -6px;
 }
 
 .pick {
@@ -392,7 +342,7 @@ input.mono {
   align-items: center;
   gap: 10px;
   min-width: 0;
-  padding: 6px 6px;
+  padding: 6px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease);
@@ -425,18 +375,13 @@ input.mono {
   transition:
     background-color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease),
-    color var(--dur-fast) var(--ease),
-    transform var(--dur-fast) var(--ease);
+    color var(--dur-fast) var(--ease);
 }
 
 .pick[data-on='true'] .pickBox {
   background: var(--text);
   border-color: var(--text);
   color: var(--bg);
-}
-
-.pick:active .pickBox {
-  transform: scale(0.9);
 }
 
 .pick:has(input:focus-visible) .pickBox {
@@ -477,12 +422,16 @@ input.mono {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px 8px;
-  margin: 6px 6px 2px;
+  margin-top: 6px;
   padding-top: 10px;
-  border-top: 1px dashed var(--border);
+  border-top: 1px solid var(--border);
   font-size: var(--fs-sm);
   color: var(--text-2);
   transition: opacity var(--dur) var(--ease);
+}
+
+.alertHour svg {
+  color: var(--text-3);
 }
 
 .alertHour[data-on='false'] {
@@ -492,7 +441,7 @@ input.mono {
 select.hourSelect {
   width: auto;
   height: var(--control-sm);
-  padding-right: 28px;
+  padding-right: 30px;
   font-size: var(--fs-sm);
 }
 
@@ -510,24 +459,23 @@ select.hourSelect {
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  animation: wh-in var(--dur) var(--ease-out);
 }
 
 .projectDot {
   width: 8px;
   height: 8px;
-  border-radius: 99px;
+  border-radius: var(--radius-full);
   flex-shrink: 0;
 }
 
+/* Setting row inside a dialog: label + help left, switch right, hairline above. */
 .switchRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 .switchText {
@@ -545,16 +493,11 @@ select.hourSelect {
 
 .switchDesc {
   font-size: var(--fs-sm);
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--text-2);
 }
 
 /* ───────── reveal */
-
-.revealIcon {
-  display: inline-flex;
-  color: var(--ok);
-}
 
 .lead {
   font-size: var(--fs-base);
@@ -563,6 +506,7 @@ select.hourSelect {
 }
 
 .bodyLabel {
+  margin-bottom: 6px;
   font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text);
@@ -573,7 +517,7 @@ select.hourSelect {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  padding-top: 14px;
+  padding-top: 16px;
   border-top: 1px solid var(--border);
 }
 
@@ -582,16 +526,15 @@ select.hourSelect {
   align-items: center;
   gap: 6px;
   font-size: var(--fs-sm);
-  animation: wh-in var(--dur) var(--ease-out);
   overflow-wrap: anywhere;
 }
 
 .testResult[data-tone='ok'] {
-  color: var(--ok);
+  color: var(--ok-text);
 }
 
 .testResult[data-tone='danger'] {
-  color: var(--danger);
+  color: var(--danger-text);
 }
 
 /* ───────── delivery log */
@@ -604,17 +547,12 @@ select.hourSelect {
   list-style: none;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.logItem {
+  border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
 
-.logItem:last-child {
-  border-bottom: 0;
+.logItem + .logItem {
+  border-top: 1px solid var(--border);
 }
 
 .logRow {
@@ -622,17 +560,37 @@ select.hourSelect {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 40px;
-  padding: 8px 12px;
+  min-height: 44px;
+  padding: 8px;
   text-align: left;
   font-size: var(--fs-sm);
   color: var(--text);
+  border-radius: var(--radius);
+  outline: none;
   transition: background-color var(--dur-fast) var(--ease);
 }
 
 button.logRow:hover,
 .logItem[data-open='true'] > .logRow {
   background: var(--surface-2);
+}
+
+button.logRow:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.logStatus {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+.logStatus[data-tone='ok'] {
+  color: var(--ok);
+}
+
+.logStatus[data-tone='danger'] {
+  color: var(--danger);
 }
 
 .logEvent {
@@ -671,8 +629,7 @@ button.logRow:hover,
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 12px 12px 14px;
-  border-top: 1px solid var(--border);
+  padding: 12px 8px 16px;
   animation: wh-in var(--dur) var(--ease-out);
 }
 
@@ -701,12 +658,11 @@ button.logRow:hover,
 }
 
 .pre {
-  margin: 6px 0 0;
+  margin: 0;
   max-height: 240px;
   overflow: auto;
   padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--tint);
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
@@ -732,15 +688,29 @@ button.logRow:hover,
   color: var(--text-3);
 }
 
+/* One short fade for content that opens in place (help, delivery detail). */
+@keyframes wh-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .helpBody,
+  .logDetail {
+    animation: none;
+  }
+}
+
 /* ───────── small screens */
 
 @media (max-width: 640px) {
   .row {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
   }
 
   .side {
-    grid-column: 2;
     flex-wrap: wrap;
   }
 

@@ -1,18 +1,13 @@
 'use client';
 
-import type { Project } from '@obelisk/core';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { longDateKo } from '@/lib/format';
 import { useJevAutoPilot } from '@/lib/jev';
 import { getState, load, selectTask, startSync, useApp } from '@/lib/store';
 import {
   DESKTOP_QUERY,
   isApple,
   modCombo,
-  pageMeta,
-  projectIdFromPath,
   restoreSidebar,
   toggleSidebar,
   useMediaQuery,
@@ -25,6 +20,7 @@ import { PostponeDialog } from './PostponeDialog';
 import { tip, TooltipLayer, ui } from './primitives';
 import { Sidebar } from './Sidebar';
 import { TaskDetail } from './TaskDetail';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import s from './AppShell.module.css';
 
 function isTyping(e: KeyboardEvent) {
@@ -123,69 +119,13 @@ function useShortcuts() {
   }, [router]);
 }
 
-/** Header breadcrumb, Notion style: "◭ Obelisk / ☀ 오늘"; projects read "◭ Obelisk / 📁 이름". */
-function Breadcrumb({ pathname, projects }: { pathname: string; projects: Project[] }) {
-  const pid = projectIdFromPath(pathname);
-  const project = pid ? projects.find((p) => p.id === pid) : undefined;
-  const meta = pageMeta(pathname);
-
-  let current: ReactNode = null;
-  if (pid) {
-    current = (
-      <li className={s.crumbCurrent} aria-current="page">
-        <Icon name="folder" size={16} className={s.crumbIcon} style={project ? { color: `var(--c-${project.color})` } : undefined} />
-        <span className={s.crumbText}>{project?.name ?? '프로젝트'}</span>
-      </li>
-    );
-  } else if (meta && pathname !== '/') {
-    current = (
-      <li className={s.crumbCurrent} aria-current="page">
-        <Icon name={meta.icon} size={16} className={s.crumbIcon} />
-        <span className={s.crumbText}>{meta.label}</span>
-      </li>
-    );
-  }
-
-  return (
-    <nav className={s.crumbs} aria-label="현재 위치">
-      <ol>
-        <li className={s.crumbRoot}>
-          <Link href="/" className={s.crumbLink} aria-current={pathname === '/' ? 'page' : undefined}>
-            <span className={s.crumbMark}>
-              <Logo size={11} />
-            </span>
-            <span className={s.crumbText}>{pathname === '/' ? '홈' : 'Obelisk'}</span>
-          </Link>
-        </li>
-        {pathname === '/settings/ai' && (
-          <>
-            <li className={s.crumbSep} aria-hidden="true">
-              /
-            </li>
-            <li>
-              <Link href="/settings" className={s.crumbLink}>
-                <Icon name="settings" size={16} className={s.crumbIcon} />
-                <span className={s.crumbText}>설정</span>
-              </Link>
-            </li>
-          </>
-        )}
-        {current && (
-          <>
-            <li className={s.crumbSep} aria-hidden="true">
-              /
-            </li>
-            {current}
-          </>
-        )}
-      </ol>
-    </nav>
-  );
-}
-
+/**
+ * Top bar, ChatGPT style: the space switcher is the title ("개인 공간 ⌄"); nothing else competes with it.
+ * When the sidebar is hidden (collapsed on desktop, sheet on phones) its two main actions, 검색 and 새 작업,
+ * move up here so they are always one click away.
+ */
 function TopBar({ desktop, collapsed, nav }: { desktop: boolean; collapsed: boolean; nav: boolean }) {
-  const app = useApp();
-  const pathname = usePathname();
+  const sidebarHidden = !desktop || collapsed;
 
   return (
     <header className={s.topbar}>
@@ -195,12 +135,12 @@ function TopBar({ desktop, collapsed, nav }: { desktop: boolean; collapsed: bool
             <button
               className={s.topBtn}
               onClick={toggleSidebar}
-              aria-label="사이드바 펼치기"
+              aria-label="사이드바 열기"
               aria-expanded={false}
               aria-controls="app-sidebar"
-              {...tip('사이드바 펼치기', { side: 'bottom', kbd: modCombo('B') })}
+              {...tip('사이드바 열기', { side: 'bottom', kbd: modCombo('B') })}
             >
-              <Icon name="chevronsRight" size={18} />
+              <Icon name="panelLeft" size={18} />
             </button>
           )
         ) : (
@@ -214,37 +154,19 @@ function TopBar({ desktop, collapsed, nav }: { desktop: boolean; collapsed: bool
             <Icon name="menu" size={18} />
           </button>
         )}
-        <Breadcrumb pathname={pathname} projects={app.projects} />
+        <WorkspaceSwitcher />
       </div>
 
-      <div className={s.topRight}>
-        <span className={s.topDate}>{longDateKo(app.today)}</span>
-        <button
-          className={s.topText}
-          onClick={() => setUi({ quickAdd: true })}
-          aria-label="새 작업"
-          {...tip('새 작업 추가', { side: 'bottom', kbd: 'N' })}
-        >
-          <Icon name="plus" size={16} />
-          <span className={s.topTextLabel}>새 작업</span>
-        </button>
-        <button
-          className={s.topBtn}
-          onClick={() => setUi({ palette: true })}
-          aria-label="검색"
-          {...tip('검색', { side: 'bottom', kbd: modCombo('K') })}
-        >
-          <Icon name="search" size={17} />
-        </button>
-        <button
-          className={s.topBtn}
-          onClick={() => setUi({ shortcuts: true })}
-          aria-label="단축키"
-          {...tip('단축키', { side: 'bottom', kbd: '?' })}
-        >
-          <Icon name="more" size={18} strokeWidth={2.4} />
-        </button>
-      </div>
+      {sidebarHidden && (
+        <div className={s.topRight}>
+          <button className={s.topBtn} onClick={() => setUi({ palette: true })} aria-label="검색" {...tip('검색', { side: 'bottom', kbd: modCombo('K') })}>
+            <Icon name="search" size={18} />
+          </button>
+          <button className={s.topBtn} onClick={() => setUi({ quickAdd: true })} aria-label="새 작업" {...tip('새 작업', { side: 'bottom', kbd: 'N' })}>
+            <Icon name="squarePen" size={18} />
+          </button>
+        </div>
+      )}
     </header>
   );
 }
@@ -316,10 +238,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           </aside>
         </>
       )}
-
-      <button className={s.fab} onClick={() => setUi({ quickAdd: true })} aria-label="새 작업">
-        <Icon name="plus" size={22} strokeWidth={2.2} />
-      </button>
 
       <QuickAddModal />
       <CommandPalette />

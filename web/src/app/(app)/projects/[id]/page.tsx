@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { ImpactView } from '@/components/ImpactView';
 import { MoveProjectDialog } from '@/components/MoveProjectDialog';
-import { Badge, buttonClass, ConfirmModal, isEnter, Popover, Progress, tip, ui, useDisclosure } from '@/components/primitives';
+import { buttonClass, ConfirmModal, isEnter, Popover, Progress, tip, ui, useDisclosure } from '@/components/primitives';
 import { QuickAdd } from '@/components/QuickAdd';
 import { ShareDialog } from '@/components/ShareDialog';
 import { Timeline } from '@/components/Timeline';
@@ -103,8 +103,6 @@ export default function ProjectPage() {
   return (
     <Page wide={mode === 'timeline'}>
       <ViewHeader
-        icon="folder"
-        iconColor={`var(--c-${project.color})`}
         title={
           <span className={s.projectTitle}>
             {/* The hidden mirror sizes the field to its text, so the name reads like a heading. */}
@@ -130,14 +128,12 @@ export default function ProjectPage() {
           <>
             {org && (
               <button
-                className={cx(buttonClass({ variant: 'outline', size: 'sm' }), s.shareBtn)}
+                className={buttonClass({ variant: 'ghost', size: 'sm' })}
                 onClick={share.toggle}
                 aria-haspopup="dialog"
                 {...tip(manage ? '누가 보고 쓸 수 있는지 정하기' : '누가 접근할 수 있는지 보기', { side: 'bottom' })}
               >
-                <Icon name={project.memberAccess === 'none' ? 'lock' : 'users'} size={14} />
-                {shareLabel}
-                <span className={s.shareDivider} aria-hidden="true" />
+                <Icon name="share" size={15} />
                 공유
               </button>
             )}
@@ -150,17 +146,17 @@ export default function ProjectPage() {
               </button>
             </div>
             {manage && (
-            <button
-              ref={menuRef}
-              className={buttonClass({ variant: 'outline', size: 'sm', icon: true })}
-              onClick={menu.toggle}
-              aria-label="프로젝트 메뉴"
-              aria-haspopup="dialog"
-              aria-expanded={menu.open}
-              {...tip('색상 · 옮기기 · 보관 · 삭제', { side: 'bottom' })}
-            >
-              <Icon name="more" size={18} />
-            </button>
+              <button
+                ref={menuRef}
+                className={buttonClass({ variant: 'ghost', size: 'sm', icon: true })}
+                onClick={menu.toggle}
+                aria-label="프로젝트 메뉴"
+                aria-haspopup="dialog"
+                aria-expanded={menu.open}
+                {...tip('색상 · 옮기기 · 보관 · 삭제', { side: 'bottom' })}
+              >
+                <Icon name="more" size={18} />
+              </button>
             )}
             <Popover anchor={menuRef} open={menu.open} onClose={menu.close} align="end" width={224}>
               <div className={ui.menuTitle}>색상</div>
@@ -212,23 +208,29 @@ export default function ProjectPage() {
             </span>
             {total > 0 && <span className={s.statMuted}>{pct}%</span>}
           </div>
+          {org && (
+            <span className={s.statMeta}>
+              <Icon name={project.memberAccess === 'none' ? 'lock' : 'users'} size={14} />
+              {shareLabel}
+            </span>
+          )}
           {data.finish && (
-            <Badge tone="outline" className={s.statBadge}>
-              <Icon name="flag" size={12} />
+            <span className={s.statMeta}>
+              <Icon name="flag" size={14} />
               예상 완료 {formatRelativeKo(data.finish, today)}
-            </Badge>
+            </span>
           )}
           {readOnly && (
-            <Badge tone="outline" className={s.statBadge} {...tip('작업을 볼 수만 있어요. 쓰기 권한은 프로젝트 관리자에게 요청하세요.', { side: 'bottom' })}>
-              <Icon name="eye" size={12} />
+            <span className={s.statMeta} {...tip('작업을 볼 수만 있어요. 쓰기 권한은 프로젝트 관리자에게 요청하세요.', { side: 'bottom' })}>
+              <Icon name="eye" size={14} />
               보기 전용
-            </Badge>
+            </span>
           )}
           {risk.slip && (
-            <Badge tone="warn" className={s.statBadge}>
-              <Icon name="ripple" size={12} />
+            <span className={cx(s.statMeta, s.statWarn)}>
+              <Icon name="ripple" size={14} />
               지연 예측 +{risk.slip.shiftDays}일 ({formatRelativeKo(risk.slip.to, today)} 완료)
-            </Badge>
+            </span>
           )}
         </div>
       </ViewHeader>

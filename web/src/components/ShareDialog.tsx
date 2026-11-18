@@ -260,7 +260,7 @@ export function ShareDialog({ project, open, onClose }: { project: Project; open
               );
             })}
 
-            <li className={cx(s.row, s.adminRow)}>
+            <li className={s.row}>
               <span className={s.orgMark}>
                 <Icon name="shield" size={15} />
               </span>

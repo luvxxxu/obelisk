@@ -18,7 +18,6 @@ export default function InboxPage() {
   return (
     <Page>
       <ViewHeader
-        icon="inbox"
         title="인박스"
         description="프로젝트 없이 담아 둔 작업이에요. 떠오르는 대로 적고, 나중에 날짜와 프로젝트를 정해 주세요."
       />

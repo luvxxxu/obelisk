@@ -1,4 +1,4 @@
-/* ───────── page container (Notion: centred column, or full width) */
+/* ───────── page container: a centred reading column, or wide for boards */
 
 .page,
 .pageWide {
@@ -13,52 +13,20 @@
 }
 
 .pageWide {
-  max-width: calc(1440px + var(--page-pad) * 2);
+  max-width: calc(1200px + var(--page-pad) * 2);
 }
 
 /* ───────── page header */
 
 .header {
-  padding-top: 64px;
+  padding-top: 40px;
   margin-bottom: 28px;
-}
-
-.pageIcon {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  width: 78px;
-  height: 78px;
-  margin-left: -4px;
-  margin-bottom: 4px;
-  color: var(--text);
-  animation: icon-in var(--dur-slow) var(--ease-spring) both;
-}
-
-@keyframes icon-in {
-  from {
-    opacity: 0;
-    transform: scale(0.82) rotate(-6deg);
-  }
-}
-
-.titleRow,
-.subtitle {
   animation: head-in var(--dur-slow) var(--ease-out) both;
-}
-
-.titleRow {
-  animation-delay: 60ms;
-}
-
-.subtitle {
-  animation-delay: 110ms;
 }
 
 @keyframes head-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
 }
 
@@ -76,11 +44,10 @@
   align-items: center;
   min-width: 0;
   font-size: var(--fs-display);
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   line-height: 1.25;
   color: var(--text);
-  padding: 3px 0;
 }
 
 .titleText {
@@ -107,17 +74,8 @@
 
 @media (max-width: 640px) {
   .header {
-    padding-top: 32px;
-  }
-
-  .pageIcon {
-    width: 60px;
-    height: 60px;
-  }
-
-  .pageIcon svg {
-    width: 48px;
-    height: 48px;
+    padding-top: 20px;
+    margin-bottom: 20px;
   }
 
   .title {
@@ -236,15 +194,8 @@
 }
 
 .emptyIcon {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--surface-2);
-  color: var(--text-2);
-  margin-bottom: 14px;
+  color: var(--text-3);
+  margin-bottom: 12px;
 }
 
 .emptyTitle {

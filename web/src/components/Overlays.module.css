@@ -1,4 +1,4 @@
-/* Global overlays: quick add dialog, command palette (shadcn Command look), shortcuts help, toasts (sonner look).
+/* Global overlays: quick add dialog, command palette, shortcuts help, toasts.
    Base dialog/overlay/menu styles come from ui.module.css; this file only adds layout specifics. */
 
 /* ───────── shared key hint ("↵ 선택") */
@@ -75,9 +75,9 @@ div.palette {
 .paletteInput {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 52px;
-  padding: 0 12px 0 16px;
+  gap: 12px;
+  height: 56px;
+  padding: 0 14px 0 18px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -113,8 +113,8 @@ button.paletteClear {
   max-height: min(400px, 52vh);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 4px;
-  scroll-padding: 4px;
+  padding: 6px;
+  scroll-padding: 6px;
 }
 
 .paletteGroup {
@@ -123,7 +123,7 @@ button.paletteClear {
 }
 
 .paletteHeading {
-  padding: 8px 8px 4px;
+  padding: 10px 10px 4px;
   font-size: var(--fs-xs);
   font-weight: 500;
   line-height: 1.4;
@@ -133,14 +133,14 @@ button.paletteClear {
 
 .paletteSep {
   height: 1px;
-  margin: 4px -4px;
+  margin: 6px 10px;
   background: var(--border);
 }
 
 button.paletteItem {
-  min-height: 36px;
-  gap: 10px;
-  padding: 6px 8px;
+  min-height: 40px;
+  gap: 12px;
+  padding: 6px 10px;
   font-size: var(--fs-base);
   cursor: pointer;
 }
@@ -196,14 +196,8 @@ button.paletteItem {
 }
 
 .paletteEmptyIcon {
-  width: 40px;
-  height: 40px;
   margin-bottom: 8px;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--surface-2);
   color: var(--text-3);
 }
 
@@ -225,7 +219,6 @@ button.paletteItem {
   height: 40px;
   padding: 0 16px;
   border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-2) 45%, var(--surface));
   font-size: var(--fs-xs);
   color: var(--text-3);
   flex-shrink: 0;
@@ -234,7 +227,7 @@ button.paletteItem {
 @keyframes paletteIn {
   from {
     opacity: 0;
-    transform: translateY(-6px) scale(0.98);
+    transform: translateY(-6px);
   }
 }
 
@@ -348,19 +341,20 @@ button.paletteItem {
   }
 }
 
-/* ───────── toasts (sonner look) */
+/* ───────── toasts: bottom-centre, one quiet card each */
 
 .toaster {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
   z-index: 80;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
-  width: 356px;
+  width: 400px;
   max-width: calc(100vw - 32px);
+  transform: translateX(-50%);
   pointer-events: none;
 }
 
@@ -371,8 +365,8 @@ button.paletteItem {
   gap: 10px;
   width: 100%;
   min-height: 52px;
-  padding: 10px 10px 10px 16px;
-  border: 1px solid var(--border);
+  padding: 8px 8px 8px 16px;
+  border: 0;
   border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--text);
@@ -415,25 +409,18 @@ button.toastClose {
 @keyframes toastIn {
   from {
     opacity: 0;
-    transform: translateY(16px) scale(0.98);
+    transform: translateY(12px);
   }
 }
 
-/* Below the desktop breakpoint the floating "새 작업" button sits bottom-right: stack toasts above it. */
-@media (max-width: 899px) {
-  .toaster {
-    right: 16px;
-    bottom: calc(84px + env(safe-area-inset-bottom));
-  }
-}
-
-/* Phones: full-width, bottom-centre. */
+/* Phones: full width. */
 @media (max-width: 640px) {
   .toaster {
     left: 16px;
     right: 16px;
     width: auto;
     max-width: none;
+    transform: none;
     align-items: stretch;
   }
 }

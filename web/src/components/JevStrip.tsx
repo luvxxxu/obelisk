@@ -129,7 +129,6 @@ export function JevStrip({ todayCount, onDismiss }: { todayCount: number; /** On
           onClick={() => setUi({ jev: { kind: 'postpone', scope: 'today' } })}
           {...tip(busy ? `오늘 할 일이 ${todayCount}개예요` : null, { side: 'top' })}
         >
-          {busy && <span className={ui.dot} data-tone="warn" />}
           <Icon name="postpone" size={14} />
           미룰 작업 고르기
         </button>

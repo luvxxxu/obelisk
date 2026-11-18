@@ -1,7 +1,7 @@
 /* App shell: [sidebar | main (sticky top bar + page) | task panel]
-   ≥ 900px  sidebar docked: 248px, or fully hidden when collapsed (top bar shows » to reopen)
+   ≥ 900px  sidebar docked: 260px, or fully hidden when collapsed (the top bar's panel button reopens it)
    ≥ 1240px task panel docks as a third column; below it floats over the content
-   < 900px  sidebar becomes an off-canvas sheet (ui.nav) with a scrim; FAB visible */
+   < 900px  sidebar becomes an off-canvas sheet (ui.nav) with a scrim; 검색 / 새 작업 move to the top bar */
 
 .shell {
   --sb: var(--sidebar-w);
@@ -48,11 +48,12 @@
 @keyframes route-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
 }
 
-/* ───────── top bar (Notion page header) */
+/* ───────── top bar: space switcher as the title, quiet icon buttons on the right.
+   No border at rest; a hairline fades in once the page scrolls under it (scroll-driven, where supported). */
 
 .topbar {
   position: sticky;
@@ -61,29 +62,51 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   height: var(--header-h);
-  padding: 0 12px;
+  padding: 0 12px 0 8px;
   background: var(--bg);
-  container-type: inline-size;
-  container-name: topbar;
+}
+
+@supports (animation-timeline: scroll()) {
+  .topbar {
+    animation: topbar-edge linear both;
+    animation-timeline: scroll(nearest block);
+    animation-range: 0 32px;
+  }
+}
+
+@keyframes topbar-edge {
+  from {
+    box-shadow: 0 1px 0 transparent;
+  }
+  to {
+    box-shadow: 0 1px 0 var(--border);
+  }
 }
 
 .topLeft {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
   flex: 1;
+}
+
+.topRight {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .topBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
+  width: var(--control);
+  height: var(--control);
+  border-radius: var(--radius);
   color: var(--text-2);
   flex-shrink: 0;
   transition:
@@ -96,137 +119,9 @@
   color: var(--text);
 }
 
-.topBtn:focus-visible,
-.topText:focus-visible {
+.topBtn:focus-visible {
   outline: 2px solid var(--ring-color);
   outline-offset: -2px;
-}
-
-.crumbs {
-  min-width: 0;
-  flex: 1;
-}
-
-.crumbs ol {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  min-width: 0;
-  font-size: var(--fs-base);
-  white-space: nowrap;
-}
-
-.crumbs li {
-  display: flex;
-  min-width: 0;
-}
-
-.crumbRoot {
-  flex-shrink: 0;
-}
-
-.crumbLink,
-.crumbCurrent {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  height: 26px;
-  padding: 0 6px;
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  transition: background-color var(--dur-fast) var(--ease);
-}
-
-.crumbLink:hover {
-  background: var(--surface-2);
-}
-
-.crumbMark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--radius-xs);
-  background: var(--text);
-  color: var(--bg);
-  flex-shrink: 0;
-}
-
-.crumbSep {
-  color: var(--text-4);
-  padding: 0 1px;
-  flex-shrink: 0;
-}
-
-.crumbIcon {
-  color: var(--text-2);
-  flex-shrink: 0;
-}
-
-.crumbText {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.topRight {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.topDate {
-  margin-right: 8px;
-  font-size: var(--fs-base);
-  color: var(--text-3);
-  white-space: nowrap;
-}
-
-.topText {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 8px 0 6px;
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-size: var(--fs-base);
-  font-weight: 500;
-  white-space: nowrap;
-  transition: background-color var(--dur-fast) var(--ease);
-}
-
-.topText:hover {
-  background: var(--surface-2);
-}
-
-@container topbar (max-width: 640px) {
-  .topDate {
-    display: none;
-  }
-}
-
-@container topbar (max-width: 420px) {
-  .topTextLabel {
-    display: none;
-  }
-
-  .topText {
-    width: 28px;
-    padding: 0;
-    justify-content: center;
-  }
-
-  .crumbRoot:not(:last-child),
-  .crumbRoot + .crumbSep {
-    display: none;
-  }
 }
 
 /* ───────── task detail panel */
@@ -249,10 +144,6 @@
 
 .panelScrim,
 .scrim {
-  display: none;
-}
-
-.fab {
   display: none;
 }
 
@@ -315,39 +206,11 @@
   }
 
   .topbar {
-    padding: 0 10px;
-    gap: 8px;
+    padding: 0 8px;
   }
 
   .panelScrim {
     background: var(--overlay);
-  }
-
-  .fab {
-    display: flex;
-    position: fixed;
-    right: 16px;
-    bottom: calc(20px + env(safe-area-inset-bottom));
-    z-index: 30;
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    align-items: center;
-    justify-content: center;
-    background: var(--primary);
-    color: var(--on-primary);
-    box-shadow: var(--shadow-lg);
-    transition:
-      transform var(--dur-fast) var(--ease),
-      background-color var(--dur-fast) var(--ease);
-  }
-
-  .fab:active {
-    transform: scale(0.95);
-  }
-
-  .fab:focus-visible {
-    outline-offset: 2px;
   }
 }
 
@@ -370,13 +233,13 @@
 }
 
 .splashLogo {
-  animation: breathe 1.4s var(--ease) infinite;
+  opacity: 0;
+  animation: splash-in var(--dur-slow) var(--ease-out) 0.15s forwards;
 }
 
-@keyframes breathe {
-  50% {
-    opacity: 0.35;
-    transform: scale(0.96);
+@keyframes splash-in {
+  to {
+    opacity: 1;
   }
 }
 

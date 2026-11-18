@@ -115,19 +115,19 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
     <div className={s.page}>
       <main className={s.card}>
         <header className={s.header}>
-          <div className={s.logoTile}>
-            <Logo size={22} />
-          </div>
+          <span className={s.logo}>
+            <Logo size={28} />
+          </span>
           <h1 className={s.title}>{isLogin ? 'Obelisk에 로그인' : 'Obelisk 시작하기'}</h1>
-          <p className={s.description}>
-            {invite
-              ? isLogin
-                ? `로그인하면 ${invite.org ? `‘${invite.org}’ ` : ''}초대를 수락할 수 있어요.`
-                : `계정을 만들면 ${invite.org ? `‘${invite.org}’에 ` : '초대받은 조직에 '}바로 참여해요.`
-              : isLogin
-                ? '단순하게 적고, 미루기 전에 미리 확인해요.'
+          {(invite || !isLogin) && (
+            <p className={s.description}>
+              {invite
+                ? isLogin
+                  ? `로그인하면 ${invite.org ? `‘${invite.org}’ ` : ''}초대를 수락할 수 있어요.`
+                  : `계정을 만들면 ${invite.org ? `‘${invite.org}’에 ` : '초대받은 조직에 '}바로 참여해요.`
                 : '할 일을 적고, 미루면 무엇이 밀리는지 미리 확인하세요.'}
-          </p>
+            </p>
+          )}
         </header>
 
         {signupClosed ? (
@@ -150,7 +150,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
                 <label className={ui.label} htmlFor="name">
                   이름
                 </label>
-                <input id="name" className={ui.input} value={name} onChange={(e) => setName(e.target.value)} required autoFocus autoComplete="name" />
+                <input id="name" className={`${ui.input} ${s.pillInput}`} value={name} onChange={(e) => setName(e.target.value)} required autoFocus autoComplete="name" />
               </div>
             )}
             <div className={ui.field}>
@@ -160,7 +160,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
               <input
                 id="email"
                 type="email"
-                className={ui.input}
+                className={`${ui.input} ${s.pillInput}`}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -177,7 +177,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  className={ui.input}
+                  className={`${ui.input} ${s.pillInput}`}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={trackCaps}
@@ -212,7 +212,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
                 </p>
               )}
             </div>
-            <button type="submit" className={buttonClass({ variant: 'primary', size: 'lg', block: true, className: s.submit })} disabled={busy}>
+            <button type="submit" className={buttonClass({ variant: 'primary', size: 'lg', block: true, className: `${s.action} ${s.submit}` })} disabled={busy}>
               {busy ? (
                 <>
                   <span className={ui.spinner} aria-hidden="true" />

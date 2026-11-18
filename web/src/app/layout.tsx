@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: { default: 'Obelisk', template: '%s · Obelisk' },
-  description: '단순하지만 강력한 할 일·일정 관리. 미루면 무엇이 밀리는지 미리 보여줍니다.',
+  description: '할 일과 일정을 적어 두면, 미뤘을 때 무엇이 밀리는지 미리 보여 줍니다.',
   icons: { icon: '/icon.svg' },
 };
 

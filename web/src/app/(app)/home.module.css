@@ -1,8 +1,7 @@
-/* Home — Notion-style workspace page on pure black/white.
+/* Home — a calm dashboard on pure black/white.
    Blocks: status callout · summary tiles · 지연 파급 (ripple chains) · watch list · board · list rows.
-   Colour per column/tag comes from hueVars(): --hue (ink) · --hue-bg (tag) · --hue-text · --hue-soft.
-   Motion: every top-level block rises in with a stagger (--i); cards, tiles and chain links stagger
-   inside their parent; numbers count up (useCountUp). All of it collapses under prefers-reduced-motion. */
+   Colour means state (danger/warn/ok) or project identity (hueVars on tags) — nothing decorative.
+   Motion is functional only: hover fills, the drag lift, FLIP reordering. No cascades, sheens or count-ups. */
 
 .home {
   min-width: 0;
@@ -43,56 +42,34 @@
   transform: translateX(2px);
 }
 
-/* ───────── status callout */
+/* ───────── status callout: tone icon + headline + details, on a faint tone tint */
 
 .status {
   --tone: var(--ok);
-  --tone-text: var(--ok-text);
   --tone-soft: var(--ok-soft);
   position: relative;
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: var(--inset);
+  padding: var(--inset) var(--inset) var(--inset) 18px;
   border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--tone) 22%, var(--border));
   background: var(--tone-soft);
-  overflow: hidden;
 }
 
 .status[data-level='warn'] {
   --tone: var(--warn);
-  --tone-text: var(--warn-text);
   --tone-soft: var(--warn-soft);
 }
 
 .status[data-level='danger'] {
   --tone: var(--danger);
-  --tone-text: var(--danger-text);
   --tone-soft: var(--danger-soft);
-}
-
-/* a slow sheen sweeping across the callout once it lands */
-.status::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(105deg, transparent 35%, color-mix(in srgb, var(--tone) 10%, transparent) 50%, transparent 65%);
-  transform: translateX(-100%);
-  animation: sheen 1.6s var(--ease-in-out) 0.5s 1 both;
-  pointer-events: none;
-}
-
-@keyframes sheen {
-  to {
-    transform: translateX(100%);
-  }
 }
 
 .statusIcon {
   display: inline-flex;
   align-self: flex-start;
-  margin-top: 1px;
+  margin-top: 2px;
   color: var(--tone);
   flex-shrink: 0;
 }
@@ -102,55 +79,12 @@
   min-width: 0;
 }
 
-.statusTop {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-}
-
-.statusPill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 22px;
-  padding: 0 10px 0 8px;
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--tone) 14%, transparent);
-  color: var(--tone-text);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-}
-
-.statusDot {
-  position: relative;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--tone);
-}
-
-.status:not([data-level='ok']) .statusDot::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: var(--tone);
-  animation: ping 1.8s var(--ease-out) infinite;
-}
-
-@keyframes ping {
-  75%,
-  100% {
-    transform: scale(2.6);
-    opacity: 0;
-  }
-}
-
 .statusHeadline {
+  display: block;
   font-size: var(--fs-lg);
   font-weight: 600;
-  letter-spacing: -0.02em;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
   color: var(--text);
 }
 
@@ -166,12 +100,10 @@
 .statusDetail span:not(:last-child)::after {
   content: '·';
   margin: 0 8px;
-  color: var(--text-4);
+  color: var(--text-3);
 }
 
 .statusActions {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -189,42 +121,36 @@
   }
 }
 
-/* ───────── summary tiles (one widget each) */
+/* ───────── summary tiles (one widget each): label, figure, one muted line. No stripes, no lift. */
 
 .tile {
   --tone: var(--text);
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   padding: var(--inset);
   border-radius: var(--radius-lg);
   background: var(--card-bg);
   box-shadow: var(--shadow-card);
   color: var(--text);
-  animation: rise-in var(--dur-slow) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 55ms + 120ms);
   transition:
-    box-shadow var(--dur) var(--ease),
-    transform var(--dur) var(--ease-out);
+    box-shadow var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
 }
 
 .tile[data-tone='danger'] {
-  --tone: var(--danger);
+  --tone: var(--danger-text);
 }
 
 .tile[data-tone='warn'] {
-  --tone: var(--warn);
+  --tone: var(--warn-text);
 }
 
 .tile:hover {
-  box-shadow: var(--shadow-lift);
-  transform: translateY(-2px);
-}
-
-.tile:active {
-  transform: translateY(0) scale(0.985);
+  background: var(--tint);
+  box-shadow: 0 0 0 1px var(--border-strong);
 }
 
 .tile:focus-visible {
@@ -232,33 +158,12 @@
   outline-offset: 2px;
 }
 
-/* tone accent: a short bar along the top edge */
-.tile[data-tone]::before {
-  content: '';
-  position: absolute;
-  top: -1px;
-  left: 16px;
-  right: 16px;
-  height: 2px;
-  border-radius: 0 0 2px 2px;
-  background: var(--tone);
-  transform-origin: left;
-  animation: grow-x 0.7s var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 55ms + 350ms);
-}
-
-@keyframes grow-x {
-  from {
-    transform: scaleX(0);
-  }
-}
-
 .tileLabel {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: var(--fs-sm);
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
@@ -270,38 +175,31 @@
   flex-shrink: 0;
 }
 
-.tile[data-tone] .tileLabel svg {
-  color: var(--tone);
-}
-
 .tileValue {
   display: flex;
   align-items: baseline;
   gap: 2px;
+  margin-top: 2px;
   /* a date ("11/26 (목)") must stay on one line: the figure scales with its own widget's width */
-  font-size: clamp(var(--fs-2xl), 11cqi, var(--fs-3xl));
-  font-weight: 700;
+  font-size: clamp(var(--fs-xl), 9cqi, var(--fs-3xl));
+  font-weight: 600;
   line-height: 1.25;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  color: var(--text);
-}
-
-.tile[data-tone] .tileValue {
   color: var(--tone);
 }
 
 .tileUnit {
-  font-size: var(--fs-md);
-  font-weight: 500;
+  font-size: var(--fs-base);
+  font-weight: 400;
   letter-spacing: 0;
   color: var(--text-3);
 }
 
 .tileMeta {
   font-size: var(--fs-xs);
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--text-3);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -310,8 +208,8 @@
 
 .tileTrack {
   display: block;
-  height: 3px;
-  margin-top: 4px;
+  height: 4px;
+  margin-top: 6px;
   border-radius: var(--radius-full);
   background: var(--surface-3);
   overflow: hidden;
@@ -321,9 +219,8 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--ok);
-  transform-origin: left;
-  animation: grow-x 0.9s var(--ease-out) 0.4s both;
+  background: var(--text);
+  transition: width var(--dur-slow) var(--ease-out);
 }
 
 /* ───────── 지연 파급 */
@@ -341,8 +238,6 @@
   border-radius: var(--radius-lg);
   background: var(--card-bg);
   box-shadow: var(--shadow-card);
-  animation: rise-in var(--dur-slow) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 90ms + 260ms);
 }
 
 .rippleRoot {
@@ -368,17 +263,16 @@
   transition:
     background-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease),
-    transform var(--dur) var(--ease-spring);
+    transform var(--dur-fast) var(--ease);
 }
 
 .rippleCheck:hover {
   background: var(--danger);
   color: #fff;
-  transform: scale(1.12);
 }
 
 .rippleCheck:active {
-  transform: scale(0.9);
+  transform: scale(0.94);
 }
 
 .rippleRootMain {
@@ -438,7 +332,7 @@
   color: var(--c-orange-text);
 }
 
-/* the chain: a vertical spine from the root, with an animated "flow" running down it */
+/* the chain: a quiet tree line from the root to the tasks it pushes */
 .chain {
   position: relative;
   list-style: none;
@@ -451,29 +345,13 @@
   position: absolute;
   left: 8px;
   top: -6px;
-  bottom: 14px;
-  width: 2px;
-  border-radius: 2px;
-  background-image: linear-gradient(to bottom, var(--warn) 50%, transparent 50%);
-  background-size: 2px 8px;
-  opacity: 0.55;
-  animation: flow 0.9s linear infinite;
-}
-
-.ripple[data-conflict] .chain::before {
-  background-image: linear-gradient(to bottom, var(--danger) 50%, transparent 50%);
-}
-
-@keyframes flow {
-  to {
-    background-position: 0 8px;
-  }
+  bottom: 16px;
+  width: 1px;
+  background: var(--border-strong);
 }
 
 .link {
   position: relative;
-  animation: slide-in var(--dur-slow) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 70ms + 420ms);
 }
 
 .link::before {
@@ -482,17 +360,8 @@
   left: -17px;
   top: 50%;
   width: 12px;
-  height: 2px;
-  margin-top: -1px;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--warn) 55%, transparent);
-}
-
-@keyframes slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(-8px);
-  }
+  height: 1px;
+  background: var(--border-strong);
 }
 
 .linkBtn {
@@ -521,7 +390,7 @@
 
 .linkIcon {
   display: inline-flex;
-  color: var(--warn);
+  color: var(--text-3);
   flex-shrink: 0;
 }
 
@@ -591,7 +460,7 @@
 .calm {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   padding: var(--inset-lg);
   border-radius: var(--radius-lg);
   background: var(--card-bg);
@@ -599,38 +468,11 @@
 }
 
 .calmMark {
-  position: relative;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--ok-soft);
+  align-self: flex-start;
+  margin-top: 2px;
   color: var(--ok);
   flex-shrink: 0;
-  animation: pop-in var(--dur-slow) var(--ease-spring) 0.3s both;
-}
-
-.calmMark::after {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  border-radius: 50%;
-  border: 2px solid var(--ok);
-  opacity: 0;
-  animation: ring-out 1.4s var(--ease-out) 0.7s 1 both;
-}
-
-@keyframes ring-out {
-  from {
-    opacity: 0.6;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: scale(1.7);
-  }
 }
 
 .calmTitle {
@@ -649,10 +491,8 @@
 .watch {
   padding: 12px 8px 8px;
   border-radius: var(--radius-lg);
-  background: var(--tint);
-  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
   min-width: 0;
-  animation: rise-in var(--dur-slow) var(--ease-out) 0.34s both;
 }
 
 .watchHead {
@@ -764,8 +604,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 36px;
-  margin-bottom: 10px;
+  min-height: var(--control);
+  margin-bottom: 8px;
 }
 
 .dbTitle {
@@ -773,9 +613,9 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: var(--fs-lg);
-  font-weight: 600;
-  color: var(--text);
+  font-size: var(--fs-base);
+  font-weight: 500;
+  color: var(--text-2);
 }
 
 .dbTitle svg {
@@ -855,7 +695,7 @@
 .column[data-ghost] {
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--border);
-  animation: pop-in var(--dur) var(--ease-out);
+  animation: fade-in var(--dur) var(--ease-out);
 }
 
 .column[data-ghost][data-drop-target] {
@@ -873,7 +713,13 @@
   align-items: center;
   gap: 8px;
   height: 28px;
-  padding: 0 2px;
+  padding: 0 4px;
+}
+
+.columnTitle {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
 }
 
 .columnCount {
@@ -927,7 +773,6 @@
   background: var(--card-bg);
   box-shadow: inset 0 0 0 1px var(--ring-color);
   color: var(--text-2);
-  animation: pop-in var(--dur) var(--ease-out);
 }
 
 .columnInput input {
@@ -943,8 +788,6 @@
 
 .cardWrap {
   position: relative;
-  animation: rise-in var(--dur-slow) var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 45ms + 200ms);
 }
 
 .card {
@@ -960,18 +803,11 @@
   box-shadow: var(--shadow-card);
   color: var(--text);
   text-align: left;
-  transition:
-    box-shadow var(--dur) var(--ease),
-    transform var(--dur) var(--ease-out);
+  transition: box-shadow var(--dur-fast) var(--ease);
 }
 
 .card:hover {
-  box-shadow: var(--shadow-lift);
-  transform: translateY(-1px);
-}
-
-.card:active {
-  transform: scale(0.985);
+  box-shadow: 0 0 0 1px var(--border-strong);
 }
 
 .card:focus-visible {
@@ -982,12 +818,12 @@
 .cardTitle {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   min-width: 0;
   padding-right: 22px;
   font-size: var(--fs-base);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.4;
 }
 
@@ -1059,9 +895,7 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--ok);
-  transform-origin: left;
-  animation: grow-x 0.9s var(--ease-out) 0.5s both;
+  background: var(--text);
   transition: width var(--dur-slow) var(--ease-out);
 }
 
@@ -1107,7 +941,7 @@
     border-color var(--dur-fast) var(--ease),
     background-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease),
-    transform var(--dur) var(--ease-spring);
+    transform var(--dur-fast) var(--ease);
 }
 
 .cardWrap:hover .cardCheck,
@@ -1148,7 +982,7 @@
     opacity var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease),
-    transform var(--dur) var(--ease-spring);
+    transform var(--dur-fast) var(--ease);
 }
 
 .cardWrap:hover .cardStart,
@@ -1158,13 +992,12 @@
 }
 
 .cardStart:hover {
-  border-color: var(--c-green);
-  color: var(--c-green);
-  transform: scale(1.12);
+  border-color: var(--text-2);
+  color: var(--text);
 }
 
 .cardStart:active {
-  transform: scale(0.88);
+  transform: scale(0.94);
 }
 
 .cardStart:focus-visible {
@@ -1173,20 +1006,18 @@
 }
 
 .cardCheck:hover {
-  border-color: var(--ok);
-  color: var(--ok);
-  transform: scale(1.12);
+  border-color: var(--text-2);
+  color: var(--text-2);
 }
 
 .cardCheck:active {
-  transform: scale(0.88);
+  transform: scale(0.94);
 }
 
 .cardCheck[data-done] {
-  border-color: var(--ok);
-  background: var(--ok);
-  color: var(--bg);
-  animation: pop-in var(--dur-mid) var(--ease-spring);
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .cardCheck:focus-visible {
@@ -1215,7 +1046,7 @@
   border: 1.5px dashed var(--border-strong);
   color: var(--text-3);
   font-size: var(--fs-sm);
-  animation: pop-in var(--dur) var(--ease-out);
+  animation: fade-in var(--dur) var(--ease-out);
 }
 
 /* Fixed layer the clone rides on; translate3d is set per pointer move. */
@@ -1270,11 +1101,9 @@
 }
 
 .tag[data-dot] {
-  height: 22px;
-  padding: 0 8px;
-  border-radius: var(--radius-full);
-  font-size: var(--fs-sm);
-  font-weight: 600;
+  background: transparent;
+  padding: 0 2px;
+  color: var(--text-2);
 }
 
 .tagDot {
@@ -1290,8 +1119,7 @@
 .list {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--border);
-  padding-top: 4px;
+  margin: 0 -6px;
 }
 
 .row {
@@ -1299,29 +1127,12 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 36px;
-  padding: 4px 6px;
+  min-height: var(--control);
+  padding: 4px 8px;
   border-radius: var(--radius);
   text-align: left;
   color: var(--text);
-  animation: slide-in var(--dur-slow) var(--ease-out) both;
   transition: background-color var(--dur-fast) var(--ease);
-}
-
-.row:nth-child(2) {
-  animation-delay: 40ms;
-}
-.row:nth-child(3) {
-  animation-delay: 80ms;
-}
-.row:nth-child(4) {
-  animation-delay: 120ms;
-}
-.row:nth-child(5) {
-  animation-delay: 160ms;
-}
-.row:nth-child(n + 6) {
-  animation-delay: 200ms;
 }
 
 .row:hover {
@@ -1347,7 +1158,7 @@
   flex: 1;
   min-width: 0;
   font-size: var(--fs-base);
-  font-weight: 500;
+  font-weight: 400;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1370,6 +1181,9 @@
 }
 
 .rowDate {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--fs-xs);
   color: var(--text-3);
   white-space: nowrap;
@@ -1408,16 +1222,9 @@
 
 /* ───────── keyframes (CSS Modules scope animation names, so they live here) */
 
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-}
-
 @keyframes lift {
   to {
-    transform: rotate(1.5deg) scale(1.03);
+    transform: scale(1.02);
   }
 }
 
@@ -1427,9 +1234,8 @@
   }
 }
 
-@keyframes pop-in {
+@keyframes fade-in {
   from {
     opacity: 0;
-    transform: scale(0.9);
   }
 }

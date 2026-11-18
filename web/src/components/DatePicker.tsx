@@ -80,7 +80,7 @@ export function DatePickerPanel({
   return (
     <div className={s.panel}>
       <div className={s.inputRow}>
-        <Icon name="sparkle" size={14} className={s.inputIcon} />
+        <Icon name="calendar" size={15} className={s.inputIcon} />
         <input
           ref={inputRef}
           className={s.input}

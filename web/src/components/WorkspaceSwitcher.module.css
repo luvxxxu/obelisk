@@ -1,14 +1,14 @@
-/* Workspace switcher (sidebar top-left) — same 30px row rhythm as the rest of the sidebar. */
+/* Space switcher — the top bar's title button ("개인 공간 ⌄"), like ChatGPT's model picker. */
 
 .trigger {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
-  flex: 1 1 auto;
-  height: 30px;
-  padding: 0 6px 0 4px;
-  border-radius: var(--radius-sm);
+  max-width: 100%;
+  height: var(--control);
+  padding: 0 8px 0 10px;
+  border-radius: var(--radius);
   color: var(--text);
   text-align: left;
   transition: background-color var(--dur-fast) var(--ease);
@@ -26,8 +26,9 @@
 
 .name {
   min-width: 0;
-  font-size: var(--fs-base);
-  font-weight: 600;
+  font-size: var(--fs-xl);
+  font-weight: 500;
+  letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -36,41 +37,45 @@
 .chevron {
   flex-shrink: 0;
   color: var(--text-3);
-  transition: color var(--dur-fast) var(--ease);
+  transition:
+    color var(--dur-fast) var(--ease),
+    transform var(--dur) var(--ease);
 }
 
 .trigger:hover .chevron {
   color: var(--text-2);
 }
 
-/* ───────── mark: inverse square, like the Obelisk brand mark */
+.trigger[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+/* ───────── mark: the personal space carries the Obelisk logo, an organization its initial */
 
 .mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-xs);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
   background: var(--text);
-  color: var(--bg-sidebar);
+  color: var(--bg);
   font-size: var(--fs-xs);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
   flex-shrink: 0;
 }
 
 .mark[data-size='sm'] {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-xs);
+  width: 22px;
+  height: 22px;
   font-size: var(--fs-2xs);
 }
 
 .mark[data-size='lg'] {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius);
+  width: 44px;
+  height: 44px;
   font-size: var(--fs-lg);
 }
 
@@ -78,10 +83,10 @@
 .mark[data-kind='org'] {
   background: transparent;
   color: var(--text);
-  box-shadow: inset 0 0 0 1.5px var(--text);
+  box-shadow: inset 0 0 0 1.5px var(--border-strong);
 }
 
-/* 모아보기: every space at once — a quiet tile rather than a space's own mark. */
+/* 모아보기: every space at once — a quiet disc rather than a space's own mark. */
 .mark[data-kind='all'] {
   background: var(--surface-3);
   color: var(--text);
@@ -89,12 +94,8 @@
 
 /* ───────── menu */
 
-.menu {
-  animation: pop-in var(--dur-fast) var(--ease-out);
-}
-
 .account {
-  padding: 6px 8px 4px;
+  padding: 8px 10px 6px;
   font-size: var(--fs-xs);
   color: var(--text-3);
   white-space: nowrap;
@@ -104,7 +105,7 @@
 
 button.item {
   height: auto;
-  min-height: 40px;
+  min-height: 44px;
   padding-top: 6px;
   padding-bottom: 6px;
   gap: 10px;
@@ -135,21 +136,4 @@ button.item {
 .check {
   color: var(--text);
   flex-shrink: 0;
-}
-
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .menu {
-    animation: none;
-  }
 }

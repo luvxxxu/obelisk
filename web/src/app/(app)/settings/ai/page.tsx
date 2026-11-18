@@ -3,17 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Code, CopyField } from '@/components/Copy';
 import { Icon } from '@/components/Icon';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  ConfirmModal,
-  isEnter,
-  Skeleton,
-  ui,
-} from '@/components/primitives';
+import { ConfirmModal, isEnter, Skeleton, ui } from '@/components/primitives';
 import { Page, ViewHeader } from '@/components/View';
 import { api } from '@/lib/api';
 import { cx, relativeTime } from '@/lib/format';
@@ -21,7 +11,7 @@ import { setUser, useApp } from '@/lib/store';
 import { toast } from '@/lib/toast';
 import { workspaceLabel, WorkspaceMark } from '@/components/WorkspaceSwitcher';
 import type { User } from '@obelisk/core';
-import { SettingsNav } from '../SettingsNav';
+import { SettingsNav, SettingsSection } from '../SettingsNav';
 import base from '../settings.module.css';
 import s from './ai.module.css';
 
@@ -67,12 +57,9 @@ function SkeletonRows({ cols }: { cols: number }) {
       {[0, 1].map((r) => (
         <tr key={r} className={ui.tr}>
           <td className={ui.td}>
-            <div className={s.nameCell}>
-              <Skeleton width={32} height={32} />
-              <div className={s.nameText}>
-                <Skeleton width={120} height={13} />
-                <Skeleton width={80} height={11} style={{ marginTop: 6 }} />
-              </div>
+            <div className={s.nameText}>
+              <Skeleton width={120} height={13} />
+              <Skeleton width={80} height={11} style={{ marginTop: 6 }} />
             </div>
           </td>
           {Array.from({ length: cols - 1 }, (_, i) => (
@@ -102,40 +89,33 @@ function AiWorkspaceCard() {
     }
   };
   return (
-    <Card className={base.section}>
-      <CardHeader>
-        <CardTitle>
-          <Icon name="building" size={16} className={s.titleIcon} /> AI 기본 공간
-        </CardTitle>
-        <CardDescription>
-          연결 하나로 개인 공간과 모든 조직을 다뤄요. AI가 공간을 따로 말하지 않으면 여기서 고른 곳에서 일해요. 조직에서는 내 계정 권한(보기·쓰기·관리)이 그대로 적용돼요.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className={s.content}>
-        <div className={s.wsList} role="radiogroup" aria-label="AI 기본 공간">
-          {app.workspaces.map((w) => (
-            <button
-              key={w.id}
-              role="radio"
-              aria-checked={current === w.id}
-              className={s.wsOption}
-              data-selected={current === w.id}
-              onClick={() => current !== w.id && void choose(w.id)}
-            >
-              <WorkspaceMark ws={w} size="sm" />
-              <span className={s.wsText}>
-                <span className={s.wsName}>{workspaceLabel(w)}</span>
-                <span className={s.wsMeta}>{w.kind === 'personal' ? '나만 보는 공간' : `조직 · 멤버 ${w.memberCount}명`}</span>
-              </span>
-              {current === w.id && <Icon name="check" size={15} />}
-            </button>
-          ))}
-        </div>
-        <p className={ui.help}>
-          AI에게 “에이컴퍼니에서 할 일 보여줘”처럼 공간을 말하면 그 공간을 써요. <code>list_workspaces</code> 도구로 목록을 확인할 수 있어요.
-        </p>
-      </CardContent>
-    </Card>
+    <SettingsSection
+      title="AI 기본 공간"
+      lead="연결 하나로 개인 공간과 모든 조직을 다뤄요. AI가 공간을 따로 말하지 않으면 여기서 고른 곳에서 일해요. 조직에서는 내 계정 권한(보기·쓰기·관리)이 그대로 적용돼요."
+    >
+      <div className={s.wsList} role="radiogroup" aria-label="AI 기본 공간">
+        {app.workspaces.map((w) => (
+          <button
+            key={w.id}
+            role="radio"
+            aria-checked={current === w.id}
+            className={s.wsOption}
+            data-selected={current === w.id}
+            onClick={() => current !== w.id && void choose(w.id)}
+          >
+            <WorkspaceMark ws={w} size="sm" />
+            <span className={s.wsText}>
+              <span className={s.wsName}>{workspaceLabel(w)}</span>
+              <span className={s.wsMeta}>{w.kind === 'personal' ? '나만 보는 공간' : `조직 · 멤버 ${w.memberCount}명`}</span>
+            </span>
+            {current === w.id && <Icon name="check" size={16} className={s.wsCheck} />}
+          </button>
+        ))}
+      </div>
+      <p className={s.footnote}>
+        AI에게 “에이컴퍼니에서 할 일 보여줘”처럼 공간을 말하면 그 공간을 써요. <code>list_workspaces</code> 도구로 목록을 확인할 수 있어요.
+      </p>
+    </SettingsSection>
   );
 }
 
@@ -186,28 +166,19 @@ export default function AiSettingsPage() {
 
   return (
     <Page>
-      <ViewHeader
-        icon="sparkle"
-        iconColor="var(--accent)"
-        title="AI 연결"
-        subtitle="Claude, ChatGPT 같은 AI 도구가 Obelisk의 모든 기능을 MCP와 Agent Skill로 사용할 수 있어요."
-      >
+      <ViewHeader title="설정">
         <SettingsNav />
       </ViewHeader>
 
       <div className={base.stack}>
+        <p className={base.intro}>Claude, ChatGPT 같은 AI 도구가 Obelisk의 모든 기능을 MCP와 Agent Skill로 사용할 수 있어요.</p>
+
         {/* ───────── MCP endpoint */}
-        <Card className={base.section}>
-          <CardHeader>
-            <CardTitle>
-              <Icon name="bolt" size={16} className={s.titleIcon} /> MCP 서버 주소
-            </CardTitle>
-            <CardDescription>AI 도구의 커넥터 설정에 이 주소를 붙여넣으면 연결돼요.</CardDescription>
-          </CardHeader>
-          <CardContent className={s.content}>
+        <SettingsSection title="MCP 서버 주소" lead="AI 도구의 커넥터 설정에 이 주소를 붙여넣으면 연결돼요.">
+          <div className={base.body}>
             <CopyField value={mcpUrl} label="MCP 서버 주소" done="MCP 주소를 복사했어요" />
             {mismatch && (
-              <div className={ui.alert} data-tone="warn" role="note">
+              <div className={cx(ui.alert, s.prose)} data-tone="warn" role="note">
                 <Icon name="alert" size={16} />
                 <p className={ui.alertTitle}>접속 주소가 서버 설정과 달라요</p>
                 <p className={ui.alertDescription}>
@@ -221,30 +192,23 @@ export default function AiSettingsPage() {
               <ul className={s.features}>
                 {FEATURES.map(([k, v]) => (
                   <li key={k} className={s.feature}>
-                    <Icon name="check" size={14} strokeWidth={2.4} />
-                    <span>
-                      <code>{k}</code>
-                      <span className={s.featureText}>{v}</span>
-                    </span>
+                    <code>{k}</code>
+                    <span className={s.featureText}>{v}</span>
                   </li>
                 ))}
               </ul>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </SettingsSection>
 
         <AiWorkspaceCard />
 
         {/* ───────── how to connect */}
-        <Card className={base.section}>
-          <CardHeader>
-            <CardTitle>연결 방법</CardTitle>
-            <CardDescription>쓰고 있는 AI 도구를 고르고 순서대로 따라 하세요.</CardDescription>
-          </CardHeader>
-          <CardContent className={s.content}>
-            <div className={cx(ui.tabs, s.clientTabs)} role="group" aria-label="AI 도구">
+        <SettingsSection title="연결 방법" lead="쓰고 있는 AI 도구를 고르고 순서대로 따라 하세요.">
+          <div className={base.body}>
+            <div className={cx(ui.segmented, s.clientTabs)} role="group" aria-label="AI 도구">
               {CLIENTS.map(([k, label]) => (
-                <button key={k} type="button" className={ui.tab} aria-pressed={tab === k} onClick={() => setTab(k)}>
+                <button key={k} type="button" className={ui.segment} aria-pressed={tab === k} onClick={() => setTab(k)}>
                   {label}
                 </button>
               ))}
@@ -287,7 +251,7 @@ export default function AiSettingsPage() {
             {tab === 'claude-code' && (
               <ol className={s.steps}>
                 <li>
-                  OAuth로 연결 (권장) — 실행 후 <b>/mcp</b>에서 Obelisk를 선택해 로그인해요.
+                  OAuth로 연결(권장). 실행 후 <b>/mcp</b>에서 Obelisk를 선택해 로그인해요.
                   <Code>{`claude mcp add --transport http obelisk ${mcpUrl}`}</Code>
                 </li>
                 <li>
@@ -326,57 +290,43 @@ export default function AiSettingsPage() {
                 </li>
               </ol>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SettingsSection>
 
         {/* ───────── agent skill */}
-        <Card className={base.section}>
-          <CardHeader>
-            <CardTitle>
-              <Icon name="sparkle" size={16} className={s.titleIcon} /> Agent Skill
-            </CardTitle>
-            <CardDescription>
-              MCP가 ‘무엇을 할 수 있는지’라면, Skill은 ‘언제 어떻게 써야 하는지’예요. 미루기 전 반드시 파급 예측을 먼저 보여주고, 목표를 의존 관계가 있는
-              계획으로 쪼개는 방법이 담겨 있어요. 이 서버 주소가 미리 들어간 상태로 받아져요.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className={s.content}>
-            <div>
-              <a className={`${ui.btn} ${ui.primary}`} href="/api/skill.zip" download>
-                <Icon name="download" size={15} /> obelisk-skill.zip 받기
-              </a>
-            </div>
-            <ul className={s.install}>
-              <li>
-                <b>Claude</b>
-                <span>설정 → 기능 → Skills → 업로드</span>
-              </li>
-              <li>
-                <b>Claude Code</b>
-                <span>
-                  <code>~/.claude/skills/obelisk</code>에 압축 해제
-                </span>
-              </li>
-              <li>
-                <b>Codex</b>
-                <span>
-                  <code>~/.codex/skills/obelisk</code>에 압축 해제
-                </span>
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
+        <SettingsSection
+          title="Agent Skill"
+          lead="MCP가 ‘무엇을 할 수 있는지’라면, Skill은 ‘언제 어떻게 써야 하는지’예요. 미루기 전 반드시 파급 예측을 먼저 보여주고, 목표를 의존 관계가 있는 계획으로 쪼개는 방법이 담겨 있어요. 이 서버 주소가 미리 들어간 상태로 받아져요."
+          action={
+            <a className={cx(ui.btn, ui.outline, ui.sm)} href="/api/skill.zip" download>
+              <Icon name="download" size={14} /> obelisk-skill.zip 받기
+            </a>
+          }
+        >
+          <ul className={s.install}>
+            <li>
+              <b>Claude</b>
+              <span>설정 → 기능 → Skills → 업로드</span>
+            </li>
+            <li>
+              <b>Claude Code</b>
+              <span>
+                <code>~/.claude/skills/obelisk</code>에 압축 해제
+              </span>
+            </li>
+            <li>
+              <b>Codex</b>
+              <span>
+                <code>~/.codex/skills/obelisk</code>에 압축 해제
+              </span>
+            </li>
+          </ul>
+        </SettingsSection>
 
         {/* ───────── personal tokens */}
-        <Card className={base.section}>
-          <CardHeader>
-            <CardTitle>
-              <Icon name="key" size={16} className={s.titleIcon} /> 개인 API 토큰
-            </CardTitle>
-            <CardDescription>OAuth를 지원하지 않는 도구나 스크립트용이에요. 토큰은 만들 때 한 번만 보여드려요.</CardDescription>
-          </CardHeader>
-          <CardContent className={s.content}>
-            <div className={ui.tableWrap}>
+        <SettingsSection title="개인 API 토큰" lead="OAuth를 지원하지 않는 도구나 스크립트용이에요. 토큰은 만들 때 한 번만 보여드려요.">
+          <div className={base.body}>
+            <div className={cx(ui.tableWrap, s.tableFlush)}>
               <table className={ui.table}>
                 <thead>
                   <tr className={ui.tr}>
@@ -400,20 +350,15 @@ export default function AiSettingsPage() {
                     tokens.map((t) => (
                       <tr key={t.id} className={ui.tr}>
                         <td className={ui.td}>
-                          <div className={s.nameCell}>
-                            <span className={s.rowIcon}>
-                              <Icon name="key" size={15} />
-                            </span>
-                            <div className={s.nameText}>
-                              <div className={s.name}>{t.name}</div>
-                              <code className={s.sub}>{t.prefix}</code>
-                            </div>
+                          <div className={s.nameText}>
+                            <div className={s.name}>{t.name}</div>
+                            <code className={s.sub}>{t.prefix}</code>
                           </div>
                         </td>
                         <td className={cx(ui.td, s.colWhen)}>{relativeTime(t.lastUsedAt)}</td>
                         <td className={cx(ui.td, s.colAction)}>
                           <button
-                            className={`${ui.btn} ${ui.sm} ${ui.dangerGhost}`}
+                            className={cx(ui.btn, ui.sm, ui.dangerGhost)}
                             onClick={() => setRevoke({ kind: 'token', id: t.id, name: t.name })}
                           >
                             폐기
@@ -435,7 +380,7 @@ export default function AiSettingsPage() {
                 onChange={(e) => setTokenName(e.target.value)}
                 onKeyDown={(e) => isEnter(e) && void createToken()}
               />
-              <button type="button" className={`${ui.btn} ${ui.primary}`} onClick={() => void createToken()}>
+              <button type="button" className={cx(ui.btn, ui.outline)} onClick={() => void createToken()}>
                 <Icon name="plus" size={15} /> 토큰 만들기
               </button>
             </div>
@@ -443,75 +388,62 @@ export default function AiSettingsPage() {
             {fresh && (
               <div className={cx(ui.alert, s.reveal)} data-tone="ok" role="status">
                 <Icon name="checkCircle" size={16} />
-                <p className={ui.alertTitle}>새 토큰이에요. 지금 복사해 두세요 — 다시 볼 수 없어요.</p>
+                <p className={ui.alertTitle}>새 토큰이에요. 지금 복사해 두세요. 다시 볼 수 없어요.</p>
                 <div className={s.revealBody}>
                   <CopyField value={fresh} label="새 토큰" done="토큰을 복사했어요" />
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SettingsSection>
 
         {/* ───────── connected apps */}
-        <Card className={base.section}>
-          <CardHeader>
-            <CardTitle>
-              <Icon name="shield" size={16} className={s.titleIcon} /> 연결된 앱
-            </CardTitle>
-            <CardDescription>OAuth로 접근을 허용한 AI 도구들이에요. 연결을 끊으면 즉시 접근이 차단돼요.</CardDescription>
-          </CardHeader>
-          <CardContent className={s.content}>
-            <div className={ui.tableWrap}>
-              <table className={ui.table}>
-                <thead>
+        <SettingsSection title="연결된 앱" lead="OAuth로 접근을 허용한 AI 도구들이에요. 연결을 끊으면 즉시 접근이 차단돼요.">
+          <div className={cx(ui.tableWrap, s.tableFlush)}>
+            <table className={ui.table}>
+              <thead>
+                <tr className={ui.tr}>
+                  <th className={ui.th}>앱</th>
+                  <th className={cx(ui.th, s.colWhen)}>마지막 사용</th>
+                  <th className={cx(ui.th, s.colAction)}>
+                    <span className="sr-only">관리</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {!loaded ? (
+                  <SkeletonRows cols={3} />
+                ) : grants.length === 0 ? (
                   <tr className={ui.tr}>
-                    <th className={ui.th}>앱</th>
-                    <th className={cx(ui.th, s.colWhen)}>마지막 사용</th>
-                    <th className={cx(ui.th, s.colAction)}>
-                      <span className="sr-only">관리</span>
-                    </th>
+                    <td className={cx(ui.td, s.emptyCell)} colSpan={3}>
+                      연결된 앱이 없어요
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {!loaded ? (
-                    <SkeletonRows cols={3} />
-                  ) : grants.length === 0 ? (
-                    <tr className={ui.tr}>
-                      <td className={cx(ui.td, s.emptyCell)} colSpan={3}>
-                        연결된 앱이 없어요
+                ) : (
+                  grants.map((g) => (
+                    <tr key={g.id} className={ui.tr}>
+                      <td className={ui.td}>
+                        <div className={s.nameText}>
+                          <div className={s.name}>{g.clientName}</div>
+                          <div className={s.sub}>{new Date(g.createdAt).toLocaleDateString('ko-KR')} 연결</div>
+                        </div>
+                      </td>
+                      <td className={cx(ui.td, s.colWhen)}>{relativeTime(g.lastUsedAt)}</td>
+                      <td className={cx(ui.td, s.colAction)}>
+                        <button
+                          className={cx(ui.btn, ui.sm, ui.dangerGhost)}
+                          onClick={() => setRevoke({ kind: 'grant', id: g.id, name: g.clientName })}
+                        >
+                          연결 끊기
+                        </button>
                       </td>
                     </tr>
-                  ) : (
-                    grants.map((g) => (
-                      <tr key={g.id} className={ui.tr}>
-                        <td className={ui.td}>
-                          <div className={s.nameCell}>
-                            <span className={s.rowIcon}>
-                              <Icon name="sparkle" size={15} />
-                            </span>
-                            <div className={s.nameText}>
-                              <div className={s.name}>{g.clientName}</div>
-                              <div className={s.sub}>{new Date(g.createdAt).toLocaleDateString('ko-KR')} 연결</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className={cx(ui.td, s.colWhen)}>{relativeTime(g.lastUsedAt)}</td>
-                        <td className={cx(ui.td, s.colAction)}>
-                          <button
-                            className={`${ui.btn} ${ui.sm} ${ui.dangerGhost}`}
-                            onClick={() => setRevoke({ kind: 'grant', id: g.id, name: g.clientName })}
-                          >
-                            연결 끊기
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </SettingsSection>
       </div>
 
       <ConfirmModal

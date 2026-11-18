@@ -41,7 +41,7 @@ import {
 import { Dashboard, type DashMode } from './_home/Dashboard';
 import d from './_home/dashboard.module.css';
 import { clampItem, defaultLayout, firstFit, MOBILE_MAX, normalize, sameLayout, settle, type WidgetDef } from './_home/layout';
-import { stagger, useCountUp } from './_home/motion';
+import { stagger } from './_home/motion';
 import { OtherSpaces } from './_home/OtherSpaces';
 import { UrgentBoard } from './_home/UrgentBoard';
 import { useHomeData, type HomeData, type ProjectRow, type RootRisk } from './_home/useHomeData';
@@ -71,7 +71,7 @@ const tile = (id: string, name: string, icon: IconName, x: number, y: number, w 
  */
 const WIDGETS: WidgetDef[] = [
   { id: 'status', name: '지금 상황', icon: 'gauge', chrome: 'bare', min: { w: 4, h: 4 }, desktop: { x: 0, y: 0, w: 9, h: 6 } },
-  { id: 'jev', name: 'Jev 추천', icon: 'sparkle', chrome: 'bare', min: { w: 4, h: 3 }, desktop: { x: 0, y: 6, w: 12, h: 3 } },
+  { id: 'jev', name: 'Jev 추천', icon: 'scale', chrome: 'bare', min: { w: 4, h: 3 }, desktop: { x: 0, y: 6, w: 12, h: 3 } },
   tile('tile-today', '오늘 남은 작업', 'sun', 0, 9),
   tile('tile-overdue', '기한 지남', 'alertCircle', 3, 9),
   tile('tile-delayed', '밀리는 작업', 'ripple', 6, 9),
@@ -241,21 +241,17 @@ export default function HomePage() {
                 {upcoming.slice(0, LIST_CAP).map(({ task, date }) => {
                   const project = projectOf(task.projectId);
                   return (
-                    <ListRow
-                      key={task.id}
-                      icon={task.fixed ? 'pin' : 'fileText'}
-                      iconColor={task.fixed ? 'var(--c-red)' : undefined}
-                      title={task.title}
-                      onOpen={() => selectTask(task.id)}
-                    >
+                    <ListRow key={task.id} title={task.title} onOpen={() => selectTask(task.id)}>
                       {project && <Tag hue={project.color}>{project.name}</Tag>}
-                      <span className={s.rowDate}>{formatRelativeKo(date, today)}</span>
+                      <span className={s.rowDate}>
+                        {task.fixed && <Icon name="pin" size={12} aria-label="고정 일정" />}
+                        {formatRelativeKo(date, today)}
+                      </span>
                     </ListRow>
                   );
                 })}
                 {upcoming.length > LIST_CAP && (
                   <ListRow
-                    icon="calendar"
                     title={`외 ${upcoming.length - LIST_CAP}개 · 예정에서 모두 보기`}
                     onOpen={() => router.push('/upcoming')}
                     muted
@@ -413,23 +409,18 @@ function StatusCallout({ data }: { data: HomeData }) {
   const rel = (d: string) => formatRelativeKo(d, today);
   const finishShift = finishFrom && finishTo && finishFrom !== finishTo ? diffDays(finishTo, finishFrom) : 0;
 
-  let pill: string;
   let headline: string;
   const details: string[] = [];
   if (level === 'danger') {
-    pill = '위험';
     headline = `고정 일정 ${conflicts}개가 지켜지지 않을 수 있어요`;
     details.push(`기한 지난 작업 ${roots.length}개가 일정 ${delayed + conflicts}개를 밀고 있어요`);
   } else if (level === 'warn' && delayed > 0) {
-    pill = '주의';
     headline = `일정 ${delayed}개가 최대 ${maxShiftDays}일 밀리고 있어요`;
     details.push(`기한 지난 작업 ${roots.length}개 때문이에요`);
   } else if (level === 'warn') {
-    pill = '주의';
     headline = `기한 지난 작업이 ${overdue.length}개 있어요`;
     details.push('다행히 다른 일정엔 영향이 없어요');
   } else {
-    pill = '순조로움';
     headline = remaining === 0 && doneToday.length > 0 ? '오늘 할 일을 모두 끝냈어요' : '모든 일정이 순조로워요';
     if (finishTo) details.push(`지금 계획대로면 ${rel(finishTo)}에 모두 끝나요`);
     if (fixed[0]) details.push(`다음 고정 일정은 ${rel(fixed[0].date)} ‘${fixed[0].task.title}’`);
@@ -450,13 +441,7 @@ function StatusCallout({ data }: { data: HomeData }) {
         <Icon name={level === 'ok' ? 'checkCircle' : level === 'danger' ? 'alertCircle' : 'alert'} size={20} />
       </span>
       <div className={s.statusBody}>
-        <div className={s.statusTop}>
-          <span className={s.statusPill}>
-            <span className={s.statusDot} />
-            {pill}
-          </span>
-          <span className={s.statusHeadline}>{headline}</span>
-        </div>
+        <span className={s.statusHeadline}>{headline}</span>
         {details.length > 0 && (
           <p className={s.statusDetail}>
             {details.map((d) => (
@@ -557,7 +542,6 @@ function Tile({
   tone?: 'danger' | 'warn';
   children?: ReactNode;
 }) {
-  const n = useCountUp(value ?? 0);
   return (
     <Link href={href} className={s.tile} data-tone={tone}>
       <span className={s.tileLabel}>
@@ -565,7 +549,7 @@ function Tile({
         {label}
       </span>
       <span className={s.tileValue}>
-        {text ?? n}
+        {text ?? value}
         {text === undefined && unit && <span className={s.tileUnit}>{unit}</span>}
       </span>
       {children}
@@ -584,7 +568,7 @@ function RippleBoard({ data }: { data: HomeData }) {
     return (
       <div className={s.calm}>
         <span className={s.calmMark} aria-hidden="true">
-          <Icon name="check" size={22} strokeWidth={2.4} />
+          <Icon name="checkCircle" size={20} />
         </span>
         <div>
           <div className={s.calmTitle}>밀리는 일정이 없어요</div>

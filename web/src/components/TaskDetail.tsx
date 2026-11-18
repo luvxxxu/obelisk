@@ -860,10 +860,10 @@ function JevLinks({ task }: { task: Task }) {
       )}
       {rows.length > 0 && (
         <ul className={js.linkList}>
-          {rows.map((sg, i) => {
+          {rows.map((sg) => {
             const other = tasks[sg.taskId]!;
             return (
-              <li key={`${sg.direction}-${sg.taskId}`} className={js.linkRow} style={{ animationDelay: `${i * 40}ms` }}>
+              <li key={`${sg.direction}-${sg.taskId}`} className={js.linkRow}>
                 <span className={js.linkDir} data-dir={sg.direction}>
                   <Icon name={sg.direction === 'blockedBy' ? 'lock' : 'link'} size={12} />
                   {sg.direction === 'blockedBy' ? '먼저' : '다음'}
@@ -1147,7 +1147,7 @@ function TaskActivity({ task }: { task: Task }) {
                     <>
                       {' · '}
                       <span className={s.activityVia}>
-                        <Icon name={e.via === 'oauth' ? 'sparkle' : e.via === 'webhook' ? 'link' : 'key'} size={11} />
+                        <Icon name={e.via === 'oauth' ? 'plug' : e.via === 'webhook' ? 'link' : 'key'} size={11} />
                         {via}
                       </span>
                     </>

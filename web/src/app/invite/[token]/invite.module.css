@@ -7,60 +7,31 @@
 .mark {
   display: flex;
   justify-content: center;
-  margin-bottom: 6px;
-  animation: invite-pop var(--dur-slow) var(--ease-spring) both;
+  margin-bottom: 12px;
 }
 
 .eyebrow {
   font-size: var(--fs-sm);
   color: var(--text-3);
-  margin-bottom: -2px;
 }
 
 .actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
+/* two plain muted lines under the actions, like ChatGPT's fine print */
 .facts {
   list-style: none;
-  margin: 20px 0 0;
-  padding: 14px 0 0;
-  border-top: 1px solid var(--border);
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   font-size: var(--fs-sm);
   line-height: 1.55;
-  color: var(--text-2);
-}
-
-.facts li {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-.facts svg {
-  margin-top: 2px;
-  flex-shrink: 0;
   color: var(--text-3);
-}
-
-@keyframes invite-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.85);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .mark {
-    animation: none;
-  }
+  text-align: center;
+  word-break: keep-all;
 }
