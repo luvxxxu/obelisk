@@ -137,7 +137,7 @@ export function CommandPalette() {
       { id: 'all', label: '전체 작업', icon: 'layers', keys: ['G', 'A'], group: '이동', run: go('/all') },
       { id: 'logbook', label: '완료 기록', icon: 'checkCircle', keys: ['G', 'L'], group: '이동', run: go('/logbook') },
       { id: 'ai', label: 'AI 연결 (MCP · Skill)', icon: 'plug', group: '이동', run: go('/settings/ai') },
-      { id: 'jev', label: 'Jev 설정', hint: 'TypeSafe API 키', icon: 'scale', group: '이동', run: go('/settings/jev') },
+      { id: 'jev', label: 'Jev 설정', hint: '판단 모델 연결', icon: 'scale', group: '이동', run: go('/settings/jev') },
       { id: 'settings', label: '설정', icon: 'settings', group: '이동', run: go('/settings') },
       ...(app.workspace?.kind === 'org'
         ? [

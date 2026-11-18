@@ -64,7 +64,7 @@ How delays propagate (needed to explain predictions): [references/delay-model.md
 Never move a due date later with `update_task` when the task has dependents — it leaves dependents starting before their blocker finishes. Use `postpone_task`.
 
 ### Too much to do — priorities and what to postpone (Jev)
-If the user connected their own TypeSafe key (Obelisk → 설정 → Jev), three read-only tools add a second opinion from **Jev**, TypeSafe's decision model. Jev judges what each task means (what is at stake, whether it can wait, whether someone is waiting); Obelisk's delay engine still does every date and ripple calculation.
+If the user connected their own Jev key (Obelisk → 설정 → Jev — TypeSafe, OpenRouter, Cloudflare's Clef or another System One server), three read-only tools add a second opinion from **Jev**, TypeSafe's decision model (or the compatible model they chose). Jev judges what each task means (what is at stake, whether it can wait, whether someone is waiting); Obelisk's delay engine still does every date and ripple calculation.
 - "What first?" / "re-prioritize" → `suggest_priorities`: suggested priority per task with reasons and confidence, plus the one task to start now. Apply the ones the user accepts with `update_task`.
 - "Too much today/this week" / "what can I push?" → `suggest_postpone` (`scope: today | week`): the tasks that can safely wait and the lighter day for each — already checked to break no fixed date. Apply each accepted move with `postpone_task` (`toDate`, `cascade: true`).
 - After `create_tasks` or for a task with no links → `suggest_dependencies`: likely "must finish first" / "waits for this" links; add accepted ones with `add_dependency`. More links make delay prediction better.

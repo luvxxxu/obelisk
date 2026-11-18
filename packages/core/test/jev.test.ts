@@ -2,6 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import {
   autoApplicable,
   capacityFromHistory,
+  cloudflareJevUrl,
+  DEFAULT_JEV_BASE_URL,
+  jevEndpoint,
+  jevPresetOf,
   pickFocus,
   planPostpone,
   priorityFromScore,
@@ -222,4 +226,22 @@ test('capacity follows the recent pace', () => {
   expect(capacityFromHistory([], TODAY)).toEqual({ capacity: 5, source: 'default' });
   const days = Array.from({ length: 56 }, (_, i) => `2026-11-${String(2 + (i % 14)).padStart(2, '0')}`);
   expect(capacityFromHistory(days, TODAY)).toEqual({ capacity: 5, source: 'history' });
+});
+
+describe('System One endpoints', () => {
+  test('a base URL gets /systemone; a full endpoint or a Workers AI run path is kept', () => {
+    expect(jevEndpoint(DEFAULT_JEV_BASE_URL)).toBe('https://api.typesafe.ai/v1/systemone');
+    expect(jevEndpoint('https://openrouter.ai/api/v1/')).toBe('https://openrouter.ai/api/v1/systemone');
+    expect(jevEndpoint('https://openrouter.ai/api/v1/systemone')).toBe('https://openrouter.ai/api/v1/systemone');
+    const cf = cloudflareJevUrl('0123456789abcdef0123456789abcdef', 'clef-flash');
+    expect(cf).toBe('https://api.cloudflare.com/client/v4/accounts/0123456789abcdef0123456789abcdef/ai/run/@cf/cloudflare/clef-flash');
+    expect(jevEndpoint(cf)).toBe(cf);
+  });
+
+  test('presets are recognised by host', () => {
+    expect(jevPresetOf(null)).toBe('typesafe');
+    expect(jevPresetOf('https://openrouter.ai/api/v1')).toBe('openrouter');
+    expect(jevPresetOf(cloudflareJevUrl('0123456789abcdef0123456789abcdef', 'clef'))).toBe('cloudflare');
+    expect(jevPresetOf('https://decide.example.com/v1')).toBeNull();
+  });
 });

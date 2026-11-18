@@ -2,12 +2,15 @@ import { BadRequestException, HttpException, Injectable, type OnApplicationBoots
 import {
   addDays,
   canEditTask,
+  DEFAULT_JEV_BASE_URL,
   capacityFromHistory,
   compareTasks,
   DEPENDENCY_THRESHOLD,
   downstreamOf,
   FIXED_THRESHOLD,
   isToday,
+  jevEndpoint,
+  jevPresetOf,
   leverage,
   NEUTRAL_JUDGMENT,
   pickFocus,
@@ -32,14 +35,25 @@ import { and, eq, isNotNull } from 'drizzle-orm';
 import { sha256 } from '../common/crypto';
 import { rateLimiter } from '../common/rate-limit';
 import { seal, sealingKeySource, unseal } from '../common/secret';
+import { config } from '../config';
 import { InjectDb, type Db } from '../db/db.module';
 import { users, type UserRow } from '../db/schema';
 import { toPlanItem } from '../planner/mappers';
 import { ProjectsService } from '../planner/projects.service';
 import { TasksService } from '../planner/tasks.service';
+import { assertDeliverable, UndeliverableError } from '../webhooks/net';
 import type { Access } from '../workspace/access.service';
 import { jevKeyContext, jevStatus } from './status';
-import { askJev, JevError, type JevAnswer, type JevQuestion, type JevResult, type Transport } from './jev.client';
+import {
+  askJev,
+  JevError,
+  MAX_QUESTIONS,
+  type JevAnswer,
+  type JevConnection,
+  type JevQuestion,
+  type JevResult,
+  type Transport,
+} from './jev.client';
 import {
   deferrableQ,
   dayLabel,
@@ -56,14 +70,15 @@ import {
   type TaskContext,
 } from './jev.questions';
 
-/** Tasks per request: ~40 × 3 questions stays far inside Jev's 64k-token request window. */
-const CHUNK = 40;
+/** Tasks per request: 3 questions each, under the 64-question cap of Cloudflare's Clef (21 × 3 = 63). */
+const CHUNK = Math.floor(MAX_QUESTIONS / 3);
 const PARALLEL = 4;
 /** At most this many tasks are judged in one call (soonest first). */
 const MAX_TASKS = 300;
 const CACHE_MS = 6 * 60 * 60_000;
 const CACHE_MAX = 5000;
-const MAX_CANDIDATES = 40;
+/** One relation question per candidate, so this also stays under MAX_QUESTIONS. */
+const MAX_CANDIDATES = Math.min(40, MAX_QUESTIONS);
 const CROSS_PROJECT_THRESHOLD = 0.8;
 
 export interface PrioritiesResult {
@@ -112,10 +127,26 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
   return out;
 }
 
+/** Stored form of a base URL: trimmed, no trailing slash, null for TypeSafe's own. */
+function normalizeBaseUrl(raw: string | null): string | null {
+  const v = raw?.trim().replace(/\/+$/, '') || null;
+  if (!v) return null;
+  return v === DEFAULT_JEV_BASE_URL || jevEndpoint(v) === jevEndpoint(DEFAULT_JEV_BASE_URL) ? null : v;
+}
+
+function originOf(baseUrl: string | null): string {
+  try {
+    return new URL(baseUrl ?? DEFAULT_JEV_BASE_URL).origin;
+  } catch {
+    return baseUrl ?? '';
+  }
+}
+
 /**
  * Jev — TypeSafe's decision model — as a second opinion on priorities, what to postpone,
  * where a new task belongs and which tasks depend on each other. Every user brings their
- * own TypeSafe key; calls only ever describe tasks that user can see.
+ * own key — for TypeSafe, or any System One service at a base URL they choose (OpenRouter,
+ * Cloudflare's Clef …); calls only ever describe tasks that user can see.
  */
 @Injectable()
 export class JevService implements OnApplicationBootstrap {
@@ -133,44 +164,80 @@ export class JevService implements OnApplicationBootstrap {
   // ───────────────────────────── settings
 
   async updateSettings(user: UserRow, input: JevSettingsInput): Promise<{ user: UserRow; jev: JevStatus }> {
-    const patch: Partial<Pick<UserRow, 'jevKey' | 'jevKeyHint' | 'jevAutoApply'>> = {};
+    const patch: Partial<Pick<UserRow, 'jevKey' | 'jevKeyHint' | 'jevAutoApply' | 'jevBaseUrl' | 'jevModel'>> = {};
     if (input.apiKey === null) {
-      patch.jevKey = null;
-      patch.jevKeyHint = null;
-    } else if (input.apiKey !== undefined) {
-      await this.verify(input.apiKey);
-      patch.jevKey = seal(input.apiKey, jevKeyContext(user.id));
-      patch.jevKeyHint = input.apiKey.slice(-4);
+      // Disconnecting forgets the service too: the next key starts from TypeSafe again.
+      Object.assign(patch, { jevKey: null, jevKeyHint: null, jevBaseUrl: null, jevModel: null });
+    } else {
+      const baseUrl = input.baseUrl !== undefined ? normalizeBaseUrl(input.baseUrl) : user.jevBaseUrl;
+      const model = input.model !== undefined ? input.model || null : user.jevModel;
+      if (baseUrl && !model) throw new BadRequestException('이 서비스에서 쓸 모델 이름을 입력하세요');
+      const service = baseUrl !== user.jevBaseUrl || model !== user.jevModel;
+      // A stored key never follows the URL to another host: whoever changes the host brings that host's key.
+      if (input.apiKey === undefined && user.jevKey && originOf(baseUrl) !== originOf(user.jevBaseUrl)) {
+        throw new BadRequestException('다른 서비스로 바꾸려면 그 서비스의 API 키도 함께 입력하세요');
+      }
+      const apiKey = input.apiKey ?? (service && user.jevKey ? this.connectionOf(user).apiKey : undefined);
+      if (apiKey !== undefined) await this.verify({ apiKey, baseUrl, model });
+      if (input.apiKey !== undefined) {
+        patch.jevKey = seal(input.apiKey, jevKeyContext(user.id));
+        patch.jevKeyHint = input.apiKey.slice(-4);
+      }
+      if (service) Object.assign(patch, { jevBaseUrl: baseUrl, jevModel: model });
     }
     if (input.autoApply !== undefined) patch.jevAutoApply = input.autoApply;
     let row = user;
     if (Object.keys(patch).length) {
       [row] = (await this.db.update(users).set(patch).where(eq(users.id, user.id)).returning()) as [UserRow];
-      if (patch.jevKey !== undefined) this.forget(user.id);
+      if (patch.jevKey !== undefined || patch.jevBaseUrl !== undefined || patch.jevModel !== undefined) this.forget(user.id);
     }
     return { user: row, jev: jevStatus(row) };
   }
 
-  /** One tiny call before a key is stored, so a typo is caught in settings rather than later. */
-  private async verify(apiKey: string) {
+  /** One tiny call before a key or service is stored, so a typo is caught in settings rather than later. */
+  private async verify(connection: JevConnection) {
+    await this.checkEndpoint(connection.baseUrl ?? null);
     try {
       await askJev(
-        apiKey,
+        connection,
         { state: 'Obelisk is checking that this API key works.', questions: { ok: { type: 'noul', instructions: 'Is this a connection check?' } } },
         { fetch: this.transport, retries: 1, timeoutMs: 10_000 },
       );
     } catch (e) {
-      if (e instanceof JevError && e.code === 'auth') {
-        throw new BadRequestException('이 키로 Jev에 연결할 수 없어요. TypeSafe 콘솔에서 키를 다시 확인하세요.');
+      if (e instanceof JevError && e.code !== 'network' && e.code !== 'overloaded' && e.code !== 'rate') {
+        // The user is already in settings: drop the "go to settings" half of the message.
+        throw new BadRequestException(e.message.replace('설정 → Jev에서 ', ''));
       }
       throw this.http(e);
     }
   }
 
-  private keyOf(user: UserRow): string {
+  /**
+   * A user-chosen URL must be a public https address — never this server's own network — checked on
+   * every call (not just when saved) so a host that later resolves to a private address is refused.
+   */
+  private async checkEndpoint(baseUrl: string | null) {
+    if (!baseUrl) return;
+    const url = jevEndpoint(baseUrl);
+    if (jevPresetOf(baseUrl) !== null && url.startsWith('https://')) return;
+    const fail = (message: string) => new HttpException({ statusCode: 400, code: 'jev_endpoint', message }, 400);
+    if (!config.jevAllowPrivate && !url.startsWith('https://')) throw fail('Base URL은 https:// 주소여야 해요');
+    try {
+      await assertDeliverable(url, config.jevAllowPrivate);
+    } catch (e) {
+      if (!(e instanceof UndeliverableError)) throw e;
+      throw fail(
+        e.retryable
+          ? `Base URL의 호스트(${new URL(url).hostname})를 찾지 못했어요`
+          : '내부망·로컬 주소나 아이디·비밀번호가 들어간 주소는 Base URL로 쓸 수 없어요',
+      );
+    }
+  }
+
+  private connectionOf(user: UserRow): JevConnection {
     if (!user.jevKey) {
       throw new HttpException(
-        { statusCode: 400, code: 'jev_not_connected', message: 'Jev가 연결되어 있지 않아요. 설정 → Jev에서 TypeSafe API 키를 입력하세요.' },
+        { statusCode: 400, code: 'jev_not_connected', message: 'Jev가 연결되어 있지 않아요. 설정 → Jev에서 API 키를 입력하세요.' },
         400,
       );
     }
@@ -182,7 +249,7 @@ export class JevService implements OnApplicationBootstrap {
       );
     }
     if (opened.stale) void this.reseal(user.id, user.jevKey, opened.value);
-    return opened.value;
+    return { apiKey: opened.value, baseUrl: user.jevBaseUrl, model: user.jevModel };
   }
 
   // ───────────────────────────── key rotation
@@ -240,7 +307,7 @@ export class JevService implements OnApplicationBootstrap {
     if (e instanceof HttpException) return e;
     if (e instanceof JevError) {
       // Never 401: the web app reads that as "your session ended".
-      const status = e.code === 'auth' ? 400 : e.code === 'rate' ? 429 : 502;
+      const status = e.code === 'auth' ? 400 : e.code === 'rate' || e.code === 'quota' ? 429 : 502;
       return new HttpException({ statusCode: status, code: `jev_${e.code}`, message: e.message }, status);
     }
     console.error('[jev] unexpected failure', e);
@@ -248,14 +315,15 @@ export class JevService implements OnApplicationBootstrap {
   }
 
   private async ask(user: UserRow, call: { state: unknown; questions: Record<string, JevQuestion> }): Promise<JevResult> {
-    const key = this.keyOf(user);
+    const connection = this.connectionOf(user);
     try {
       this.limiter(user.id);
     } catch {
       throw new HttpException({ statusCode: 429, message: 'Jev 요청이 너무 잦아요. 잠시 후 다시 시도하세요.' }, 429);
     }
+    await this.checkEndpoint(connection.baseUrl ?? null);
     try {
-      return await askJev(key, call, { fetch: this.transport });
+      return await askJev(connection, call, { fetch: this.transport });
     } catch (e) {
       throw this.http(e);
     }
@@ -315,7 +383,7 @@ export class JevService implements OnApplicationBootstrap {
     return new Map((await this.projects.list(a, { includeArchived: true })).map((p) => [p.id, p]));
   }
 
-  /** importance · others · deferrable for each task, batched 40 per request and cached by content. */
+  /** importance · others · deferrable for each task, batched CHUNK per request and cached by content. */
   async judge(a: Access, list: Task[], ctx: (t: Task) => TaskContext): Promise<{ judgments: Map<string, TaskJudgment>; model: string | null }> {
     const today = todayIn(a.user.timezone);
     const judgments = new Map<string, TaskJudgment>();

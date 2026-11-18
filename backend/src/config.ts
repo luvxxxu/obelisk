@@ -27,6 +27,13 @@ export const config = {
   webhookAllowPrivate: process.env.WEBHOOK_ALLOW_PRIVATE
     ? process.env.WEBHOOK_ALLOW_PRIVATE === 'true'
     : process.env.NODE_ENV !== 'production',
+  /**
+   * Let a user's Jev base URL point at private/loopback or plain-http addresses (a self-hosted System One
+   * server on the LAN, local testing). Off in production unless JEV_ALLOW_PRIVATE=true, for the same reason.
+   */
+  jevAllowPrivate: process.env.JEV_ALLOW_PRIVATE
+    ? process.env.JEV_ALLOW_PRIVATE === 'true'
+    : process.env.NODE_ENV !== 'production',
 };
 
 export const SESSION_COOKIE = 'obelisk_session';

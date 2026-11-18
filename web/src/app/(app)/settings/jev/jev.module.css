@@ -74,3 +74,44 @@
   line-height: 1.55;
   color: var(--text-2);
 }
+
+/* ───────── service form: presets, then plain fields (stacked, 16px apart) */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 560px;
+}
+
+.seg {
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.endpoint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.endpoint code {
+  font-family: var(--font-mono);
+  color: var(--text-2);
+  word-break: break-all;
+}

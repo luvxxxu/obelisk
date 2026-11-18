@@ -24,7 +24,7 @@ import { api, ApiError } from './api';
 import { canEdit, getState, load, reschedule, setUser, updateTask, useApp } from './store';
 import { toast } from './toast';
 
-const OFF: JevStatus = { connected: false, keyUnreadable: false, hint: null, autoApply: false };
+const OFF: JevStatus = { connected: false, keyUnreadable: false, hint: null, autoApply: false, baseUrl: null, model: null };
 
 export function useJev(): JevStatus {
   return useApp().user?.jev ?? OFF;
@@ -36,7 +36,12 @@ export function jevMessage(e: unknown, fallback = 'Jev에 묻지 못했어요'):
 
 // ─────────────────────────────── settings
 
-export async function saveJevSettings(patch: { apiKey?: string | null; autoApply?: boolean }): Promise<JevStatus | null> {
+export async function saveJevSettings(patch: {
+  apiKey?: string | null;
+  baseUrl?: string | null;
+  model?: string | null;
+  autoApply?: boolean;
+}): Promise<JevStatus | null> {
   try {
     const { user, jev } = await api<{ user: User; jev: JevStatus }>('PUT', '/api/jev/settings', patch);
     setUser(user);

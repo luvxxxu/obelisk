@@ -26,7 +26,7 @@ describe('Jev client', () => {
         usage: { input_tokens: 120, output_tokens: 9 },
       });
     };
-    const r = await askJev('key_123', { state: { task: { title: '세금 신고' } }, questions }, { fetch: transport });
+    const r = await askJev({ apiKey: 'key_123' }, { state: { task: { title: '세금 신고' } }, questions }, { fetch: transport });
     expect(sent!.url).toBe(JEV_ENDPOINT);
     expect((sent!.init.headers as Record<string, string>).Authorization).toBe('Bearer key_123');
     const body = JSON.parse(String(sent!.init.body));
@@ -47,7 +47,7 @@ describe('Jev client', () => {
           rel: { type: 'choice', choice: 'sideways', probabilities: {} },
         },
       });
-    const r = await askJev('k'.repeat(20), { state: 's', questions }, { fetch: transport });
+    const r = await askJev({ apiKey: 'k'.repeat(20) }, { state: 's', questions }, { fetch: transport });
     expect(r.answers.imp).toBeUndefined();
     expect(r.answers.def).toEqual({ type: 'noul', noul: 1 }); // clamped
     expect(r.answers.rel).toBeUndefined();
@@ -56,7 +56,7 @@ describe('Jev client', () => {
   test('a rejected key fails fast with a Korean message; rate limits are retried', async () => {
     let calls = 0;
     const unauthorized: Transport = async () => (calls++, json({ error: 'unauthorized' }, 401));
-    const err = await askJev('bad', { state: 's', questions }, { fetch: unauthorized }).catch((e) => e);
+    const err = await askJev({ apiKey: 'bad' }, { state: 's', questions }, { fetch: unauthorized }).catch((e) => e);
     expect(err).toBeInstanceOf(JevError);
     expect((err as JevError).code).toBe('auth');
     expect((err as JevError).message).toContain('설정 → Jev');
@@ -64,7 +64,7 @@ describe('Jev client', () => {
 
     calls = 0;
     const flaky: Transport = async () => (++calls < 2 ? json({}, 429) : json({ answers: { def: { type: 'noul', noul: 0.5 } } }));
-    const ok = await askJev('k', { state: 's', questions: { def: questions.def! } }, { fetch: flaky });
+    const ok = await askJev({ apiKey: 'k' }, { state: 's', questions: { def: questions.def! } }, { fetch: flaky });
     expect(calls).toBe(2);
     expect(ok.answers.def).toEqual({ type: 'noul', noul: 0.5 });
   });
@@ -73,9 +73,91 @@ describe('Jev client', () => {
     const down: Transport = async () => {
       throw new TypeError('fetch failed');
     };
-    const err = await askJev('k', { state: 's', questions }, { fetch: down, retries: 0 }).catch((e) => e);
+    const err = await askJev({ apiKey: 'k' }, { state: 's', questions }, { fetch: down, retries: 0 }).catch((e) => e);
     expect(err).toBeInstanceOf(JevError);
     expect((err as JevError).code).toBe('network');
+  });
+});
+
+describe('other System One services', () => {
+  const noulOnly = { def: questions.def! };
+
+  test('a base URL gets /systemone appended and the chosen model is sent (OpenRouter)', async () => {
+    let sent: { url: string; init: RequestInit } | undefined;
+    const transport: Transport = async (url, init) => {
+      sent = { url, init };
+      return json({ model: 'typesafe/jev-1.14', answers: { def: { type: 'noul', noul: 0.3 } } });
+    };
+    const r = await askJev(
+      { apiKey: 'sk-or-v1-abc', baseUrl: 'https://openrouter.ai/api/v1/', model: '~typesafe/jev-latest' },
+      { state: 's', questions: noulOnly },
+      { fetch: transport },
+    );
+    expect(sent!.url).toBe('https://openrouter.ai/api/v1/systemone');
+    expect((sent!.init.headers as Record<string, string>).Authorization).toBe('Bearer sk-or-v1-abc');
+    expect(JSON.parse(String(sent!.init.body)).model).toBe('~typesafe/jev-latest');
+    expect(r.answers.def).toEqual({ type: 'noul', noul: 0.3 });
+  });
+
+  test("Cloudflare's endpoint is used as is, its { result } wrapper is opened, and a missing confidence falls back to the top probability", async () => {
+    const url = 'https://api.cloudflare.com/client/v4/accounts/0123456789abcdef0123456789abcdef/ai/run/@cf/cloudflare/clef';
+    let sentUrl = '';
+    const transport: Transport = async (u) => {
+      sentUrl = u;
+      return json({
+        success: true,
+        errors: [],
+        result: {
+          model: 'clef',
+          answers: {
+            imp: { type: 'score', score: 2.7, probabilities: { '0': 0.05, '1': 0.05, '2': 0.1, '3': 0.8 } },
+            rel: { type: 'choice', choice: 'before', probabilities: { before: 0.7, after: 0.1, independent: 0.2 } },
+          },
+        },
+      });
+    };
+    const r = await askJev({ apiKey: 'cf-token-1234567890', baseUrl: url, model: 'clef' }, { state: 's', questions }, { fetch: transport });
+    expect(sentUrl).toBe(url);
+    expect(r.model).toBe('clef');
+    expect(r.answers.imp).toMatchObject({ type: 'score', score: 2.7, confidence: 0.8 });
+    expect(r.answers.rel).toMatchObject({ type: 'choice', choice: 'before', confidence: 0.7 });
+  });
+
+  test("Cloudflare's used-up daily allocation is a quota error and is not retried", async () => {
+    let calls = 0;
+    const transport: Transport = async () => (calls++, json({ success: false, errors: [{ code: 3036, message: 'Account limited' }] }, 429));
+    const err = await askJev(
+      { apiKey: 't'.repeat(40), baseUrl: 'https://api.cloudflare.com/client/v4/accounts/0123456789abcdef0123456789abcdef/ai/run/@cf/cloudflare/clef', model: 'clef' },
+      { state: 's', questions: noulOnly },
+      { fetch: transport },
+    ).catch((e) => e);
+    expect((err as JevError).code).toBe('quota');
+    expect((err as JevError).message).toContain('무료 한도');
+    expect(calls).toBe(1);
+  });
+
+  test('a wrong Cloudflare account ID and an OpenRouter account without credit read as such', async () => {
+    const cf = { apiKey: 't'.repeat(40), baseUrl: 'https://api.cloudflare.com/client/v4/accounts/ffffffffffffffffffffffffffffffff/ai/run/@cf/cloudflare/clef', model: 'clef' };
+    const badAccount: Transport = async () => json({ success: false, errors: [{ code: 7003, message: 'Could not route' }] }, 400);
+    const e1 = (await askJev(cf, { state: 's', questions: noulOnly }, { fetch: badAccount }).catch((e) => e)) as JevError;
+    expect(e1.code).toBe('auth');
+    expect(e1.message).toContain('계정 ID');
+
+    const broke: Transport = async () => json({ error: { code: 402, message: 'Insufficient credits' } }, 402);
+    const e2 = (await askJev({ apiKey: 'sk-or-v1-x', baseUrl: 'https://openrouter.ai/api/v1', model: '~typesafe/jev-latest' }, { state: 's', questions: noulOnly }, { fetch: broke }).catch(
+      (e) => e,
+    )) as JevError;
+    expect(e2.code).toBe('quota');
+    expect(e2.message).toContain('OpenRouter');
+  });
+
+  test('a server that does not answer in System One shape is reported, not silently empty', async () => {
+    const chat: Transport = async () => json({ choices: [{ message: { content: 'hi' } }] });
+    const err = (await askJev({ apiKey: 'k', baseUrl: 'https://llm.example.com/v1', model: 'm' }, { state: 's', questions: noulOnly }, { fetch: chat }).catch(
+      (e) => e,
+    )) as JevError;
+    expect(err.code).toBe('invalid');
+    expect(err.message).toContain('Base URL');
   });
 });
 
@@ -110,7 +192,7 @@ test.skipIf(process.env.OBELISK_LIVE_JEV !== '1')('hosted Jev ranks real Korean 
     qs[`def_${i}`] = deferrableQ(`\`tasks.t${i}\``);
   });
   const state = { today: '2026-11-16 Mon', tasks: Object.fromEntries(titles.map((title, i) => [`t${i}`, { title, status: 'not started', due: '2026-11-16 Mon (today)' }])) };
-  const r = await askJev(key, { state, questions: qs });
+  const r = await askJev({ apiKey: key }, { state, questions: qs });
   const j = (i: number): TaskJudgment => {
     const imp = r.answers[`imp_${i}`];
     const n = (id: string) => (r.answers[id]?.type === 'noul' ? (r.answers[id] as { noul: number }).noul : 0.5);

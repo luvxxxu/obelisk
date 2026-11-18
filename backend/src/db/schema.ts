@@ -33,8 +33,12 @@ export const users = pgTable('users', {
   defaultWorkspaceId: uuid('default_workspace_id').references((): AnyPgColumn => workspaces.id, {
     onDelete: 'set null',
   }),
-  /** The user's own TypeSafe (Jev) API key, sealed with AES-256-GCM (common/secret.ts). */
+  /** The user's own key for their System One service (TypeSafe Jev by default), sealed with AES-256-GCM (common/secret.ts). */
   jevKey: text('jev_key'),
+  /** That service's base URL or endpoint; null = TypeSafe. */
+  jevBaseUrl: text('jev_base_url'),
+  /** Model id as that service names it; null = JEV_MODEL. */
+  jevModel: text('jev_model'),
   /** Last characters of the key, shown in settings. */
   jevKeyHint: text('jev_key_hint'),
   /** Apply high-confidence Jev judgments without asking. */

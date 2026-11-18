@@ -18,7 +18,70 @@ import { isToday } from './views';
 
 // ───────────────────────────── settings
 
-/** The signed-in user's Jev connection (their own TypeSafe API key). */
+/**
+ * Where judgments come from. Anything that speaks TypeSafe's System One API (state + typed questions →
+ * probabilities) works: TypeSafe itself, OpenRouter, Cloudflare Workers AI (Clef, within its daily free
+ * allocation) or another compatible server. A base URL like `https://openrouter.ai/api/v1` gets
+ * `/systemone` appended; a full endpoint (ending in `/systemone`, or Workers AI's `/ai/run/<model>`) is used as is.
+ */
+export const DEFAULT_JEV_BASE_URL = 'https://api.typesafe.ai/v1';
+
+/** The request URL for a base URL. */
+export function jevEndpoint(baseUrl: string): string {
+  const base = baseUrl.trim().replace(/\/+$/, '');
+  const path = (() => {
+    try {
+      return new URL(base).pathname;
+    } catch {
+      return base;
+    }
+  })();
+  return /\/systemone$/.test(path) || /\/ai\/run\//.test(path) ? base : `${base}/systemone`;
+}
+
+/** Ready-made settings for services known to serve the System One API. */
+export const JEV_PRESETS = [
+  {
+    id: 'typesafe',
+    label: 'TypeSafe',
+    baseUrl: DEFAULT_JEV_BASE_URL,
+    models: ['jev-latest'],
+  },
+  {
+    id: 'openrouter',
+    label: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    models: ['~typesafe/jev-latest', 'typesafe/jev-1.14', 'typesafe/jev-1.13'],
+  },
+  {
+    id: 'cloudflare',
+    label: 'Cloudflare',
+    /** Needs the account ID and the model in the path: see `cloudflareJevUrl`. */
+    baseUrl: 'https://api.cloudflare.com/client/v4/accounts',
+    models: ['clef', 'clef-flash'],
+  },
+] as const;
+export type JevPresetId = (typeof JEV_PRESETS)[number]['id'];
+
+/** Workers AI's endpoint for one of Cloudflare's own decision models. */
+export const cloudflareJevUrl = (accountId: string, model: string) =>
+  `https://api.cloudflare.com/client/v4/accounts/${accountId.trim()}/ai/run/@cf/cloudflare/${model.trim()}`;
+
+/** Which preset a stored base URL belongs to (null: a custom server). */
+export function jevPresetOf(baseUrl: string | null): JevPresetId | null {
+  let host: string;
+  try {
+    host = new URL(baseUrl ?? DEFAULT_JEV_BASE_URL).hostname;
+  } catch {
+    return null;
+  }
+  if (host === 'api.typesafe.ai') return 'typesafe';
+  if (host === 'openrouter.ai') return 'openrouter';
+  if (host === 'api.cloudflare.com') return 'cloudflare';
+  return null;
+}
+
+/** The signed-in user's Jev connection (their own key for a System One service). */
 export interface JevStatus {
   /** A key is stored and this server can open it. */
   connected: boolean;
@@ -28,13 +91,17 @@ export interface JevStatus {
   hint: string | null;
   /** Apply high-confidence judgments without asking (new tasks, unset priorities). */
   autoApply: boolean;
+  /** The service's base URL; null = TypeSafe (DEFAULT_JEV_BASE_URL). */
+  baseUrl: string | null;
+  /** The model asked; null = the server's default (JEV_MODEL, else jev-latest). */
+  model: string | null;
 }
 
 /** Judgments at or above this confidence count as "확신" (auto-apply, preselected). */
 export const JEV_CONFIDENT = 0.8;
 
 export const jevSettingsInput = z.object({
-  /** A new key (validated against Jev before it is saved), or null to disconnect. */
+  /** A new key (checked with one tiny call before it is saved), or null to disconnect. */
   apiKey: z
     .string()
     .trim()
@@ -43,6 +110,16 @@ export const jevSettingsInput = z.object({
     .regex(/^\S+$/, 'API 키에는 공백이 들어갈 수 없어요')
     .nullable()
     .optional(),
+  /** The service's base URL or full endpoint; null = TypeSafe. Moving to another host needs the key again. */
+  baseUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .regex(/^https?:\/\/\S+$/i, 'Base URL은 https://로 시작해야 해요')
+    .nullable()
+    .optional(),
+  /** Model id as the service names it (`jev-latest`, `~typesafe/jev-latest`, `clef` …); null = default. */
+  model: z.string().trim().min(1, '모델을 입력하세요').max(200).regex(/^\S+$/, '모델 이름에는 공백이 들어갈 수 없어요').nullable().optional(),
   autoApply: z.boolean().optional(),
 });
 export type JevSettingsInput = z.infer<typeof jevSettingsInput>;

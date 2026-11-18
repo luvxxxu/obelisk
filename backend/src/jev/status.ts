@@ -10,12 +10,14 @@ export const jevKeyContext = (userId: string) => `jev-key:${userId}`;
  * A key this server can no longer open (SECRET_KEY changed without SECRET_KEY_PREVIOUS, a database
  * restored from elsewhere) counts as not connected, flagged so the app can ask for it again.
  */
-export function jevStatus(u: Pick<UserRow, 'id' | 'jevKey' | 'jevKeyHint' | 'jevAutoApply'>): JevStatus {
+export function jevStatus(u: Pick<UserRow, 'id' | 'jevKey' | 'jevKeyHint' | 'jevAutoApply' | 'jevBaseUrl' | 'jevModel'>): JevStatus {
   const readable = !!u.jevKey && unseal(u.jevKey, jevKeyContext(u.id)) !== null;
   return {
     connected: readable,
     keyUnreadable: !!u.jevKey && !readable,
     hint: u.jevKey ? u.jevKeyHint : null,
     autoApply: u.jevAutoApply,
+    baseUrl: u.jevBaseUrl,
+    model: u.jevModel,
   };
 }

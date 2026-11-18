@@ -34,7 +34,7 @@ Helper: `scripts/obelisk.sh METHOD PATH [JSON]`.
 | GET | `/api/workspaces/:id` | workspace, members, teams |
 | GET | `/api/workspaces/:id/activity?before=&limit=&projectId=&actorId=` | activity you may see (admins: everything but others' private tasks) |
 
-### Jev hints (needs the user's own TypeSafe key, set in the web app)
+### Jev hints (needs the user's own Jev key — TypeSafe or any System One service — set in the web app)
 
 | Method | Path | Notes |
 |---|---|---|

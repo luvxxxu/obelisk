@@ -43,6 +43,13 @@
       "when": 1794851919601,
       "tag": "0005_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794989879428,
+      "tag": "0006_jev_endpoint",
+      "breakpoints": true
     }
   ]
 }
