@@ -222,8 +222,8 @@ pg_restore --clean --if-exists -d obelisk /backups/obelisk-20261115-030000.dump
 | `SECRET_KEY_PREVIOUS` | backend | (선택) `SECRET_KEY`를 바꿀 때 예전 값(쉼표로 여러 개). 한 번 시작해 다시 봉인되면 지워도 됩니다 |
 | `JEV_MODEL` | backend | (선택) TypeSafe 기본 모델, 기본 `jev-latest` (사용자가 모델을 정하면 그쪽이 우선) |
 | `JEV_ALLOW_PRIVATE` | backend | (선택) `true`면 사용자 Jev Base URL로 내부망·http 주소도 허용(자체 서버 테스트용). 운영 기본은 꺼짐 |
-| `SMTP_URL` | backend | (선택) 비밀번호 재설정 메일을 보낼 SMTP 서버, 예: `smtps://resend:API키@smtp.resend.com:465`, `smtp://사용자:비밀번호@smtp.example.com:587`. 사용자명·비밀번호의 특수문자는 URL 인코딩. 없으면 운영에서는 ‘비밀번호 찾기’가 숨겨지고, 개발에서는 메일 내용을 백엔드 로그에 출력합니다 |
-| `MAIL_FROM` | backend | (선택) 보내는 사람, 기본 `Obelisk <no-reply@PUBLIC_URL의 호스트>`. SMTP 서비스에서 인증한 도메인이어야 합니다 |
+| `SMTP_URL` | backend | (선택) 비밀번호 재설정 메일을 보낼 **내 메일함의 SMTP**, 예: `smtps://아이디@gmail.com:앱비밀번호@smtp.gmail.com:465`. 아래 ‘메일 설정’ 참고. 없으면 운영에서는 ‘비밀번호 찾기’가 숨겨지고, 개발에서는 메일 내용을 백엔드 로그에 출력합니다 |
+| `MAIL_FROM` | backend | (선택) 보내는 사람. 기본은 `SMTP_URL`의 로그인 주소(예: `Obelisk <아이디@gmail.com>`), 로그인이 주소가 아니면 `Obelisk <no-reply@PUBLIC_URL의 호스트>`. 메일함 SMTP는 그 메일함 주소로만 보낼 수 있으니 비워 두고, Cloudflare처럼 도메인으로 보낼 때는 `Obelisk <no-reply@내도메인>`으로 적습니다 |
 
 ## AI 연결
 
@@ -293,4 +293,14 @@ bun backend/scripts/preview-cards.ts http://localhost:3000
 ## 계정
 
 - **비밀번호 찾기**: 로그인 화면의 ‘비밀번호를 잊으셨나요?’에서 이메일을 적으면 60분 동안 한 번 쓸 수 있는 링크를 보냅니다(`SMTP_URL` 필요). 가입 여부와 관계없이 같은 답을 하고, 링크 토큰은 주소의 `#` 뒤에 있어 서버 로그에 남지 않으며 DB에는 해시만 저장합니다. 새 비밀번호를 정하면 그 계정의 다른 세션과 남은 링크가 모두 끝나고 이 브라우저로 로그인됩니다. 요청은 IP당 15분 10회, 주소당 시간당 3통으로 제한합니다.
+- **메일 설정**: `SMTP_URL` 하나로 SMTP 서버에 로그인해서 보냅니다(코드는 어느 SMTP든 같음). 형식은 `smtps://로그인:비밀번호@서버:465`(SSL) 또는 `smtp://로그인:비밀번호@서버:587`(STARTTLS)이고, 로그인 주소의 `@`는 그대로 써도 됩니다. 비밀번호에 `@ : / ? #`가 있으면 URL 인코딩하세요(`@` → `%40`). 받는 사람에게는 이 메일함 주소가 보이므로 개인 주소 대신 발송 전용 메일함을 하나 만드는 것을 권합니다.
+
+  | 메일함 | `SMTP_URL` | 준비 |
+  |---|---|---|
+  | Gmail | `smtps://아이디@gmail.com:앱비밀번호@smtp.gmail.com:465` | Google 계정 2단계 인증을 켜고 myaccount.google.com/apppasswords에서 앱 비밀번호(16자, 공백 빼고) 발급. 하루 약 500통 |
+  | 네이버 | `smtps://아이디@naver.com:앱비밀번호@smtp.naver.com:465` | 네이버 메일 → 환경설정 → POP3/IMAP 설정에서 SMTP 사용, 네이버 보안 설정에서 애플리케이션 비밀번호 발급 |
+  | Proton | `smtp://주소:SMTP토큰@smtp.protonmail.ch:587` | 커스텀 도메인 주소에서만(유료 요금제). 설정 → IMAP/SMTP → SMTP tokens에서 토큰 발급 |
+  | Cloudflare (내 도메인) | `smtps://api_token:API토큰@smtp.mx.cloudflare.net:465` + `MAIL_FROM=Obelisk <no-reply@내도메인>` | DNS가 Cloudflare에 있는 도메인. Workers Paid 요금제 필요(월 3,000통 포함). Compute → Email Service → Email Sending → Onboard Domain, ‘Email Sending: Edit’ 권한 API 토큰. 465 암묵적 TLS만 지원(2026년 6월 베타) |
+
+  설정 후 `/api/auth/password-reset`이 `{"available":true}`를 돌려주고, 보내다 실패하면 백엔드 로그에 `[mail] password reset mail failed: …`가 남습니다.
 - **계정 삭제**: 설정 → 일반 → 계정 삭제. 비밀번호를 다시 입력해야 하고 웹·iOS 세션에서만 가능합니다(API 토큰·AI 앱 불가). 개인 공간과 혼자 쓰는 조직은 함께 삭제되고, 함께 쓰는 조직에서는 나가며(만든 작업은 남고 담당자만 비워짐, 활동 기록에 ‘계정을 삭제해 조직을 떠났습니다’), API 토큰·AI 연결·받는 웹훅·세션이 모두 사라집니다. 다른 멤버가 있는 조직의 마지막 소유자라면 먼저 다른 사람을 소유자로 지정하거나 조직을 삭제해야 합니다.

@@ -9,7 +9,8 @@
 # Optional env: SIGNUP_MODE (first|open|closed, default first), BACKUP_KEEP_DAYS (default 14),
 #               SECRET_KEY_PREVIOUS (the old SECRET_KEY while rotating),
 #               WEBHOOK_ALLOW_PRIVATE (true lets outgoing webhooks reach LAN/private addresses; default false),
-#               SMTP_URL + MAIL_FROM (password reset mails; without SMTP_URL "비밀번호 찾기" is hidden).
+#               SMTP_URL (your mailbox's SMTP, for password reset mails; without it "비밀번호 찾기" is hidden)
+#               + MAIL_FROM (defaults to the SMTP login address).
 services:
   db:
     image: postgres:17-alpine
