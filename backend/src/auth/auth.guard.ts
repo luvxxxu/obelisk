@@ -10,6 +10,8 @@ import type { Request } from 'express';
 import { AuthService, type AuthContext } from './auth.service';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+/** First-party clients that sign in with a session cookie: the web app and the iOS app. */
+const SESSION_CLIENTS = new Set(['web', 'ios']);
 
 export type AuthedRequest = Request & { auth: AuthContext };
 
@@ -22,7 +24,8 @@ export class AuthGuard implements CanActivate {
     const auth = await this.auth.authenticate(req);
     if (!auth) throw new UnauthorizedException('로그인이 필요합니다');
     // Cookie-authenticated writes must carry a header browsers won't send cross-site without CORS.
-    if (auth.via === 'session' && !SAFE_METHODS.has(req.method) && req.headers['x-obelisk-client'] !== 'web') {
+    const client = req.headers['x-obelisk-client'];
+    if (auth.via === 'session' && !SAFE_METHODS.has(req.method) && !(typeof client === 'string' && SESSION_CLIENTS.has(client))) {
       throw new ForbiddenException('Missing x-obelisk-client header');
     }
     req.auth = auth;
