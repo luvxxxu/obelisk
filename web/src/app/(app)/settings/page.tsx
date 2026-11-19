@@ -12,6 +12,7 @@ import { toast } from '@/lib/toast';
 import { applyThemePref, modCombo } from '@/lib/ui-helpers';
 import { setUi } from '@/lib/ui-state';
 import type { User } from '@obelisk/core';
+import { DeleteAccountDialog } from './DeleteAccount';
 import { SettingsNav, SettingsRow, SettingsSection } from './SettingsNav';
 import s from './settings.module.css';
 
@@ -30,6 +31,7 @@ export default function SettingsPage() {
   const [tz, setTz] = useState(user?.timezone ?? 'Asia/Seoul');
   const [theme, setTheme] = useState<Theme>('system');
   const [searchKey, setSearchKey] = useState('⌘K');
+  const [deleting, setDeleting] = useState(false);
   const zones = useMemo(() => {
     try {
       return (Intl as unknown as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf('timeZone');
@@ -162,8 +164,14 @@ export default function SettingsPage() {
               로그아웃
             </button>
           </SettingsRow>
+          <SettingsRow label="계정 삭제" description="계정과 개인 공간의 모든 작업이 영구히 지워져요. 되돌릴 수 없어요.">
+            <button className={cx(ui.btn, ui.danger, ui.sm)} onClick={() => setDeleting(true)}>
+              계정 삭제
+            </button>
+          </SettingsRow>
         </SettingsSection>
       </div>
+      <DeleteAccountDialog open={deleting} onClose={() => setDeleting(false)} />
     </Page>
   );
 }

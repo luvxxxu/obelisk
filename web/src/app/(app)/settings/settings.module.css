@@ -281,3 +281,67 @@
     text-align: left;
   }
 }
+
+/* ───────── account deletion dialog */
+
+.deletePending {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+  color: var(--text-3);
+}
+
+.deleteForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* what goes with the account: a plain hairline list, no boxes */
+.deleteList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.deleteItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.deleteItem:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.deleteItem > button {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.deleteIcon {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--text-3);
+}
+
+.deleteText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-2);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.deleteText strong {
+  font-size: var(--fs-base);
+  font-weight: 500;
+  color: var(--text);
+}

@@ -57,6 +57,13 @@
       "when": 1795005367961,
       "tag": "0007_task_times",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795099152705,
+      "tag": "0008_password_resets",
+      "breakpoints": true
     }
   ]
 }

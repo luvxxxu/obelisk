@@ -36,6 +36,11 @@ export function toUser(r: UserRow): User {
 const DUMMY_HASH = await Bun.password.hash('obelisk-timing-guard');
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
+/** A successful password reset also lifts the login lockout for that address. */
+export function clearLoginThrottle(email: string) {
+  attempts.delete(email);
+}
+
 function throttle(key: string) {
   const nowMs = Date.now();
   const cur = attempts.get(key);

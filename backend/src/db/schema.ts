@@ -62,6 +62,21 @@ export const sessions = pgTable(
   (t) => [index('sessions_user_idx').on(t.userId)],
 );
 
+/** One-time links mailed by "비밀번호 찾기". Only the hash is stored; a link works once, for an hour. */
+export const passwordResets = pgTable(
+  'password_resets',
+  {
+    id: text('id').primaryKey(), // sha256 of the token in the link
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('password_resets_user_idx').on(t.userId)],
+);
+
 // ───────────────────────────── workspaces (personal space + organizations)
 
 export const workspaces = pgTable('workspaces', {

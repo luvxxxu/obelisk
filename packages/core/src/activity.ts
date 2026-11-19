@@ -157,7 +157,7 @@ export function describeActivity(e: Pick<ActivityEntry, 'action' | 'data' | 'sub
     case 'member.removed':
       return '조직에서 내보냈습니다';
     case 'member.left':
-      return '조직을 떠났습니다';
+      return d.accountDeleted ? '계정을 삭제해 조직을 떠났습니다' : '조직을 떠났습니다';
     case 'invite.created':
       return `${role(d.role)} 초대 링크를 만들었습니다`;
     case 'invite.revoked':

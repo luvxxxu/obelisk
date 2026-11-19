@@ -108,6 +108,18 @@ export interface WorkspaceSummary {
   memberCount: number;
 }
 
+/** What deleting your account would take with it, and what has to happen first. */
+export interface AccountDeletionPreview {
+  /** Organizations where you are the last owner and other people remain: name another owner first. */
+  blockers: { id: string; name: string; memberCount: number }[];
+  /** Organizations where you are the only member: deleted together with the account. */
+  soloOrgs: { id: string; name: string }[];
+  /** Your personal space's contents, deleted with it. */
+  personal: { projects: number; tasks: number };
+  /** Organizations you stay a member of until the account is gone (your tasks there stay, unassigned). */
+  sharedOrgs: number;
+}
+
 export interface Workspace extends WorkspaceSummary {
   membersCanCreateProjects: boolean;
   /** Whether the current user may create projects here. */

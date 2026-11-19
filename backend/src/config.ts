@@ -2,8 +2,18 @@ import { resolve } from 'node:path';
 
 const publicUrl = (process.env.PUBLIC_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 const signupMode = (process.env.SIGNUP_MODE ?? 'first').toLowerCase();
+const production = process.env.NODE_ENV === 'production';
+
+function defaultMailFrom(): string {
+  try {
+    return `Obelisk <no-reply@${new URL(publicUrl).hostname}>`;
+  } catch {
+    return 'Obelisk <no-reply@localhost>';
+  }
+}
 
 export const config = {
+  production,
   port: Number(process.env.PORT ?? 4000),
   databaseUrl: process.env.DATABASE_URL ?? 'postgres://obelisk:obelisk@localhost:5432/obelisk',
   /** Public origin users and AI clients reach the app at (the web container). */
@@ -16,6 +26,13 @@ export const config = {
     | 'closed',
   secureCookies: publicUrl.startsWith('https://'),
   sessionDays: 30,
+  /**
+   * Outgoing mail (password reset links), e.g. smtps://user:pass@smtp.resend.com:465 or smtp://user:pass@host:587.
+   * Unset in production = "비밀번호 찾기" is hidden; unset in development = mails are printed to the server log.
+   */
+  smtpUrl: process.env.SMTP_URL?.trim() || null,
+  mailFrom: process.env.MAIL_FROM?.trim() || defaultMailFrom(),
+  passwordResetMinutes: 60,
   oauthAccessSeconds: 60 * 60,
   oauthRefreshDays: 90,
   migrationsDir: process.env.MIGRATIONS_DIR ?? resolve(import.meta.dir, '../drizzle'),

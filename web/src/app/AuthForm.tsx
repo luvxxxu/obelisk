@@ -42,6 +42,91 @@ function EyeIcon({ off }: { off: boolean }) {
   );
 }
 
+/** The pill password input with a reveal toggle and Caps Lock hint (login, sign-up, reset). */
+export function PasswordField({
+  id = 'password',
+  label = '비밀번호',
+  value,
+  onChange,
+  autoComplete,
+  minLength,
+  help,
+  autoFocus,
+  labelAside,
+}: {
+  id?: string;
+  label?: string;
+  value: string;
+  onChange: (v: string) => void;
+  autoComplete: 'current-password' | 'new-password';
+  minLength?: number;
+  /** Muted line under the field (replaced by the Caps Lock warning while it is on). */
+  help?: string;
+  autoFocus?: boolean;
+  /** Something on the label's line, right-aligned (the "비밀번호 찾기" link). */
+  labelAside?: React.ReactNode;
+}) {
+  // UI-only: password visibility + Caps Lock hint.
+  const [show, setShow] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
+  const trackCaps = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    setCapsLock(typeof e.getModifierState === 'function' && e.getModifierState('CapsLock'));
+  };
+  const helpId = `${id}-help`;
+  return (
+    <div className={ui.field}>
+      <div className={s.labelRow}>
+        <label className={ui.label} htmlFor={id}>
+          {label}
+        </label>
+        {labelAside}
+      </div>
+      <div className={s.inputWrap}>
+        <input
+          id={id}
+          type={show ? 'text' : 'password'}
+          className={`${ui.input} ${s.pillInput}`}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={trackCaps}
+          onKeyUp={trackCaps}
+          onBlur={() => setCapsLock(false)}
+          required
+          minLength={minLength}
+          autoFocus={autoFocus}
+          autoComplete={autoComplete}
+          aria-describedby={help || capsLock ? helpId : undefined}
+        />
+        <button
+          type="button"
+          className={`${ui.iconBtn} ${s.reveal}`}
+          onClick={() => setShow((v) => !v)}
+          aria-label="비밀번호 표시"
+          aria-pressed={show}
+          aria-controls={id}
+        >
+          <EyeIcon off={show} />
+        </button>
+      </div>
+      {(help || capsLock) && (
+        <p id={helpId} className={`${ui.help} ${s.help}`} data-warn={capsLock || undefined}>
+          {capsLock ? (
+            <>
+              <Icon name="alert" size={13} />
+              Caps Lock이 켜져 있어요
+            </>
+          ) : (
+            help
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Carries the typed address from the login form to "비밀번호 찾기" without putting it in the URL. */
+export const FORGOT_EMAIL_KEY = 'obelisk-forgot-email';
+
 export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -51,9 +136,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   const [busy, setBusy] = useState(false);
   const [signupAllowed, setSignupAllowed] = useState<boolean | null>(null);
   const [nextQuery, setNextQuery] = useState('');
-  // UI-only: password visibility + Caps Lock hint.
-  const [showPassword, setShowPassword] = useState(false);
-  const [capsLock, setCapsLock] = useState(false);
+  const [resetAvailable, setResetAvailable] = useState(false);
   const [invite, setInvite] = useState<{ token: string; org: string | null } | null>(null);
 
   useEffect(() => {
@@ -71,7 +154,12 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
     api<{ allowed: boolean }>('GET', `/api/auth/signup-status${token ? `?invite=${encodeURIComponent(token)}` : ''}`)
       .then((r) => setSignupAllowed(r.allowed))
       .catch(() => setSignupAllowed(false));
-  }, [router]);
+    if (mode === 'login') {
+      api<{ available: boolean }>('GET', '/api/auth/password-reset')
+        .then((r) => setResetAvailable(r.available))
+        .catch(() => {});
+    }
+  }, [router, mode]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,10 +189,6 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
       setError((err as Error).message);
       setBusy(false);
     }
-  };
-
-  const trackCaps = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    setCapsLock(typeof e.getModifierState === 'function' && e.getModifierState('CapsLock'));
   };
 
   const isLogin = mode === 'login';
@@ -169,49 +253,28 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
                 placeholder="name@example.com"
               />
             </div>
-            <div className={ui.field}>
-              <label className={ui.label} htmlFor="password">
-                비밀번호
-              </label>
-              <div className={s.inputWrap}>
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  className={`${ui.input} ${s.pillInput}`}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={trackCaps}
-                  onKeyUp={trackCaps}
-                  onBlur={() => setCapsLock(false)}
-                  required
-                  minLength={mode === 'signup' ? 8 : 1}
-                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                  aria-describedby={mode === 'signup' || capsLock ? 'password-help' : undefined}
-                />
-                <button
-                  type="button"
-                  className={`${ui.iconBtn} ${s.reveal}`}
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label="비밀번호 표시"
-                  aria-pressed={showPassword}
-                  aria-controls="password"
-                >
-                  <EyeIcon off={showPassword} />
-                </button>
-              </div>
-              {(mode === 'signup' || capsLock) && (
-                <p id="password-help" className={`${ui.help} ${s.help}`} data-warn={capsLock || undefined}>
-                  {capsLock ? (
-                    <>
-                      <Icon name="alert" size={13} />
-                      Caps Lock이 켜져 있어요
-                    </>
-                  ) : (
-                    '8자 이상으로 만들어 주세요.'
-                  )}
-                </p>
-              )}
-            </div>
+            <PasswordField
+              value={password}
+              onChange={setPassword}
+              minLength={mode === 'signup' ? 8 : 1}
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              help={mode === 'signup' ? '8자 이상으로 만들어 주세요.' : undefined}
+              labelAside={
+                isLogin && resetAvailable ? (
+                  <Link
+                    className={s.forgotLink}
+                    href="/forgot-password"
+                    onClick={() => {
+                      try {
+                        sessionStorage.setItem(FORGOT_EMAIL_KEY, email.trim());
+                      } catch {}
+                    }}
+                  >
+                    비밀번호를 잊으셨나요?
+                  </Link>
+                ) : undefined
+              }
+            />
             <button type="submit" className={buttonClass({ variant: 'primary', size: 'lg', block: true, className: `${s.action} ${s.submit}` })} disabled={busy}>
               {busy ? (
                 <>

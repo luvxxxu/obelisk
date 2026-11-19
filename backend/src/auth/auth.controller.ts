@@ -1,15 +1,27 @@
-import { Body, Controller, Get, HttpCode, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { loginInput, signupInput, updateMeInput } from '@obelisk/core';
+import { Body, Controller, Delete, Get, HttpCode, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  deleteAccountInput,
+  loginInput,
+  passwordResetCheckInput,
+  passwordResetInput,
+  passwordResetRequestInput,
+  signupInput,
+  updateMeInput,
+} from '@obelisk/core';
 import type { Request, Response } from 'express';
 import { config, SESSION_COOKIE } from '../config';
 import { cookieHeader } from '../common/http';
 import { parse } from '../common/validation';
-import { Auth, AuthGuard } from './auth.guard';
+import { AccountService } from './account.service';
+import { Auth, AuthGuard, SessionOnlyGuard } from './auth.guard';
 import { AuthService, toUser, type AuthContext } from './auth.service';
 
 @Controller('api/auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly account: AccountService,
+  ) {}
 
   private setSession(res: Response, token: string | null) {
     res.setHeader(
@@ -52,6 +64,38 @@ export class AuthController {
     return { ok: true };
   }
 
+  // ───────── password reset by mail (signed out)
+
+  /** Whether "비밀번호 찾기" can work here (the server can send mail). */
+  @Get('password-reset')
+  passwordResetStatus() {
+    return { available: this.account.passwordResetAvailable() };
+  }
+
+  /** Always answers the same, whether or not the address has an account. */
+  @Post('password-reset')
+  @HttpCode(200)
+  async requestPasswordReset(@Body() body: unknown, @Req() req: Request) {
+    await this.account.requestPasswordReset(parse(passwordResetRequestInput, body).email, req.ip ?? 'unknown');
+    return { ok: true };
+  }
+
+  /** The token travels in the body (it lives in the link's #fragment) so it never lands in a URL log. */
+  @Post('password-reset/check')
+  @HttpCode(200)
+  checkPasswordReset(@Body() body: unknown, @Req() req: Request) {
+    return this.account.checkPasswordReset(parse(passwordResetCheckInput, body).token, req.ip ?? 'unknown');
+  }
+
+  @Post('password-reset/confirm')
+  @HttpCode(200)
+  async confirmPasswordReset(@Body() body: unknown, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const input = parse(passwordResetInput, body);
+    const { user, session } = await this.account.resetPassword(input.token, input.password, req.ip ?? 'unknown');
+    this.setSession(res, session);
+    return { user: toUser(user) };
+  }
+
   @Get('me')
   @UseGuards(AuthGuard)
   me(@Auth() auth: AuthContext) {
@@ -63,5 +107,21 @@ export class AuthController {
   async updateMe(@Auth() auth: AuthContext, @Body() body: unknown) {
     const row = await this.auth.updateMe(auth.user.id, parse(updateMeInput, body));
     return { user: toUser(row) };
+  }
+
+  // ───────── account deletion (signed-in web or iOS session only, never an API token or AI app)
+
+  @Get('me/deletion')
+  @UseGuards(AuthGuard, SessionOnlyGuard)
+  deletionPreview(@Auth() auth: AuthContext) {
+    return this.account.deletionPreview(auth.user.id);
+  }
+
+  @Delete('me')
+  @UseGuards(AuthGuard, SessionOnlyGuard)
+  async deleteMe(@Auth() auth: AuthContext, @Body() body: unknown, @Res({ passthrough: true }) res: Response) {
+    await this.account.deleteAccount(auth, parse(deleteAccountInput, body).password);
+    this.setSession(res, null);
+    return { ok: true };
   }
 }

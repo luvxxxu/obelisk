@@ -192,6 +192,23 @@ export const loginInput = z.object({
   password: z.string().min(1).max(200),
 });
 
+export const passwordResetRequestInput = z.object({
+  email: z.email('올바른 이메일을 입력하세요').transform((s) => s.toLowerCase()),
+});
+
+export const passwordResetCheckInput = z.object({
+  token: z.string().min(8).max(200),
+});
+
+export const passwordResetInput = z.object({
+  token: z.string().min(8).max(200),
+  password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다').max(200),
+});
+
+export const deleteAccountInput = z.object({
+  password: z.string().min(1, '비밀번호를 입력하세요').max(200),
+});
+
 const widgetId = z.string().regex(/^[a-z][a-zA-Z0-9-]{0,39}$/);
 const widgetIds = z.array(widgetId).max(40);
 
