@@ -5,6 +5,8 @@ import {
   formatRelativeKo,
   fromMinutes,
   previewDateChange,
+  simulate,
+  toDay,
   toMinutes,
   type DateChange,
   type DateChangePreview,
@@ -68,6 +70,8 @@ export interface PendingChange {
   title: string;
   next: TimedSpan;
   preview: DateChangePreview;
+  /** Set when several tasks move together; `only`/`cascade` then already carry every task's times. */
+  count?: number;
 }
 
 let pending: PendingChange | null = null;
@@ -117,7 +121,74 @@ export async function resolvePending(mode: 'cascade' | 'only' | 'cancel') {
   emit();
   if (!p || mode === 'cancel') return;
   const changes = mode === 'cascade' ? p.preview.cascade : p.preview.only;
-  await commit(p.taskId, withTimes(changes, p.taskId, p.next), changes.length);
+  await commit(p.taskId, p.count ? changes : withTimes(changes, p.taskId, p.next), changes.length);
+}
+
+export interface GroupMove {
+  taskId: string;
+  next: TimedSpan;
+}
+
+/**
+ * The same preview for several tasks moved together (the timeline's multi-select): every moved
+ * task is a root, each pushing its successors by however far its own finish moved.
+ */
+export function previewGroup(moves: GroupMove[]): DateChangePreview {
+  const s = getState();
+  const roots = new Map(moves.map((m) => [m.taskId, m.next]));
+  const shifts: Record<string, number> = {};
+  let shiftDays = 0;
+  for (const m of moves) {
+    const t = s.tasks[m.taskId];
+    const oldEnd = t ? (t.dueDate ?? t.startDate) : null;
+    const newEnd = m.next.dueDate ?? m.next.startDate;
+    const d = oldEnd && newEnd ? toDay(newEnd) - toDay(oldEnd) : 0;
+    shifts[m.taskId] = d;
+    if (Math.abs(d) > Math.abs(shiftDays)) shiftDays = d;
+  }
+  const report = simulate(planItems(s), s.deps, shifts);
+  for (const im of report.impacts) {
+    const next = roots.get(im.taskId);
+    if (next && im.kind === 'root') im.to = { startDate: next.startDate, dueDate: next.dueDate };
+  }
+  const only: DateChange[] = moves.map((m) => {
+    const t = s.tasks[m.taskId]!;
+    const next = orderTimes(t, m.next);
+    return { taskId: m.taskId, startDate: next.startDate, dueDate: next.dueDate, ...resolvedTimes(t, next) };
+  });
+  const cascade = [
+    ...only,
+    ...report.impacts
+      .filter((im) => im.kind === 'shifted' && !roots.has(im.taskId))
+      .map((im) => ({ taskId: im.taskId, startDate: im.to.startDate, dueDate: im.to.dueDate })),
+  ];
+  return {
+    report,
+    shiftDays,
+    startsBeforeBlockers: [],
+    hasImpact: report.summary.delayedCount + report.summary.conflictCount > 0,
+    only,
+    cascade,
+  };
+}
+
+/** Move several tasks at once; asks first (the same dialog) when other work would be pushed. */
+export function requestGroupChange(moves: GroupMove[]) {
+  const s = getState();
+  const valid = moves.filter((m) => s.tasks[m.taskId]);
+  if (!valid.length) return;
+  if (valid.length === 1) {
+    requestDateChange(valid[0]!.taskId, valid[0]!.next);
+    return;
+  }
+  const preview = previewGroup(valid);
+  const first = valid[0]!;
+  if (preview.hasImpact) {
+    pending = { taskId: first.taskId, title: `작업 ${valid.length}개`, next: first.next, preview, count: valid.length };
+    emit();
+    return;
+  }
+  void commit(first.taskId, preview.only, valid.length);
 }
 
 async function commit(taskId: string, changes: DateChange[], count: number) {

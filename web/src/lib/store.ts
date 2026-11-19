@@ -457,6 +457,43 @@ export async function deleteTask(id: string) {
   }
 }
 
+/** Delete several tasks at once (the timeline's multi-select). Any that fail come back. */
+export async function deleteTasks(ids: string[]): Promise<boolean> {
+  const list = ids.map((id) => state.tasks[id]).filter((t): t is Task => !!t);
+  if (!list.length) return true;
+  if (!list.every((t) => canEdit(t))) {
+    toast.error(READ_ONLY_MESSAGE);
+    return false;
+  }
+  const gone = new Set(list.map((t) => t.id));
+  const prevDeps = state.deps;
+  localWrites++;
+  set((s) => {
+    const tasks = { ...s.tasks };
+    for (const id of gone) delete tasks[id];
+    return {
+      tasks,
+      deps: s.deps.filter((d) => !gone.has(d.taskId) && !gone.has(d.dependsOnId)),
+      selectedTaskId: s.selectedTaskId && gone.has(s.selectedTaskId) ? null : s.selectedTaskId,
+    };
+  });
+  const results = await Promise.allSettled(list.map((t) => api('DELETE', `/api/tasks/${t.id}`)));
+  const failed = list.filter((_, i) => results[i]!.status === 'rejected');
+  if (failed.length) {
+    set((s) => {
+      const tasks = { ...s.tasks };
+      for (const t of failed) tasks[t.id] = t;
+      const keep = new Set(s.deps.map((d) => `${d.taskId}:${d.dependsOnId}`));
+      const back = prevDeps.filter((d) => tasks[d.taskId] && tasks[d.dependsOnId] && !keep.has(`${d.taskId}:${d.dependsOnId}`));
+      return { tasks, deps: [...s.deps, ...back] };
+    });
+    fail((results.find((r) => r.status === 'rejected') as PromiseRejectedResult).reason);
+  }
+  const done = list.length - failed.length;
+  if (done) toast.show(done === 1 ? `“${list.find((t) => !failed.includes(t))!.title}” 삭제됨` : `작업 ${done}개 삭제됨`);
+  return !failed.length;
+}
+
 export async function addDependency(taskId: string, dependsOnId: string) {
   if (!guard(state.tasks[taskId])) return false;
   try {

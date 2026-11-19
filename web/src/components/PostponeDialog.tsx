@@ -13,7 +13,8 @@ export function PostponeDialog() {
   const p = usePendingChange();
   if (!p) return null;
   const { summary } = p.preview.report;
-  const others = p.preview.cascade.length - 1;
+  const moved = p.count ?? 1;
+  const others = p.preview.cascade.length - moved;
   const days = p.preview.shiftDays;
   // Name the target date: for an overdue task "이틀 미루기" (from today) is a 4-day shift
   // from its old due date, and "4일 미루면" alone read like a mismatch with the menu.
@@ -25,9 +26,13 @@ export function PostponeDialog() {
       onClose={() => void resolvePending('cancel')}
       width={600}
       title={
-        days === 0
-          ? `“${p.title}” 일정을 바꾸면`
-          : `“${p.title}”을(를) ${target ? `${formatShortKo(target)}로 ` : ''}${daysLabel(Math.abs(days))} ${days > 0 ? '미루면' : '당기면'}`
+        p.count
+          ? days === 0
+            ? `${p.title} 일정을 바꾸면`
+            : `${p.title}를 ${daysLabel(Math.abs(days))} ${days > 0 ? '미루면' : '당기면'}`
+          : days === 0
+            ? `“${p.title}” 일정을 바꾸면`
+            : `“${p.title}”을(를) ${target ? `${formatShortKo(target)}로 ` : ''}${daysLabel(Math.abs(days))} ${days > 0 ? '미루면' : '당기면'}`
       }
       description="적용하기 전에 아래 영향을 확인하고, 어떻게 옮길지 골라 주세요."
       footer={
@@ -36,7 +41,7 @@ export function PostponeDialog() {
             취소
           </button>
           <button className={`${ui.btn} ${ui.secondary}`} onClick={() => void resolvePending('only')}>
-            이 작업만 변경
+            {p.count ? '고른 작업만 변경' : '이 작업만 변경'}
           </button>
           <button className={`${ui.btn} ${ui.primary}`} autoFocus onClick={() => void resolvePending('cascade')}>
             {others > 0 ? `연쇄 적용 · ${others}개 함께 이동` : '변경'}
@@ -69,11 +74,15 @@ export function PostponeDialog() {
               <dd>뒤에 이어진 작업 {others}개도 필요한 만큼 함께 옮겨요.</dd>
             </div>
             <div className={s.choice}>
-              <dt>이 작업만 변경</dt>
+              <dt>{p.count ? '고른 작업만 변경' : '이 작업만 변경'}</dt>
               <dd>
-                {summary.conflictCount === 0
-                  ? '뒤 작업들이 이 작업보다 먼저 시작하는 일정이 돼요.'
-                  : '이 작업만 옮기고, 뒤 작업 일정은 그대로 둬요.'}
+                {p.count
+                  ? summary.conflictCount === 0
+                    ? '뒤 작업들이 고른 작업보다 먼저 시작하는 일정이 돼요.'
+                    : '고른 작업만 옮기고, 뒤 작업 일정은 그대로 둬요.'
+                  : summary.conflictCount === 0
+                    ? '뒤 작업들이 이 작업보다 먼저 시작하는 일정이 돼요.'
+                    : '이 작업만 옮기고, 뒤 작업 일정은 그대로 둬요.'}
               </dd>
             </div>
           </dl>
