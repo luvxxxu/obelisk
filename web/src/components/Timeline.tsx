@@ -17,7 +17,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useClock } from '@/lib/clock';
 import { cx, spanLabel as relativeSpanLabel } from '@/lib/format';
 import { previewFor, previewGroup, requestDateChange, requestGroupChange, type TimedSpan } from '@/lib/reschedule';
-import { deleteTasks, moveTasks, selectTask, useApp } from '@/lib/store';
+import { clearPicks, setPicked, togglePick, useInlineBar, usePicked } from '@/lib/selection';
+import { selectTask, useApp } from '@/lib/store';
 import {
   applySpan,
   clampScale,
@@ -36,10 +37,10 @@ import {
   type DragMode,
   type Timed,
 } from '@/lib/timeline';
-import { toast } from '@/lib/toast';
 import { modKey } from '@/lib/ui-helpers';
 import { Icon } from './Icon';
-import { buttonClass, ConfirmModal, tip } from './primitives';
+import { BulkBar } from './BulkBar';
+import { tip } from './primitives';
 import s from './Timeline.module.css';
 
 const ROW_H = 40;
@@ -57,8 +58,8 @@ interface Drag {
   /** Snapped distance: days at day scale, minutes at hour scale. */
   delta: number;
   moved: boolean;
-  /** Started with Shift: a click (no movement) toggles the bar in the selection. */
-  shift: boolean;
+  /** Started with Shift or ⌘/Ctrl: a click (no movement) toggles the bar in the selection. */
+  toggle: boolean;
 }
 
 interface Marquee {
@@ -124,9 +125,9 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
   const tracksRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
-  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const picked = usePicked();
   const [marquee, setMarquee] = useState<Marquee | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  useInlineBar();
 
   // ── zoom: pixels per day (persisted per browser)
   const [scale, setScale] = useState(DEFAULT_SCALE);
@@ -163,7 +164,6 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
   );
   const unscheduled = tasks.filter((t) => !daySpan(t) && isActive(t));
   const rowIndex = useMemo(() => new Map(rows.map((t, i) => [t.id, i])), [rows]);
-  const pickedRows = useMemo(() => rows.filter((t) => picked.has(t.id)), [rows, picked]);
 
   const range = useMemo(() => {
     let min = addDays(today, -4);
@@ -387,28 +387,13 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
       return { key: `${d.dependsOnId}-${d.taskId}`, path, violated, active };
     });
 
-  // ── selection
-  const clearPicks = () => setPicked((p) => (p.size ? new Set() : p));
-
-  /** Shift-click: add or remove one task. The task open in the side panel joins the first pick. */
-  const togglePick = (id: string) => {
-    setPicked((prev) => {
-      const next = new Set(prev);
-      const open = app.selectedTaskId;
-      if (!prev.size && open && open !== id && rowIndex.has(open)) next.add(open);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-    selectTask(null);
-  };
-
   // ── pointer handling (bars)
   const onPointerDown = (e: React.PointerEvent, t: Task, mode: DragMode) => {
     if (e.button !== 0) return;
     e.stopPropagation();
+    const toggle = e.shiftKey || e.metaKey || e.ctrlKey;
     if (!isActive(t)) {
-      if (e.shiftKey) togglePick(t.id);
+      if (toggle) togglePick(t.id);
       else {
         clearPicks();
         selectTask(t.id);
@@ -417,13 +402,13 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
     }
     capture(e.currentTarget, e.pointerId);
     let ids = [t.id];
-    if (mode === 'move' && (picked.has(t.id) || (e.shiftKey && picked.size))) {
+    if (mode === 'move' && (picked.has(t.id) || (toggle && picked.size))) {
       ids = [...new Set([...picked, t.id])].filter((id) => {
         const task = app.tasks[id];
         return !!task && isActive(task) && rowIndex.has(id);
       });
     }
-    setDrag({ taskId: t.id, ids, mode, originX: e.clientX, delta: 0, moved: false, shift: e.shiftKey });
+    setDrag({ taskId: t.id, ids, mode, originX: e.clientX, delta: 0, moved: false, toggle });
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -444,7 +429,7 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
     const t = app.tasks[d.taskId];
     if (!t) return;
     if (!d.moved) {
-      if (d.shift) togglePick(t.id);
+      if (d.toggle) togglePick(t.id);
       else {
         clearPicks();
         selectTask(t.id);
@@ -453,7 +438,7 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
     }
     if (d.delta === 0) return;
     if (d.ids.length > 1) {
-      setPicked(new Set(d.ids));
+      setPicked(d.ids);
       requestGroupChange(d.ids.flatMap((id) => (app.tasks[id] ? [{ taskId: id, next: nextFor(app.tasks[id]!, 'move', d.delta) }] : [])));
     } else {
       requestDateChange(t.id, nextFor(t, d.mode, d.delta));
@@ -498,49 +483,28 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
     const r = e.currentTarget.getBoundingClientRect();
     const m = { ...marquee, x1: e.clientX - r.left, y1: e.clientY - r.top };
     setMarquee(m);
-    setPicked(new Set([...m.base, ...marqueeHits(m)]));
+    setPicked([...m.base, ...marqueeHits(m)]);
   };
 
   const onTracksPointerUp = () => setMarquee(null);
 
+  // Esc cancels a drag or a box first (capture, so the shell doesn't also drop the selection).
   useEffect(() => {
-    if (!drag && !marquee && !picked.size) return;
+    if (!drag && !marquee) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      e.stopPropagation();
       if (drag) {
         setDrag(null);
         setHover(null);
       } else if (marquee) {
         setPicked(marquee.base);
         setMarquee(null);
-      } else setPicked(new Set());
+      }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [drag, marquee, picked]);
-
-  // ── bulk actions on the picked tasks
-  const pickedActive = pickedRows.filter(isActive);
-
-  const completePicked = async () => {
-    if (!pickedActive.length) return;
-    const before = pickedActive.map((t) => ({ taskId: t.id, position: t.position, status: t.status }));
-    const ok = await moveTasks(pickedActive.map((t) => ({ taskId: t.id, position: t.position, status: 'done' as const })));
-    if (!ok) return;
-    toast.show(`작업 ${before.length}개 완료`, { action: { label: '실행 취소', run: () => void moveTasks(before) } });
-    clearPicks();
-  };
-
-  const postponePicked = () => {
-    if (!pickedActive.length) return;
-    requestGroupChange(pickedActive.map((t) => ({ taskId: t.id, next: nextByDays(t, 'move', 1) })));
-  };
-
-  const deletePicked = async () => {
-    const ids = pickedRows.map((t) => t.id);
-    clearPicks();
-    await deleteTasks(ids);
-  };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [drag, marquee]);
 
   // ── header cells for the visible days
   const firstDay = Math.max(0, view.from);
@@ -682,7 +646,7 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
                       style={{ height: ROW_H }}
                       onMouseDown={(e) => e.shiftKey && e.preventDefault()}
                       onClick={(e) => {
-                        if (e.shiftKey) togglePick(t.id);
+                        if (e.shiftKey || e.metaKey || e.ctrlKey) togglePick(t.id);
                         else {
                           clearPicks();
                           selectTask(t.id);
@@ -879,37 +843,15 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
         </div>
       )}
 
-      {pickedRows.length > 0 ? (
-        <div className={s.bulk} role="toolbar" aria-label="고른 작업">
-          <span className={s.bulkCount}>
-            <strong>{pickedRows.length}</strong>개 선택
-          </span>
-          <span className={s.bulkActions}>
-            <button type="button" className={buttonClass({ variant: 'outline', size: 'sm' })} disabled={!pickedActive.length} onClick={() => void completePicked()}>
-              <Icon name="check" size={14} />
-              완료
-            </button>
-            <button type="button" className={buttonClass({ variant: 'outline', size: 'sm' })} disabled={!pickedActive.length} onClick={postponePicked}>
-              <Icon name="postpone" size={14} />
-              하루 미루기
-            </button>
-            <button type="button" className={buttonClass({ variant: 'dangerGhost', size: 'sm' })} onClick={() => setConfirmDelete(true)}>
-              <Icon name="trash" size={14} />
-              삭제
-            </button>
-          </span>
-          <button type="button" className={s.bulkClear} onClick={clearPicks}>
-            선택 해제
-            <kbd>Esc</kbd>
-          </button>
-        </div>
+      {[...picked].some((id) => app.tasks[id]) ? (
+        <BulkBar variant="inline" />
       ) : (
         <div className={s.legend}>
           <span className={s.legendHint}>
             <Icon name="grip" size={13} />
             끌어서 이동 · 양 끝을 끌어 기간 조절
             <span className={s.legendEsc}>
-              · <kbd>Shift</kbd> 여러 개 선택 · 핀치나 <kbd>{mod}</kbd> 스크롤로 확대
+              · <kbd>Shift</kbd> 또는 <kbd>{mod}</kbd> 클릭으로 여러 개 · 핀치나 <kbd>{mod}</kbd> 스크롤로 확대
             </span>
           </span>
           <span className={s.legendItems}>
@@ -932,14 +874,6 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
         </div>
       )}
 
-      <ConfirmModal
-        open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-        title={`작업 ${pickedRows.length}개를 삭제할까요?`}
-        body="고른 작업과 그 의존 관계가 함께 삭제돼요. 되돌릴 수 없어요."
-        confirmLabel="삭제"
-        onConfirm={() => void deletePicked()}
-      />
     </div>
   );
 }

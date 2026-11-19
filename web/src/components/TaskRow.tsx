@@ -5,6 +5,7 @@ import { memo, useMemo, useRef, useState } from 'react';
 import { useClock } from '@/lib/clock';
 import { cx, dateTone, dueSoonLabel, overdueLabel, spanLabel, timeLabel } from '@/lib/format';
 import { previewFor, requestDateChange } from '@/lib/reschedule';
+import { clearPicks, getPicked, pickRange, togglePick, useIsPicked, visibleRowIds } from '@/lib/selection';
 import { canEdit, memberName, selectTask, toggleDone, useApp } from '@/lib/store';
 import { DatePickerPanel } from './DatePicker';
 import { Icon } from './Icon';
@@ -148,6 +149,7 @@ export const TaskRow = memo(function TaskRow({
   const [completing, setCompleting] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const postponeRef = useRef<HTMLButtonElement>(null);
+  const picked = useIsPicked(task.id);
 
   const project = showProject && task.projectId ? projects.find((p) => p.id === task.projectId) : null;
   const waitingOn = deps.filter((d) => {
@@ -190,11 +192,21 @@ export const TaskRow = memo(function TaskRow({
         done && s.done,
         completing && s.completing,
         selectedTaskId === task.id && s.selected,
+        picked && s.picked,
         task.status === 'canceled' && s.canceled,
       )}
       data-task-row={task.id}
+      aria-selected={picked || undefined}
       tabIndex={0}
-      onClick={() => selectTask(task.id)}
+      // Shift would otherwise extend a text selection across the rows.
+      onMouseDown={(e) => e.shiftKey && e.preventDefault()}
+      onClick={(e) => {
+        // Shift: a range from the last row picked; ⌘/Ctrl: one row in or out. A plain click opens it.
+        if (e.shiftKey) return pickRange(visibleRowIds(), task.id);
+        if (e.metaKey || e.ctrlKey) return togglePick(task.id);
+        if (getPicked().size) clearPicks();
+        selectTask(task.id);
+      }}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter') selectTask(task.id);

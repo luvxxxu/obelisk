@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useJevAutoPilot } from '@/lib/jev';
+import { clearPicks, getPicked, useHasInlineBar } from '@/lib/selection';
 import { getState, load, selectTask, startSync, useApp } from '@/lib/store';
 import {
   DESKTOP_QUERY,
@@ -13,6 +14,7 @@ import {
   useMediaQuery,
 } from '@/lib/ui-helpers';
 import { getUi, setUi, useUi } from '@/lib/ui-state';
+import { SelectionDock } from './BulkBar';
 import { Icon, Logo } from './Icon';
 import { CommandPalette, QuickAddModal, ShortcutsHelp, Toaster } from './Overlays';
 import { JevDialogs } from './JevDialogs';
@@ -95,7 +97,8 @@ function useShortcuts() {
           gPressed.current = Date.now();
           break;
         case 'Escape':
-          if (getState().selectedTaskId) selectTask(null);
+          if (getPicked().size) clearPicks();
+          else if (getState().selectedTaskId) selectTask(null);
           else if (u.nav) setUi({ nav: false });
           break;
         case 'j':
@@ -191,6 +194,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (desktop && getUi().nav) setUi({ nav: false });
   }, [desktop]);
   useShortcuts();
+  // A selection belongs to the page it was made on.
+  const workspaceId = app.workspace?.id;
+  useEffect(() => clearPicks(), [pathname, workspaceId]);
+  const inlineBar = useHasInlineBar();
 
   if (app.status !== 'ready') {
     return (
@@ -228,6 +235,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div key={pathname} className={s.route}>
           {children}
         </div>
+        <SelectionDock hidden={inlineBar} />
       </main>
 
       {app.selectedTaskId && (

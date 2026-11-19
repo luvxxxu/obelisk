@@ -457,6 +457,27 @@ export async function deleteTask(id: string) {
   }
 }
 
+/**
+ * Change several tasks at once (multi-select: project, priority), each with its own patch so an undo
+ * can put every task back as it was. Applied optimistically; any that fail come back.
+ */
+export async function patchTasks(changes: { id: string; patch: UpdateTaskInput }[]): Promise<boolean> {
+  const list = changes.flatMap((c) => (state.tasks[c.id] ? [{ ...c, prev: state.tasks[c.id]! }] : []));
+  if (!list.length) return true;
+  if (!list.every((c) => canEdit(c.prev))) {
+    toast.error(READ_ONLY_MESSAGE);
+    return false;
+  }
+  upsertTasks(list.map((c) => ({ ...c.prev, ...(c.patch as Partial<Task>) })));
+  const results = await Promise.allSettled(list.map((c) => api<{ task: Task }>('PATCH', `/api/tasks/${c.id}`, c.patch)));
+  const saved: Task[] = [];
+  const failed: Task[] = [];
+  results.forEach((r, i) => (r.status === 'fulfilled' ? saved.push(r.value.task) : failed.push(list[i]!.prev)));
+  upsertTasks([...saved, ...failed]);
+  if (failed.length) fail((results.find((r) => r.status === 'rejected') as PromiseRejectedResult).reason);
+  return !failed.length;
+}
+
 /** Delete several tasks at once (the timeline's multi-select). Any that fail come back. */
 export async function deleteTasks(ids: string[]): Promise<boolean> {
   const list = ids.map((id) => state.tasks[id]).filter((t): t is Task => !!t);

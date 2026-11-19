@@ -42,6 +42,12 @@
   box-shadow: inset 0 0 0 1.5px var(--ring-color);
 }
 
+/* picked for a bulk action (⌘/Shift+click) */
+.picked,
+.picked:hover {
+  background: var(--surface-3);
+}
+
 .completing .main {
   opacity: 0.55;
 }

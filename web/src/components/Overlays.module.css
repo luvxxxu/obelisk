@@ -358,6 +358,11 @@ button.paletteItem {
   pointer-events: none;
 }
 
+/* the floating selection bar (BulkBar dock) owns the bottom edge while it is up */
+:global(body[data-dock]) .toaster {
+  bottom: calc(84px + env(safe-area-inset-bottom));
+}
+
 .toast {
   pointer-events: auto;
   display: flex;
