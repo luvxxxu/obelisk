@@ -18,7 +18,10 @@ const REASON: Record<NonNullable<InvitePreview['reason']>, string> = {
   used_up: '사용 횟수가 모두 끝난 초대 링크예요.',
 };
 
-/** An organization invite: who invites you where, then join (signing up or in first if needed). */
+/**
+ * An organization invite: who invites you where, then join (signing up or in first if needed).
+ * `obr_` links take a reserved place from an imported organization (its tasks and grants come along).
+ */
 export default function InvitePage() {
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
@@ -79,6 +82,11 @@ export default function InvitePage() {
                 <p className={s.description}>
                   멤버 {invite.workspace.memberCount}명 · {ROLE_LABEL_KO[invite.role]}로 참여해요
                 </p>
+                {invite.reservation && (
+                  <p className={i.reservation}>
+                    {invite.reservation.name}({invite.reservation.email}) 자리로 합류해요. 맡던 작업과 프로젝트 권한을 그대로 이어받아요.
+                  </p>
+                )}
               </header>
 
               {error && (
@@ -89,7 +97,8 @@ export default function InvitePage() {
                 </div>
               )}
 
-              {invite.alreadyMember ? (
+              {/* A claim link still hands over its place to someone already in (their tasks and grants). */}
+              {invite.alreadyMember && !invite.reservation ? (
                 <button
                   className={buttonClass({ variant: 'primary', size: 'lg', block: true, className: s.action })}
                   onClick={async () => {
@@ -113,10 +122,10 @@ export default function InvitePage() {
                 >
                   {busy ? (
                     <>
-                      <span className={ui.spinner} aria-hidden="true" /> 참여하는 중…
+                      <span className={ui.spinner} aria-hidden="true" /> {invite.reservation && invite.alreadyMember ? '이어받는 중…' : '참여하는 중…'}
                     </>
                   ) : (
-                    `${invite.workspace.name}에 참여하기`
+                    invite.reservation && invite.alreadyMember ? '이 자리 이어받기' : `${invite.workspace.name}에 참여하기`
                   )}
                 </button>
               ) : (
@@ -131,6 +140,15 @@ export default function InvitePage() {
               )}
 
               <ul className={i.facts}>
+                {invite.reservation && (
+                  <li>
+                    {invite.alreadyMember
+                      ? '이미 이 조직의 멤버예요. 지금 역할은 그대로 두고 이 자리의 작업과 권한만 이어받아요. 링크는 한 번만 쓸 수 있어요.'
+                      : signedIn
+                        ? '이 링크는 한 번만 쓸 수 있어요. 지금 로그인한 계정으로 자리를 채워요.'
+                        : '이 링크는 한 번만 쓸 수 있어요.'}
+                  </li>
+                )}
                 <li>공유받은 프로젝트만 볼 수 있어요. 내 개인 공간은 그대로 나만 봐요.</li>
                 <li>연결한 AI도 이 조직에서 내 권한만큼만 일해요.</li>
               </ul>

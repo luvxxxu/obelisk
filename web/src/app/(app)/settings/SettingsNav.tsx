@@ -17,6 +17,7 @@ export function SettingsNav() {
     { href: '/settings/ai', label: 'AI 연결' },
     { href: '/settings/jev', label: 'Jev' },
     { href: '/settings/webhooks', label: '웹훅' },
+    { href: '/settings/migrate', label: '데이터 이전' },
   ];
   return (
     <nav className={s.nav} aria-label="설정 메뉴">

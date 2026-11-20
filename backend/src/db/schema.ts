@@ -489,6 +489,88 @@ export const oauthGrants = pgTable(
   (t) => [index('oauth_grants_user_idx').on(t.userId)],
 );
 
+// ───────────────────────────── moving between servers
+
+/** One-time 이전 링크 codes: another server pulls a workspace with it, once, within 30 minutes. */
+export const migrationCodes = pgTable(
+  'migration_codes',
+  {
+    id: text('id').primaryKey(), // sha256 of the omg_ code
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('migration_codes_user_idx').on(t.userId)],
+);
+
+/** Bundles imported here, so the same export isn't imported twice by accident. */
+export const migrationImports = pgTable(
+  'migration_imports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    exportId: uuid('export_id').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Where it landed. */
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    sourceUrl: text('source_url').notNull(),
+    kind: text('kind', { enum: ['personal', 'org'] }).notNull(),
+    summary: jsonb('summary').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('migration_imports_user_export_idx').on(t.userId, t.exportId)],
+);
+
+/** What a reserved person gets once they join: the rows the import left empty for them. */
+export interface ReservationClaims {
+  projects: { projectId: string; level: AccessLevel }[];
+  teams: string[];
+  assigned: string[];
+  created: string[];
+  projectsCreated: string[];
+  activity: string[];
+  webhooks: string[];
+  /** Had left the organization on the source: only authorship waits here, and joining makes them a member again. */
+  former?: boolean;
+}
+
+/**
+ * A member of an imported organization who hasn't joined here. They join only through a claim link
+ * (obr_…) an admin hands them. An account with the same email is noted in matched_user_id and gets
+ * nothing from it (sign-up doesn't prove the address).
+ */
+export const memberReservations = pgTable(
+  'member_reservations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    /** Lowercase. */
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    role: text('role', { enum: WORKSPACE_ROLES }).notNull().default('member'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    claims: jsonb('claims').$type<ReservationClaims>().notNull(),
+    /** sha256 of the current claim link's token; null until an admin makes one. */
+    tokenHash: text('token_hash').unique(),
+    tokenHint: text('token_hint'),
+    /** An account with this email exists here. Informational only: it still needs the claim link. */
+    matchedUserId: uuid('matched_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('member_reservations_workspace_email_idx').on(t.workspaceId, t.email)],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ProjectRow = typeof projects.$inferSelect;
@@ -498,6 +580,7 @@ export type ActivityRow = typeof activity.$inferSelect;
 export type WebhookRow = typeof webhooks.$inferSelect;
 export type WebhookDeliveryRow = typeof webhookDeliveries.$inferSelect;
 export type IncomingWebhookRow = typeof incomingWebhooks.$inferSelect;
+export type MemberReservationRow = typeof memberReservations.$inferSelect;
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 export type AccessLevel = (typeof ACCESS_LEVELS)[number];
 export type MemberAccess = (typeof MEMBER_ACCESS)[number];

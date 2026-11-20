@@ -9,6 +9,7 @@
 # Optional env: SIGNUP_MODE (first|open|closed, default first), BACKUP_KEEP_DAYS (default 14),
 #               SECRET_KEY_PREVIOUS (the old SECRET_KEY while rotating),
 #               WEBHOOK_ALLOW_PRIVATE (true lets outgoing webhooks reach LAN/private addresses; default false),
+#               MIGRATION_ALLOW_PRIVATE (true lets 다른 서버에서 가져오기 pull from LAN/private addresses; default false),
 #               SMTP_URL (your mailbox's SMTP, for password reset mails; without it "비밀번호 찾기" is hidden)
 #               + MAIL_FROM (defaults to the SMTP login address).
 services:
@@ -42,6 +43,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-}
       SECRET_KEY_PREVIOUS: ${SECRET_KEY_PREVIOUS:-}
       WEBHOOK_ALLOW_PRIVATE: ${WEBHOOK_ALLOW_PRIVATE:-false}
+      MIGRATION_ALLOW_PRIVATE: ${MIGRATION_ALLOW_PRIVATE:-false}
       JEV_MODEL: ${JEV_MODEL:-}
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-}

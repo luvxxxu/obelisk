@@ -9,11 +9,13 @@ import {
   type ActivityEntry,
   type Invite,
   type Member,
+  type MemberReservation,
   type Team,
   type WorkspaceRole,
 } from '@obelisk/core';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CopyField } from '@/components/Copy';
 import { Icon, type IconName } from '@/components/Icon';
 import { PhotoField } from '@/components/PhotoField';
 import {
@@ -24,6 +26,7 @@ import {
   Modal,
   Popover,
   Skeleton,
+  Spinner,
   Switch,
   ui,
   useDisclosure,
@@ -227,6 +230,8 @@ function MembersTab({ openInvite }: { openInvite: boolean }) {
         </ul>
       </SettingsSection>
 
+      {admin && <ReservationsCard />}
+
       {admin && <InvitesCard onCreate={() => invite.setOpen(true)} />}
 
       <InviteModal open={invite.open} onClose={invite.close} />
@@ -299,6 +304,214 @@ function RoleSelect({
               </span>
               {r === value && <Icon name="check" size={14} />}
             </button>
+          ))}
+        </div>
+      </Popover>
+    </>
+  );
+}
+
+/**
+ * "가입 대기": people who came along with an imported organization but have no account here yet
+ * (or signed up with the same email, which alone never grants access). Hidden when there are none.
+ */
+function ReservationsCard() {
+  const { workspace } = useApp();
+  const wsId = workspace?.id;
+  const owner = workspace?.role === 'owner';
+  const [data, setData] = useState<{ reservations: MemberReservation[]; mailEnabled: boolean } | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [shown, setShown] = useState<{ r: MemberReservation; link: string } | null>(null);
+  const [cancel, setCancel] = useState<MemberReservation | null>(null);
+
+  const load = useCallback(async () => {
+    if (!wsId) return;
+    try {
+      setData(await api<{ reservations: MemberReservation[]; mailEnabled: boolean }>('GET', `/api/workspaces/${wsId}/reservations`));
+    } catch {
+      setData({ reservations: [], mailEnabled: false });
+    }
+  }, [wsId]);
+
+  useEffect(() => {
+    setData(null);
+    void load();
+  }, [load]);
+
+  const act = async (key: string, fn: () => Promise<void>) => {
+    setBusy(key);
+    try {
+      await fn();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const makeLink = (r: MemberReservation) =>
+    act(r.id, async () => {
+      const { link } = await api<{ link: string }>('POST', `/api/workspaces/${wsId}/reservations/${r.id}/link`);
+      setShown({ r, link });
+      void load();
+    });
+
+  const mail = (r: MemberReservation) =>
+    act(r.id, async () => {
+      await api('POST', `/api/workspaces/${wsId}/reservations/${r.id}/mail`);
+      toast.success(`${r.email}로 합류 링크를 보냈어요`);
+      void load();
+    });
+
+  const mailAll = () =>
+    act('all', async () => {
+      const { sent } = await api<{ sent: number }>('POST', `/api/workspaces/${wsId}/reservations/mail-all`);
+      toast.success(sent > 0 ? `${sent}명에게 합류 링크를 보냈어요` : '보낼 사람이 없었어요');
+      void load();
+    });
+
+  const remove = (r: MemberReservation) =>
+    act(r.id, async () => {
+      await api('DELETE', `/api/workspaces/${wsId}/reservations/${r.id}`);
+      setData((d) => d && { ...d, reservations: d.reservations.filter((x) => x.id !== r.id) });
+      toast.show(`${r.name}님의 가입 대기를 취소했어요`);
+    });
+
+  if (!data?.reservations.length) return null;
+  const mailable = data.reservations.filter((r) => !r.former && (owner || r.role !== 'owner')).length;
+
+  return (
+    <SettingsSection
+      title={`가입 대기 ${data.reservations.length}명`}
+      lead="다른 서버에서 가져온 조직의 멤버예요. 합류 링크를 받은 사람만 들어올 수 있고, 들어오면 맡던 작업과 프로젝트 권한을 그대로 이어받아요. 같은 이메일로 가입한 계정도 링크가 있어야 들어와요."
+      action={
+        data.mailEnabled && mailable > 1 ? (
+          <button type="button" className={cx(ui.btn, ui.outline, ui.sm)} disabled={busy === 'all'} onClick={() => void mailAll()}>
+            {busy === 'all' ? <Spinner label="보내는 중" /> : <Icon name="mail" size={14} />} 모두에게 메일 보내기
+          </button>
+        ) : undefined
+      }
+    >
+      <ul className={s.people}>
+        {data.reservations.map((r) => {
+          const signedUp = r.status === 'signed_up';
+          // Same rule as the member list: admins don't handle owner places.
+          const locked = r.role === 'owner' && !owner;
+          const status = [
+            r.former ? '예전 멤버' : null,
+            signedUp ? '같은 이메일의 계정이 있어요. 합류 링크를 보내면 들어와요' : '가입 전',
+            r.hasLink ? '링크를 만들었어요. 새로 만들면 전에 만든 링크는 막혀요' : null,
+          ]
+            .filter(Boolean)
+            .join(' · ');
+          return (
+            <li key={r.id} className={s.person}>
+              <Avatar name={r.name} />
+              <div className={s.personText}>
+                <span className={s.personName}>{r.name}</span>
+                <span className={s.personMeta}>
+                  {r.email} · {ROLE_LABEL_KO[r.role]}
+                </span>
+                <span className={s.reservationStatus} data-signed-up={signedUp || undefined}>
+                  {status}
+                </span>
+              </div>
+              {locked ? (
+                <span className={s.reservationNote}>소유자만 처리할 수 있어요</span>
+              ) : busy === r.id ? (
+                <span className={s.reservationSpin}>
+                  <Spinner label="처리하는 중" />
+                </span>
+              ) : (
+                <div className={s.reservationActions}>
+                  <button type="button" className={cx(ui.btn, ui.outline, ui.sm)} onClick={() => void makeLink(r)}>
+                    <Icon name="link" size={14} /> {r.hasLink ? '새 링크 만들기' : '링크 만들기'}
+                  </button>
+                  <ReservationMenu
+                    label={`${r.name} 메뉴`}
+                    actions={[
+                      ...(data.mailEnabled
+                        ? [{ label: r.hasLink ? '새 링크를 메일로 보내기' : '메일로 보내기', icon: 'mail' as const, onSelect: () => void mail(r) }]
+                        : []),
+                      { label: '취소', icon: 'x' as const, danger: true, onSelect: () => setCancel(r) },
+                    ]}
+                  />
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      <Modal
+        open={!!shown}
+        onClose={() => setShown(null)}
+        width={500}
+        title="합류 링크를 만들었어요"
+        description={shown ? `${shown.r.name}(${shown.r.email})님에게 메신저나 메일로 전달하세요.` : undefined}
+        footer={
+          <button type="button" className={cx(ui.btn, ui.primary)} onClick={() => setShown(null)}>
+            완료
+          </button>
+        }
+      >
+        {shown && (
+          <div className={ui.field}>
+            <CopyField value={shown.link} label="합류 링크" done="합류 링크를 복사했어요" />
+            <span className={ui.help}>
+              이 링크를 연 사람은 어떤 계정으로든 {shown.r.name}님 자리로 들어와요. 본인에게만 전달하세요. 한 번만 쓸 수 있고, 지금 화면을 닫으면 다시 볼 수
+              없어요.
+            </span>
+          </div>
+        )}
+      </Modal>
+
+      <ConfirmModal
+        open={!!cancel}
+        onClose={() => setCancel(null)}
+        title={`${cancel?.name ?? ''}님의 가입 대기를 취소할까요?`}
+        confirmLabel="가입 대기 취소"
+        body="자리가 사라지고 보낸 합류 링크도 더 이상 쓰이지 않아요. 맡던 작업은 담당자 없음으로 남아요."
+        onConfirm={() => cancel && void remove(cancel)}
+      />
+    </SettingsSection>
+  );
+}
+
+/** "⋯" with a small action menu for one reservation row. */
+function ReservationMenu({
+  label,
+  actions,
+}: {
+  label: string;
+  actions: { label: string; icon: IconName; onSelect: () => void; danger?: boolean }[];
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const d = useDisclosure();
+  return (
+    <>
+      <button ref={ref} type="button" className={ui.iconBtn} aria-haspopup="menu" aria-expanded={d.open} aria-label={label} onClick={d.toggle}>
+        <Icon name="more" size={16} />
+      </button>
+      <Popover anchor={ref} open={d.open} onClose={d.close} align="end" width={190}>
+        <div role="menu" aria-label={label}>
+          {actions.map((a, i) => (
+            <div key={a.label}>
+              {a.danger && i > 0 && <div className={ui.menuSep} role="separator" />}
+              <button
+                type="button"
+                role="menuitem"
+                className={ui.menuItem}
+                data-tone={a.danger ? 'danger' : undefined}
+                onClick={() => {
+                  d.close();
+                  a.onSelect();
+                }}
+              >
+                <Icon name={a.icon} size={15} />
+                {a.label}
+              </button>
+            </div>
           ))}
         </div>
       </Popover>

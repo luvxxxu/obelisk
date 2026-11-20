@@ -19,6 +19,15 @@ const securityHeaders = [
   { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
 ];
 
+/**
+ * The rewrite proxy's own limits (Next 16 `experimental.proxyClientMaxBodySize` / `proxyTimeout`):
+ * an export file of up to 64 MiB (MIGRATION_MAX_BYTES in @obelisk/core, plus headroom) has to get
+ * through to /api/migration/stage, and a big import or a pull from another server can take minutes
+ * before the backend answers. The defaults (10 MB, 30 s) would cut both off.
+ */
+const PROXY_MAX_BODY = 65 * 1024 * 1024;
+const PROXY_TIMEOUT_MS = 10 * 60_000;
+
 const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: root,
@@ -28,6 +37,10 @@ const nextConfig: NextConfig = {
   // `next dev` blocks dev assets for other origins; allow quick tunnels (cloudflared) so the
   // OAuth consent page works when Claude/ChatGPT connect to a local server. No effect in production.
   allowedDevOrigins: ['*.trycloudflare.com'],
+  experimental: {
+    proxyClientMaxBodySize: PROXY_MAX_BODY,
+    proxyTimeout: PROXY_TIMEOUT_MS,
+  },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

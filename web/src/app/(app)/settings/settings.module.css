@@ -1,4 +1,4 @@
-/* Settings pages (/settings, /settings/ai, /settings/jev, /settings/org, /settings/webhooks).
+/* Settings pages (/settings, /settings/ai, /settings/jev, /settings/org, /settings/webhooks, /settings/migrate).
    ChatGPT-style settings: a quiet row of text tabs, then sections (15px/600 heading + muted lead)
    made of hairline-separated rows: label + muted help on the left, the control on the right.
    No cards, no icon tiles. Fields, buttons and tables come from ui.module.css. */

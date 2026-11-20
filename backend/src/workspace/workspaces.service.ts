@@ -13,6 +13,7 @@ import { and, asc, count, desc, eq, gt, inArray, isNull, lt, or, sql } from 'dri
 import type { AuthContext } from '../auth/auth.service';
 import { randomToken, sha256 } from '../common/crypto';
 import { InjectDb, type Db } from '../db/db.module';
+import { ReservationsService } from '../migration/reservations.service';
 import {
   invites,
   projectMembers,
@@ -41,6 +42,7 @@ export class WorkspacesService {
     @InjectDb() private readonly db: Db,
     private readonly access: AccessService,
     private readonly activity: ActivityService,
+    private readonly reservations: ReservationsService,
   ) {}
 
   // ───────────────────────────── workspaces
@@ -316,6 +318,8 @@ export class WorkspacesService {
   }
 
   async previewInvite(token: string, userId?: string): Promise<InvitePreview> {
+    // Claim links of imported organizations (obr_…) go through the same page.
+    if (this.reservations.isClaimToken(token)) return this.reservations.preview(token, userId);
     const { row, reason } = await this.inviteRow(token);
     const ws = await this.db.query.workspaces.findFirst({ where: eq(workspaces.id, row.workspaceId) });
     if (!ws) throw new NotFoundException('초대 링크가 올바르지 않습니다');
@@ -336,6 +340,7 @@ export class WorkspacesService {
 
   /** True when the token is a live invite (lets sign-up through even when SIGNUP_MODE closes it). */
   async inviteUsable(token: string, conn: Conn = this.db): Promise<boolean> {
+    if (this.reservations.isClaimToken(token)) return this.reservations.usable(token, conn);
     try {
       return !(await this.inviteRow(token, conn)).reason;
     } catch {
@@ -343,9 +348,11 @@ export class WorkspacesService {
     }
   }
 
-  /** Join through a link. Already a member: nothing changes. Returns the workspace id. */
+  /** Join through a link. Already a member: nothing changes (a claim link still hands over its claims). Returns the workspace id. */
   async acceptInvite(auth: AuthContext, token: string, conn?: Conn): Promise<string> {
     const run = async (tx: Conn) => {
+      // A claim link joins as the reserved person, whatever email the account has: the link is the proof.
+      if (this.reservations.isClaimToken(token)) return this.reservations.claim(tx, token, auth.user);
       const { row, reason } = await this.inviteRow(token, tx);
       if (await this.access.membership(row.workspaceId, auth.user.id, tx)) return row.workspaceId;
       if (reason) {

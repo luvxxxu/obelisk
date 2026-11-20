@@ -94,7 +94,7 @@ const INSTRUCTIONS = `Obelisk is the user's to-do and schedule planner — for t
 
 Workspaces and permissions
 - The user has a personal space and may belong to organizations (list_workspaces). Every tool takes an optional "workspace" (name or id); without it, the user's default workspace is used. Task refs like "#12" are numbered per workspace, so keep using the same workspace for a ref you got from it.
-- This connection acts as the user and has exactly their permissions. In an organization they may see only some projects, and some of those read-only (view < edit < manage). Tasks marked readOnly can't be changed; a write that isn't allowed fails with a permission error — tell the user who could grant access (a project manager or an org admin) instead of retrying another way. Sharing and membership are managed in the web app, not here.
+- This connection acts as the user and has exactly their permissions. In an organization they may see only some projects, and some of those read-only (view < edit < manage). Tasks marked readOnly can't be changed; a write that isn't allowed fails with a permission error — tell the user who could grant access (a project manager or an org admin) instead of retrying another way. Sharing and membership are managed in the web app, not here. Moving a space to another Obelisk server is also done in the web app (설정 → 데이터 이전).
 - Tasks can have an assignee (a workspace member; "me" for the user). list_members shows who can be assigned; list_tasks assignee="me" lists the user's own work. get_activity shows who changed what.
 
 Concepts

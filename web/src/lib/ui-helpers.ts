@@ -32,6 +32,7 @@ export const PAGE_META: Record<string, PageMeta> = {
   '/settings': { label: '설정', icon: 'settings' },
   '/settings/ai': { label: 'AI 연결', icon: 'plug' },
   '/settings/org': { label: '조직 설정', icon: 'building' },
+  '/settings/migrate': { label: '데이터 이전', icon: 'upload' },
 };
 
 /** Static page meta for a pathname (projects are resolved by the caller). */

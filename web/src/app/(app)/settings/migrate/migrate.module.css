@@ -1,0 +1,539 @@
+/* /settings/migrate — 데이터 이전 (export to and import from another Obelisk server).
+   Sections and rows come from ../settings.module.css; lists here are hairline rows, no boxes.
+   The drop zone is the one dashed outline on the page: it is a target, not a card. */
+
+.scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+  padding-bottom: 14px;
+}
+
+.scope b {
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* the owner-only note sits where the export rows would be */
+.lock {
+  margin-bottom: 14px;
+}
+
+.lead {
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-2);
+  word-break: keep-all;
+}
+
+.after {
+  margin-top: 8px;
+}
+
+.importError {
+  margin-top: 4px;
+}
+
+/* ───────── what moves / what doesn't */
+
+.facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fact {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.factIcon {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--text-3);
+}
+
+.factText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-2);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.factText strong {
+  font-size: var(--fs-base);
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* ───────── link (export) */
+
+.linkBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  animation: migrate-in var(--dur) var(--ease-out);
+}
+
+.linkMeta {
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+  color: var(--text-3);
+}
+
+/* ───────── drop zone (import) */
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 132px;
+  padding: 20px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--text-2);
+  text-align: center;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+/* drag events only ever target the zone itself, so crossing its icon or text doesn't flicker */
+.drop > * {
+  pointer-events: none;
+}
+
+.drop:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.drop:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+/* a file is being dragged over it: the outline turns solid, nothing moves */
+.drop[data-over='true'] {
+  border-style: solid;
+  border-color: var(--ring-color);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.drop[aria-disabled='true'] {
+  cursor: progress;
+}
+
+.drop[aria-disabled='true']:hover {
+  background: transparent;
+  color: var(--text-2);
+}
+
+.dropIcon {
+  color: var(--text-3);
+}
+
+.dropTitle {
+  font-size: var(--fs-base);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.dropHint {
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.linkForm {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.linkForm input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.linkForm button {
+  flex-shrink: 0;
+}
+
+/* ───────── result (inline, after an import) */
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+  animation: migrate-in var(--dur) var(--ease-out);
+}
+
+.resultHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.resultIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--ok);
+}
+
+.resultText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.resultTitle {
+  font-size: var(--fs-base);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.resultDesc {
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-2);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.resultActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-left: 30px;
+}
+
+/* new secret URLs of incoming webhooks, shown once */
+.secrets {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-left: 30px;
+}
+
+.secretsLead {
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-2);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.secretItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.inlineActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inlineLink {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.secretName {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* ───────── preview dialog */
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.target {
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.groupLabel {
+  margin-bottom: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* counts: a plain two-column ledger, label left, number right */
+.counts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+  margin: 0;
+}
+
+.count {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+
+.count dt {
+  color: var(--text-2);
+}
+
+.count dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.personText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.personName {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.personMeta {
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.personStatus {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  text-align: right;
+}
+
+.personStatus[data-match='you'] {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.more {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* checkbox row (custom box, native input for a11y — same look as the webhook event picker) */
+.pick {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.pick:hover {
+  background: var(--surface-2);
+}
+
+.pick input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pickBox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: var(--radius-xs);
+  border: 1.5px solid var(--border-strong);
+  color: transparent;
+  flex-shrink: 0;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.pick[data-on='true'] .pickBox {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+
+.pick:has(input:focus-visible) .pickBox {
+  box-shadow: var(--focus-ring);
+}
+
+.pickText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pickLabel {
+  font-size: var(--fs-base);
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.pickHint {
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--text-3);
+  word-break: keep-all;
+}
+
+.notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notes li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-2);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.notes li > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--text-3);
+}
+
+.notes li[data-tone='warn'] > svg {
+  color: var(--warn-text);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@keyframes migrate-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .counts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .linkForm {
+    flex-direction: column;
+  }
+
+  /* In a column, flex: 1 (basis 0) would squash the field's height. */
+  .linkForm input {
+    flex: none;
+  }
+
+  .linkForm button {
+    align-self: flex-start;
+  }
+
+  .resultActions,
+  .secrets {
+    padding-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .linkBlock,
+  .result {
+    animation: none;
+  }
+}

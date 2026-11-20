@@ -145,7 +145,15 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
     if (token) {
       setInvite({ token, org: null });
       api<{ invite: InvitePreview }>('GET', `/api/invites/${encodeURIComponent(token)}`)
-        .then((r) => setInvite({ token, org: r.invite.valid ? r.invite.workspace.name : null }))
+        .then((r) => {
+          setInvite({ token, org: r.invite.valid ? r.invite.workspace.name : null });
+          // A reserved place from an imported organization: start from the address and name it was kept for.
+          const kept = r.invite.valid ? r.invite.reservation : null;
+          if (kept) {
+            setEmail((v) => v || kept.email);
+            if (mode === 'signup') setName((v) => v || kept.name);
+          }
+        })
         .catch(() => {});
     }
     api<{ user: User }>('GET', '/api/auth/me')

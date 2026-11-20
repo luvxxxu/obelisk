@@ -9,11 +9,12 @@ import { AVATAR_MAX_BYTES, AVATAR_UPLOAD_TYPES } from './workspace/avatars.servi
 import { config } from './config';
 import { DbModule, runMigrations } from './db/db.module';
 import { JevModule } from './jev/jev.module';
+import { MigrationModule } from './migration/migration.module';
 import { PlannerModule } from './planner/planner.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 
-@Module({ imports: [DbModule, WorkspaceModule, AuthModule, PlannerModule, JevModule, AiModule, WebhooksModule] })
+@Module({ imports: [DbModule, WorkspaceModule, AuthModule, PlannerModule, JevModule, AiModule, WebhooksModule, MigrationModule] })
 class AppModule {}
 
 /** Endpoints AI clients may call from a browser context (bearer-only, never cookies). */
@@ -69,6 +70,9 @@ async function bootstrap() {
   // Profile photos arrive as the image bytes themselves. The parser lets a bit more through so the
   // route can answer an oversized photo in words instead of the parser's bare 413.
   app.useBodyParser('raw', { type: AVATAR_UPLOAD_TYPES, limit: AVATAR_MAX_BYTES * 2 });
+  // Export files (application/x-obelisk-export, gzip, octet-stream) up to 64 MiB are deliberately not
+  // parsed here: POST /api/migration/stage reads its own body after the session check, with that cap,
+  // so nobody can make the server buffer 64 MiB without signing in.
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (PUBLIC_CORS.some((r) => r.test(req.path))) {

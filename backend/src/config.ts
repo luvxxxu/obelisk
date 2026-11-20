@@ -66,6 +66,16 @@ export const config = {
   jevAllowPrivate: process.env.JEV_ALLOW_PRIVATE
     ? process.env.JEV_ALLOW_PRIVATE === 'true'
     : process.env.NODE_ENV !== 'production',
+  /**
+   * Let "다른 서버에서 가져오기" pull from private/loopback or plain-http addresses (two servers on one
+   * LAN, local testing). Off in production unless MIGRATION_ALLOW_PRIVATE=true, so a pasted link can't
+   * make this server probe its own network.
+   */
+  migrationAllowPrivate: process.env.MIGRATION_ALLOW_PRIVATE
+    ? process.env.MIGRATION_ALLOW_PRIVATE === 'true'
+    : process.env.NODE_ENV !== 'production',
+  /** 이전 링크 lifetime. */
+  migrationCodeMinutes: 30,
 };
 
 export const SESSION_COOKIE = 'obelisk_session';

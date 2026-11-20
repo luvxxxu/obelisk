@@ -8,6 +8,7 @@ import { bearerToken, parseCookies } from '../common/http';
 import { InjectDb, type Db } from '../db/db.module';
 import { apiTokens, oauthGrants, sessions, users, workspaceMembers, workspaces, type UserRow } from '../db/schema';
 import { jevStatus } from '../jev/status';
+import { ReservationsService } from '../migration/reservations.service';
 import { avatarPath } from '../workspace/avatars.service';
 import { WorkspacesService } from '../workspace/workspaces.service';
 
@@ -59,6 +60,7 @@ export class AuthService {
   constructor(
     @InjectDb() private readonly db: Db,
     private readonly workspaces: WorkspacesService,
+    private readonly reservations: ReservationsService,
   ) {}
 
   async signupAllowed(inviteToken?: string): Promise<boolean> {
@@ -70,9 +72,9 @@ export class AuthService {
   }
 
   /**
-   * New account + its personal space. With a live organization invite, sign-up is allowed
-   * whatever SIGNUP_MODE says, and the new account joins that organization right away
-   * (it then opens there by default).
+   * New account + its personal space. With a live organization invite or claim link (obr_…),
+   * sign-up is allowed whatever SIGNUP_MODE says, and the new account joins that organization
+   * right away (it then opens there by default).
    */
   async signup(input: SignupInput) {
     const passwordHash = await Bun.password.hash(input.password);
@@ -101,6 +103,10 @@ export class AuthService {
       if (invited) {
         joined = await this.workspaces.acceptInvite({ user: created!, via: 'session', credentialId: '' }, input.inviteToken!, tx);
       }
+      // A place reserved for this email in an imported organization is only noted for its admins: the
+      // address isn't verified, so the account gets in only with the claim link. (After the invite or
+      // claim above, so the workspace lock is always taken before reservation rows.)
+      await this.reservations.matchEmail(tx, created!);
       const [user] = await tx
         .update(users)
         .set({ defaultWorkspaceId: joined ?? personal!.id })

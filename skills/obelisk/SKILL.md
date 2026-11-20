@@ -44,6 +44,7 @@ How delays propagate (needed to explain predictions): [references/delay-model.md
 - "My tasks" in an org → `list_tasks` with `assignee: "me"`. Delegating → `update_task` with `assignee`.
 - A permission error means the user's account may not do that (e.g. a view-only project). Tell them who can grant access — a project manager or an org owner/admin — and stop; don't route around it (e.g. by recreating the task elsewhere).
 - Sharing projects, inviting people, roles and teams are managed in the web app (조직 설정 / 프로젝트 → 공유), not through tools.
+- Moving a personal space or an organization to another Obelisk server (export file or 이전 링크, then import) is done in the web app (설정 → 데이터 이전), not through tools.
 - "Who changed this?" → `get_activity` with a task or project. Changes you make are logged as coming through this AI app.
 
 ### "What should I do today?"

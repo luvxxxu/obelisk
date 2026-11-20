@@ -162,6 +162,46 @@
   }
 }
 
+/* ───────── 가입 대기 (reservations from an import) */
+
+.reservationStatus {
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+
+/* an account here has the reserved email: it still needs the claim link */
+.reservationStatus[data-signed-up='true'] {
+  color: var(--text-2);
+}
+
+.reservationActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.reservationNote {
+  flex-shrink: 0;
+  max-width: 40%;
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--text-3);
+  text-align: right;
+  word-break: keep-all;
+}
+
+.reservationSpin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  flex-shrink: 0;
+}
+
 /* ───────── role */
 
 .roleBtn,

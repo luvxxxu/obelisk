@@ -59,6 +59,16 @@ function val(field: string, v: unknown): string {
   }
 }
 
+/** "https://a.example:8443/x" → "a.example:8443"; null when it isn't a URL. */
+function hostOf(url: unknown): string | null {
+  if (typeof url !== 'string' || !url) return null;
+  try {
+    return new URL(url).host || null;
+  } catch {
+    return null;
+  }
+}
+
 const level = (l: unknown) => LEVEL_LABEL_KO[(l as AccessLevel | null) ?? 'none'] ?? String(l);
 const role = (r: unknown) => ROLE_LABEL_KO[r as WorkspaceRole] ?? String(r);
 
@@ -154,7 +164,18 @@ export function describeActivity(e: Pick<ActivityEntry, 'action' | 'data' | 'sub
       return '조직을 만들었습니다';
     case 'workspace.updated':
       return `조직 설정 · ${changePhrases(changes).join(' · ')}`;
+    case 'workspace.imported': {
+      const host = hostOf(d.from);
+      return host ? `다른 서버에서 가져왔어요 · ${host}` : '다른 서버에서 가져왔어요';
+    }
+    case 'workspace.exported': {
+      if (d.to === 'file') return '파일로 내보냈어요';
+      const host = hostOf(d.to);
+      return host ? `다른 서버로 보냈어요 · ${host}` : '다른 서버로 보냈어요';
+    }
     case 'member.joined':
+      if (d.reservation && d.alreadyMember) return `가져온 자리를 이어받았어요 · ${role(d.role)}`;
+      if (d.reservation) return `가져온 자리로 합류했어요 · ${role(d.role)}`;
       return `초대 링크로 참여했습니다 · ${role(d.role)}`;
     case 'member.role':
       return `역할 ${role(d.from)} → ${role(d.to)}`;

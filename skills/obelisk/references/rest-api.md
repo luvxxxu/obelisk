@@ -46,7 +46,9 @@ Helper: `scripts/obelisk.sh METHOD PATH [JSON]`.
 
 Setting or removing the key (`PUT /api/jev/settings`) is web-session only. Without a key these return 400 with `code: "jev_not_connected"`.
 
-Sharing a project (`PUT /api/projects/:id/access`), moving it between workspaces, invites, roles and teams are web-session only — tokens get 403.
+Sharing a project (`PUT /api/projects/:id/access`), moving it between workspaces, invites, roles, teams and moving a space to another server (`/api/migration/*`) are web-session only — tokens get 403.
+
+Moving to another server: API tokens are not moved (make new ones on the new server), incoming webhooks get new URLs there, and organization members other than the importer wait in 가입 대기 (`/api/workspaces/:id/reservations`) until they open their claim link (`/invite/obr_…`); an account with the same email is not let in without it.
 
 Access levels: `view` (read), `edit` (create/change/delete tasks and links), `manage` (also rename, archive, delete, share). Roles: `owner`, `admin` (manage every project, members, teams), `member`.
 

@@ -73,11 +73,14 @@ export interface Invite {
 /** What an invite link shows before you accept it. */
 export interface InvitePreview {
   workspace: { id: string; name: string; memberCount: number; avatarUrl: string | null };
-  role: 'admin' | 'member';
+  /** An invite gives admin or member; a reserved place from an imported organization can also be owner. */
+  role: WorkspaceRole;
   invitedBy: string | null;
   valid: boolean;
   reason?: 'expired' | 'revoked' | 'used_up';
   alreadyMember?: boolean;
+  /** Set for a claim link (obr_…): the reserved person the link joins as. */
+  reservation?: { name: string; email: string } | null;
 }
 
 export type ActivityVia = 'session' | 'api_token' | 'oauth' | 'webhook' | 'system';

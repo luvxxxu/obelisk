@@ -139,6 +139,7 @@ export function CommandPalette() {
       { id: 'ai', label: 'AI 연결 (MCP · Skill)', icon: 'plug', group: '이동', run: go('/settings/ai') },
       { id: 'jev', label: 'Jev 설정', hint: '판단 모델 연결', icon: 'scale', group: '이동', run: go('/settings/jev') },
       { id: 'settings', label: '설정', icon: 'settings', group: '이동', run: go('/settings') },
+      { id: 'migrate', label: '데이터 이전', hint: '다른 서버로 옮기기 · 가져오기', icon: 'upload', group: '이동', run: go('/settings/migrate') },
       ...(app.workspace?.kind === 'org'
         ? [
             { id: 'mine', label: '내 작업', icon: 'user' as const, group: '이동', run: go('/mine') },

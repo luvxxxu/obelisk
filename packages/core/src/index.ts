@@ -10,3 +10,4 @@ export * from './activity';
 export * from './jev';
 export * from './overview';
 export * from './webhooks';
+export * from './migration';
