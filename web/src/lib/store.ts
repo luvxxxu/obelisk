@@ -3,6 +3,7 @@
 import {
   canEditTask,
   type AccessView,
+  type AccountGate,
   type Bootstrap,
   type CreateProjectInput,
   type CreateTaskInput,
@@ -11,6 +12,7 @@ import {
   type Member,
   type PlanItem,
   type Project,
+  type ServerInfo,
   type Task,
   type TaskStatus,
   type Team,
@@ -26,8 +28,12 @@ import { api, ApiError, setWorkspaceHeader } from './api';
 import { toast } from './toast';
 
 export interface AppState {
-  status: 'idle' | 'loading' | 'ready' | 'unauthenticated' | 'error';
+  /** gated: signed in, but the account isn't let in yet (see `gate`). */
+  status: 'idle' | 'loading' | 'ready' | 'unauthenticated' | 'gated' | 'error';
   error: string | null;
+  gate: AccountGate | null;
+  /** Server-wide: the operators' announcement and whether you may create organizations. */
+  server: ServerInfo;
   user: User | null;
   today: string;
   /** The open workspace (personal space or an organization) and what the user may do there. */
@@ -41,9 +47,13 @@ export interface AppState {
   selectedTaskId: string | null;
 }
 
+const NO_SERVER: ServerInfo = { announcement: null, canCreateOrg: true };
+
 let state: AppState = {
   status: 'idle',
   error: null,
+  gate: null,
+  server: NO_SERVER,
   user: null,
   today: todayIn(Intl.DateTimeFormat().resolvedOptions().timeZone),
   workspace: null,
@@ -214,6 +224,8 @@ export function load(silent = false): Promise<void> {
       set((s) => ({
         status: 'ready',
         error: null,
+        gate: null,
+        server: b.server ?? NO_SERVER,
         user: b.user,
         today: b.today,
         workspace: b.workspace,
@@ -228,6 +240,9 @@ export function load(silent = false): Promise<void> {
     } catch (e) {
       if (gen !== generation) return;
       if (e instanceof ApiError && e.status === 401) set({ status: 'unauthenticated' });
+      else if (e instanceof ApiError && e.status === 403 && (e.code === 'email_unverified' || e.code === 'pending_approval')) {
+        set({ status: 'gated', gate: e.code, error: e.message });
+      }
       // A background refresh may share this request with the first load — never leave the splash hanging.
       else if (!silent || state.status !== 'ready') {
         set({ status: 'error', error: e instanceof Error ? e.message : '불러오지 못했습니다' });
@@ -244,6 +259,8 @@ export function reset() {
   storeWorkspace(null);
   set({
     status: 'unauthenticated',
+    gate: null,
+    server: NO_SERVER,
     user: null,
     workspace: null,
     workspaces: [],

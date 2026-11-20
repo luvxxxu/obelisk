@@ -2,6 +2,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** A machine-readable reason some answers carry, e.g. 'email_unverified' or 'pending_approval'. */
+    readonly code: string | null = null,
   ) {
     super(message);
   }
@@ -90,7 +92,7 @@ async function send(method: string, path: string, body?: { type: string; data: B
   if (!res.ok) {
     const data = parse(await res.text().catch(() => ''));
     const msg = Array.isArray(data?.message) ? data.message[0] : data?.message;
-    throw new ApiError(msg || `요청을 처리하지 못했습니다 (${res.status})`, res.status);
+    throw new ApiError(msg || `요청을 처리하지 못했습니다 (${res.status})`, res.status, typeof data?.code === 'string' ? data.code : null);
   }
   return res;
 }

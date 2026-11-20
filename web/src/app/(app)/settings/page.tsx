@@ -14,6 +14,7 @@ import { applyThemePref, modCombo } from '@/lib/ui-helpers';
 import { setUi } from '@/lib/ui-state';
 import type { User } from '@obelisk/core';
 import { DeleteAccountDialog } from './DeleteAccount';
+import { EmailRow } from './EmailRow';
 import { SettingsNav, SettingsRow, SettingsSection } from './SettingsNav';
 import s from './settings.module.css';
 
@@ -118,9 +119,7 @@ export default function SettingsPage() {
           <SettingsRow label="이름" htmlFor="name" field>
             <input id="name" className={ui.input} value={name} onChange={(e) => setName(e.target.value)} />
           </SettingsRow>
-          <SettingsRow label="이메일" description="로그인에 쓰는 주소라 여기서는 바꿀 수 없어요.">
-            <span className={s.value}>{user?.email ?? ''}</span>
-          </SettingsRow>
+          <EmailRow user={user} />
           <SettingsRow
             label="시간대"
             htmlFor="tz"

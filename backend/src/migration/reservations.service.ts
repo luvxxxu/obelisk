@@ -51,10 +51,11 @@ function chunks<T>(list: T[], size = 5000): T[][] {
 
 /**
  * People of an imported organization who haven't joined here yet. Their grants, assignments and
- * authorship wait in `claims` until they join, and the only way in is the claim link an admin hands
- * them (copied, or mailed to the reserved address): opening it proves they received it. An account
- * with the same email — there at import time or signing up later — is only noted (matched_user_id):
- * sign-up doesn't prove the address, and an admin can't tell whose account it really is.
+ * authorship wait in `claims` until they join. Two ways in: the claim link an admin hands them (copied,
+ * or mailed to the reserved address: opening it proves they received it), or confirming that very
+ * address on an account here (the mailbox proves it). An account that merely signed up with the same
+ * email is only noted (matched_user_id): sign-up alone doesn't prove the address, and an admin can't
+ * tell whose account it really is.
  */
 @Injectable()
 export class ReservationsService {
@@ -134,11 +135,42 @@ export class ReservationsService {
   }
 
   /**
+   * An account just confirmed its address: every place reserved for that address is theirs, as if
+   * they had opened the claim link (the mailbox is the proof). Suspended accounts wait. Returns how
+   * many organizations they joined.
+   */
+  async claimVerified(tx: Conn, user: UserRow, opts: { workspaceId?: string } = {}): Promise<number> {
+    if (!user.emailVerifiedAt || user.suspendedAt) return 0;
+    const email = user.email.toLowerCase();
+    const found = await tx
+      .select({ id: memberReservations.id, workspaceId: memberReservations.workspaceId })
+      .from(memberReservations)
+      .where(
+        and(
+          eq(memberReservations.email, email),
+          opts.workspaceId ? eq(memberReservations.workspaceId, opts.workspaceId) : undefined,
+        ),
+      )
+      .orderBy(asc(memberReservations.workspaceId));
+    let joined = 0;
+    for (const f of found) {
+      // Same order as claim(): the workspace lock, then the row.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${f.workspaceId}))`);
+      await tx.execute(sql`select 1 from ${memberReservations} where ${memberReservations.id} = ${f.id} for update`);
+      const r = await tx.query.memberReservations.findFirst({ where: eq(memberReservations.id, f.id) });
+      if (!r || r.email !== email) continue;
+      await this.activate(tx, r, user, 'session', { verifiedEmail: true });
+      joined++;
+    }
+    return joined;
+  }
+
+  /**
    * Give U everything the reservation held: membership with its role, team memberships, project
    * grants (the higher level wins), and authorship/assignment of the rows the import left empty.
    * Then the reservation is gone, so its link stops working.
    */
-  async activate(tx: Conn, r: MemberReservationRow, user: UserRow, via: AuthContext['via']) {
+  async activate(tx: Conn, r: MemberReservationRow, user: UserRow, via: AuthContext['via'], extra: Record<string, unknown> = {}) {
     // Callers hold it already (taken before the row lock); taking it again in the same transaction is free.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${r.workspaceId}))`);
     const c = { ...emptyClaims(), ...r.claims };
@@ -230,7 +262,7 @@ export class ReservationsService {
     await this.activity.recordIn(tx, { user, via, client: null }, ws, {
       action: 'member.joined',
       subject: user.name,
-      data: { userId: user.id, role, reservation: true, ...(added ? {} : { alreadyMember: true }) },
+      data: { userId: user.id, role, reservation: true, ...(added ? {} : { alreadyMember: true }), ...extra },
     });
   }
 

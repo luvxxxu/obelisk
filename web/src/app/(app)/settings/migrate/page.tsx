@@ -279,8 +279,8 @@ function WhatMoves({ personal }: { personal: boolean }) {
           <span className={s.factText}>
             <strong>멤버</strong>
             <span>
-              가져오는 나를 빼고 모두 새 서버에서 가입 대기로 자리를 남겨요. 관리자가 보낸 합류 링크로 들어오면 맡던 작업과 권한을 그대로 이어받아요. 같은
-              이메일의 계정이 있어도 링크 없이는 들어오지 않아요.
+              가져오는 나를 빼고 모두 새 서버에서 가입 대기로 자리를 남겨요. 관리자가 보낸 합류 링크로 들어오거나 새 서버에서 같은 메일 주소를 확인하면 맡던
+              작업과 권한을 그대로 이어받아요. 같은 이메일로 가입만 한 계정은 들어오지 않아요.
             </span>
           </span>
         </li>
@@ -741,7 +741,7 @@ function ReservedNext({ result: r, onOpen, opening }: { result: MigrationResult;
   return (
     <div className={s.secrets}>
       <p className={s.secretsLead}>
-        {r.reserved}명이 가입 대기에 있어요. 합류 링크를 받은 사람만 들어올 수 있고, 들어오면 맡던 작업과 권한을 그대로 이어받아요.
+        {r.reserved}명이 가입 대기에 있어요. 합류 링크를 받거나 이 서버에서 같은 메일 주소를 확인한 사람이 들어오고, 들어오면 맡던 작업과 권한을 그대로 이어받아요.
         {r.mailEnabled
           ? sent === null
             ? ' 링크를 각자의 이메일로 보낼 수 있어요.'
@@ -774,7 +774,7 @@ function personStatus(p: MigrationPerson): string {
 function personNote(p: MigrationPerson): string | null {
   if (p.match === 'you') return null;
   if (p.former) return '떠난 멤버예요. 남긴 기록만 자리에 맡겨 둬요.';
-  if (p.match === 'existing') return '이 서버에 같은 이메일 계정이 있어요. 합류 링크를 받으면 들어와요.';
+  if (p.match === 'existing') return '이 서버에 같은 이메일 계정이 있어요. 메일 주소를 확인한 계정이면 바로, 아니면 합류 링크를 받거나 주소를 확인하면 들어와요.';
   return null;
 }
 
@@ -998,8 +998,8 @@ function PreviewModal({
             )}
             {reservedCount + formerCount > 0 && (
               <p className={cx(ui.help, s.after)}>
-                나를 빼고는 아무도 바로 들어오지 않아요. 가져온 뒤 조직 설정 → 멤버 → 가입 대기에서 합류 링크를 보내면, 링크로 들어온 사람이 맡던 작업과 권한을
-                그대로 이어받아요.
+                나와, 이 서버에서 같은 메일 주소를 이미 확인한 계정만 바로 들어와요. 나머지는 가져온 뒤 조직 설정 → 멤버 → 가입 대기에서 합류 링크를 보내거나 그
+                사람이 메일 주소를 확인하면, 맡던 작업과 권한을 그대로 이어받아요.
               </p>
             )}
           </div>

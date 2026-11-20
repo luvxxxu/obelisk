@@ -40,6 +40,52 @@
   scroll-padding-bottom: 24px;
 }
 
+/* The operators' announcement: one line above the top bar, a hairline under it, neutral ink. */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--tint);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.noticeIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--text-2);
+}
+
+.noticeText {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.noticeClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--control-xs);
+  height: var(--control-xs);
+  margin: -2px 0;
+  border-radius: var(--radius-full);
+  color: var(--text-2);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.noticeClose:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
 /* Each page fades and rises in on navigation (the wrapper is keyed by pathname). */
 .route {
   animation: route-in var(--dur-mid) var(--ease-out) both;

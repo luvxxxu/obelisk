@@ -329,6 +329,11 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
           <button className={ui.menuItem} onClick={() => (menu.close(), close(), router.push('/settings/ai'))}>
             <Icon name="link" size={18} /> AI 연결
           </button>
+          {app.user?.admin && (
+            <button className={ui.menuItem} onClick={() => (menu.close(), close(), router.push('/admin'))}>
+              <Icon name="shield" size={18} /> 서버 관리
+            </button>
+          )}
           <button className={ui.menuItem} onClick={() => (menu.close(), close(), setUi({ shortcuts: true }))}>
             <Icon name="keyboard" size={18} /> 단축키 <span className={ui.menuHint}>?</span>
           </button>

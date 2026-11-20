@@ -31,11 +31,23 @@ export const config = {
   /** Public origin users and AI clients reach the app at (the web container). */
   publicUrl,
   mcpUrl: `${publicUrl}/mcp`,
-  /** first = only the very first account may sign up; open = anyone; closed = nobody. */
-  signupMode: (['first', 'open', 'closed'].includes(signupMode) ? signupMode : 'first') as
-    | 'first'
-    | 'open'
-    | 'closed',
+  /**
+   * The sign-up mode until an operator picks one in 서버 관리 (that choice is kept in the database).
+   * first (default) and closed = only with an invite link once the first account exists (closed kept its
+   * old meaning: invite links still work); open = anyone; approval = anyone may apply, an operator lets
+   * them in; invite = only with an invite link. The very first account can always sign up.
+   */
+  signupMode: (signupMode === 'open' || signupMode === 'approval' ? signupMode : 'invite') as 'open' | 'approval' | 'invite',
+  /** SIGNUP_MODE as written, for the config check. */
+  signupModeRaw: process.env.SIGNUP_MODE?.trim() || null,
+  /** Where the compose file's `backup` service writes pg_dump files (mounted read-only into backend). */
+  backupDir: process.env.BACKUP_DIR?.trim() || '/backups',
+  backupKeepDays: process.env.BACKUP_KEEP_DAYS ? Number(process.env.BACKUP_KEEP_DAYS) || null : null,
+  /** Public repository the update check compares this build with ("owner/name"). */
+  updateRepo: process.env.UPDATE_REPO?.trim() || 'luvxxxu/obelisk',
+  updateBranch: process.env.UPDATE_BRANCH?.trim() || 'main',
+  /** ADMIN_CLAIM=true: log a one-time operator link at start even though operators exist (lost access). */
+  adminClaimForce: process.env.ADMIN_CLAIM === 'true',
   secureCookies: publicUrl.startsWith('https://'),
   sessionDays: 30,
   /**
@@ -48,6 +60,10 @@ export const config = {
   /** Sender; defaults to the SMTP login when that is an address (see defaultMailFrom). */
   mailFrom: process.env.MAIL_FROM?.trim() || defaultMailFrom(smtpUrl, publicUrl),
   passwordResetMinutes: 60,
+  /** Links that confirm an address (sign-up, email change) work this long. */
+  emailTokenHours: 24,
+  /** One-time operator link logged at start while the server has no operator. */
+  adminClaimHours: 24,
   oauthAccessSeconds: 60 * 60,
   oauthRefreshDays: 90,
   migrationsDir: process.env.MIGRATIONS_DIR ?? resolve(import.meta.dir, '../drizzle'),

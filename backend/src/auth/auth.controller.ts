@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, HttpCode, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
 import {
+  changeEmailInput,
   deleteAccountInput,
+  emailTokenInput,
   loginInput,
   passwordResetCheckInput,
   passwordResetInput,
@@ -14,8 +16,9 @@ import { cookieHeader } from '../common/http';
 import { parse } from '../common/validation';
 import { AvatarsService } from '../workspace/avatars.service';
 import { AccountService } from './account.service';
-import { Auth, AuthGuard, SessionOnlyGuard } from './auth.guard';
-import { AuthService, toUser, type AuthContext } from './auth.service';
+import { AllowGated, Auth, AuthGuard, SessionOnlyGuard } from './auth.guard';
+import { AuthService, gateOf, toUser, type AuthContext } from './auth.service';
+import { EmailService } from './email.service';
 
 @Controller('api/auth')
 export class AuthController {
@@ -23,6 +26,7 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly account: AccountService,
     private readonly avatars: AvatarsService,
+    private readonly email: EmailService,
   ) {}
 
   private setSession(res: Response, token: string | null) {
@@ -35,17 +39,20 @@ export class AuthController {
     );
   }
 
-  /** With ?invite=<token>, says whether that invite opens sign-up on a closed server. */
+  /**
+   * Whether sign-up works here (with ?invite=<token>: with that invite), and what follows it:
+   * approval, confirming the address, which domains.
+   */
   @Get('signup-status')
   async signupStatus(@Query('invite') invite?: string) {
-    return { allowed: await this.auth.signupAllowed(typeof invite === 'string' ? invite : undefined) };
+    return this.auth.signupStatus(typeof invite === 'string' && invite ? invite : undefined);
   }
 
   @Post('signup')
   async signup(@Body() body: unknown, @Res({ passthrough: true }) res: Response) {
     const { user, token, joinedWorkspaceId } = await this.auth.signup(parse(signupInput, body));
     this.setSession(res, token);
-    return { user: toUser(user), joinedWorkspaceId };
+    return { user: toUser(user), joinedWorkspaceId, gate: gateOf(user) };
   }
 
   @Post('login')
@@ -98,10 +105,42 @@ export class AuthController {
     return { user: toUser(user) };
   }
 
+  /** Also answers for an account that isn't let in yet; `gate` says why (null = fully in). */
   @Get('me')
   @UseGuards(AuthGuard)
+  @AllowGated()
   me(@Auth() auth: AuthContext) {
-    return { user: toUser(auth.user), via: auth.via };
+    return { user: toUser(auth.user), via: auth.via, gate: gateOf(auth.user), mailAvailable: this.account.passwordResetAvailable() };
+  }
+
+  // ───────── confirming the address
+
+  /** Mail a new confirmation link to the account's own address. */
+  @Post('email/verify')
+  @HttpCode(200)
+  @UseGuards(AuthGuard, SessionOnlyGuard)
+  @AllowGated()
+  async sendVerification(@Auth() auth: AuthContext) {
+    await this.email.requestVerification(auth.user);
+    return { ok: true };
+  }
+
+  /** Mail a link to a new address; the account moves to it when that link is opened. */
+  @Post('email/change')
+  @HttpCode(200)
+  @UseGuards(AuthGuard, SessionOnlyGuard)
+  @AllowGated()
+  async changeEmail(@Auth() auth: AuthContext, @Body() body: unknown) {
+    const input = parse(changeEmailInput, body);
+    await this.email.requestChange(auth.user, input.email, input.password);
+    return { ok: true };
+  }
+
+  /** Opening a mailed link (signed in or not): the token in the body, as it lives in the link's #fragment. */
+  @Post('email/confirm')
+  @HttpCode(200)
+  confirmEmail(@Body() body: unknown, @Req() req: Request) {
+    return this.email.confirm(parse(emailTokenInput, body).token, req.ip ?? 'unknown');
   }
 
   @Patch('me')
@@ -128,12 +167,14 @@ export class AuthController {
 
   @Get('me/deletion')
   @UseGuards(AuthGuard, SessionOnlyGuard)
+  @AllowGated()
   deletionPreview(@Auth() auth: AuthContext) {
     return this.account.deletionPreview(auth.user.id);
   }
 
   @Delete('me')
   @UseGuards(AuthGuard, SessionOnlyGuard)
+  @AllowGated()
   async deleteMe(@Auth() auth: AuthContext, @Body() body: unknown, @Res({ passthrough: true }) res: Response) {
     await this.account.deleteAccount(auth, parse(deleteAccountInput, body).password);
     this.setSession(res, null);

@@ -11,7 +11,10 @@
 #               WEBHOOK_ALLOW_PRIVATE (true lets outgoing webhooks reach LAN/private addresses; default false),
 #               MIGRATION_ALLOW_PRIVATE (true lets 다른 서버에서 가져오기 pull from LAN/private addresses; default false),
 #               SMTP_URL (your mailbox's SMTP, for password reset mails; without it "비밀번호 찾기" is hidden)
-#               + MAIL_FROM (defaults to the SMTP login address).
+#               + MAIL_FROM (defaults to the SMTP login address),
+#               ADMIN_CLAIM (true logs a one-time operator link at start even when operators exist),
+#               UPDATE_REPO / UPDATE_BRANCH (what 서버 관리 compares this build with; default luvxxxu/obelisk, main).
+# SIGNUP_MODE is only the starting sign-up mode: operators change it in 서버 관리 (/admin) without a redeploy.
 services:
   db:
     image: postgres:17-alpine
@@ -47,6 +50,14 @@ services:
       JEV_MODEL: ${JEV_MODEL:-}
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      ADMIN_CLAIM: ${ADMIN_CLAIM:-false}
+      UPDATE_REPO: ${UPDATE_REPO:-}
+      UPDATE_BRANCH: ${UPDATE_BRANCH:-}
+      # 서버 관리 shows when the last backup landed (read-only: the backend never writes or serves them).
+      BACKUP_DIR: /backups
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - obelisk-backups:/backups:ro
     depends_on:
       db:
         condition: service_healthy

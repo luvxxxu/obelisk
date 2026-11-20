@@ -383,7 +383,7 @@ function ReservationsCard() {
   return (
     <SettingsSection
       title={`가입 대기 ${data.reservations.length}명`}
-      lead="다른 서버에서 가져온 조직의 멤버예요. 합류 링크를 받은 사람만 들어올 수 있고, 들어오면 맡던 작업과 프로젝트 권한을 그대로 이어받아요. 같은 이메일로 가입한 계정도 링크가 있어야 들어와요."
+      lead="다른 서버에서 가져온 조직의 멤버예요. 합류 링크를 받거나 이 서버에서 그 메일 주소를 확인한 사람이 들어오고, 들어오면 맡던 작업과 프로젝트 권한을 그대로 이어받아요. 같은 이메일로 가입만 한 계정은 들어오지 않아요."
       action={
         data.mailEnabled && mailable > 1 ? (
           <button type="button" className={cx(ui.btn, ui.outline, ui.sm)} disabled={busy === 'all'} onClick={() => void mailAll()}>
@@ -399,7 +399,7 @@ function ReservationsCard() {
           const locked = r.role === 'owner' && !owner;
           const status = [
             r.former ? '예전 멤버' : null,
-            signedUp ? '같은 이메일의 계정이 있어요. 합류 링크를 보내면 들어와요' : '가입 전',
+            signedUp ? '같은 이메일의 계정이 있어요. 합류 링크를 보내거나 그 사람이 메일 주소를 확인하면 들어와요' : '가입 전',
             r.hasLink ? '링크를 만들었어요. 새로 만들면 전에 만든 링크는 막혀요' : null,
           ]
             .filter(Boolean)

@@ -201,6 +201,7 @@ export class IncomingService {
   private async actAs(hook: IncomingWebhookRow): Promise<Access> {
     const user = await this.db.query.users.findFirst({ where: eq(users.id, hook.createdBy) });
     if (!user) throw new ForbiddenException('웹훅을 만든 사람의 계정이 없어 실행할 수 없습니다');
+    if (user.suspendedAt) throw new ForbiddenException('웹훅을 만든 사람의 계정이 정지되어 실행할 수 없습니다');
     const auth: AuthContext = { user, via: 'webhook', credentialId: hook.id, client: hook.name };
     try {
       return await this.access.forWorkspace(auth, hook.workspaceId);

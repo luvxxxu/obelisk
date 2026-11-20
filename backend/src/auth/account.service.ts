@@ -61,28 +61,38 @@ export class AccountService {
     if (hit(resetIpLimit, ip)) throw tooMany();
     if (hit(resetEmailLimit, email)) return;
     const user = await this.db.query.users.findFirst({ where: eq(users.email, email) });
-    if (!user) return;
+    // A suspended account couldn't sign in with a new password anyway.
+    if (!user || user.suspendedAt) return;
+    const url = await this.resetLink(user.id);
+    void sendMail(this.resetMail(user, url)).catch((err) => console.error(`[mail] password reset mail failed: ${(err as Error).message}`));
+  }
 
+  /** A fresh one-time reset link (sent by mail, or handed over by an operator). */
+  async resetLink(userId: string): Promise<string> {
     const token = randomToken('opr');
     await this.db.insert(passwordResets).values({
       id: sha256(token),
-      userId: user.id,
+      userId,
       expiresAt: new Date(Date.now() + config.passwordResetMinutes * 60_000),
     });
-    const url = `${config.publicUrl}/reset-password#${token}`;
-    const mail = actionMail({
+    return `${config.publicUrl}/reset-password#${token}`;
+  }
+
+  resetMail(user: Pick<UserRow, 'email' | 'name'>, url: string, byOperator = false) {
+    return actionMail({
       to: user.email,
       subject: 'Obelisk 비밀번호 재설정',
       heading: '비밀번호를 다시 설정하세요',
       lines: [
-        `${user.name}님, Obelisk 계정(${user.email})의 비밀번호 재설정을 요청받았어요.`,
+        byOperator
+          ? `${user.name}님, 서버 운영자가 Obelisk 계정(${user.email})의 비밀번호 재설정 링크를 보냈어요.`
+          : `${user.name}님, Obelisk 계정(${user.email})의 비밀번호 재설정을 요청받았어요.`,
         `아래 버튼을 눌러 새 비밀번호를 정하세요. 링크는 ${config.passwordResetMinutes}분 동안 한 번만 쓸 수 있어요.`,
       ],
       action: '새 비밀번호 정하기',
       url,
       footer: '요청한 적이 없다면 이 메일은 무시하세요. 비밀번호는 바뀌지 않아요.',
     });
-    void sendMail(mail).catch((err) => console.error(`[mail] password reset mail failed: ${(err as Error).message}`));
   }
 
   private async liveReset(token: string, conn: Conn = this.db) {
@@ -111,6 +121,7 @@ export class AccountService {
       await tx.execute(sql`select 1 from ${passwordResets} where ${passwordResets.id} = ${sha256(token)} for update`);
       const row = await this.liveReset(token, tx);
       if (!row) throw new BadRequestException('링크가 만료되었거나 이미 사용되었어요. 비밀번호 찾기를 다시 요청하세요.');
+      if (row.user.suspendedAt) throw new BadRequestException('정지된 계정이라 비밀번호를 바꿀 수 없어요. 서버 운영자에게 문의하세요.');
       const [updated] = await tx.update(users).set({ passwordHash }).where(eq(users.id, row.user.id)).returning();
       await tx
         .update(passwordResets)
@@ -169,7 +180,16 @@ export class AccountService {
     const userId = auth.user.id;
     if (hit(deleteLimit, userId)) throw tooMany();
     if (!(await this.auth.verifyPassword(userId, password))) throw new UnauthorizedException('비밀번호가 올바르지 않아요');
+    await this.purge(auth.user);
+  }
 
+  /**
+   * The deletion itself, for the account's own request or an operator's. `inTx` runs inside the same
+   * transaction (the operator log line), so the account and the record of deleting it go together.
+   */
+  async purge(user: UserRow, opts: { byOperator?: boolean; inTx?: (tx: Conn) => Promise<void> } = {}): Promise<void> {
+    const userId = user.id;
+    const auth: AuthContext = { user, via: 'session', credentialId: '' };
     await this.db.transaction(async (tx) => {
       const before = await this.orgMemberships(userId, tx);
       // Same lock as member/role changes, in a fixed order, so nobody is promoted or removed mid-way.
@@ -184,7 +204,11 @@ export class AccountService {
       }
       for (const o of shared) {
         const a = await this.access.forWorkspace(auth, o.id, tx);
-        await this.activity.record(tx, a, { action: 'member.left', subject: auth.user.name, data: { userId, accountDeleted: true } });
+        await this.activity.record(tx, a, {
+          action: 'member.left',
+          subject: user.name,
+          data: { userId, accountDeleted: true, ...(opts.byOperator ? { byOperator: true } : {}) },
+        });
       }
       // Spaces go first: if the user row's cascade reached them, Postgres would also try to blank
       // created_by / assignee on rows it is deleting in the same statement and trip the workspace FK.
@@ -194,6 +218,7 @@ export class AccountService {
       // Everything else hangs off the user row: memberships, grants, sessions, tokens, incoming
       // webhooks and reset links cascade; authorship and assignments in shared orgs become empty.
       await tx.delete(users).where(eq(users.id, userId));
+      await opts.inTx?.(tx);
     });
   }
 }

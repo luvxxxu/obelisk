@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { NextFunction, Request, Response } from 'express';
+import { AdminModule } from './admin/admin.module';
 import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
 import { AVATAR_MAX_BYTES, AVATAR_UPLOAD_TYPES } from './workspace/avatars.service';
@@ -11,10 +12,13 @@ import { DbModule, runMigrations } from './db/db.module';
 import { JevModule } from './jev/jev.module';
 import { MigrationModule } from './migration/migration.module';
 import { PlannerModule } from './planner/planner.module';
+import { ServerModule } from './server/server.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { WorkspaceModule } from './workspace/workspace.module';
 
-@Module({ imports: [DbModule, WorkspaceModule, AuthModule, PlannerModule, JevModule, AiModule, WebhooksModule, MigrationModule] })
+@Module({
+  imports: [DbModule, ServerModule, WorkspaceModule, AuthModule, PlannerModule, JevModule, AiModule, WebhooksModule, MigrationModule, AdminModule],
+})
 class AppModule {}
 
 /** Endpoints AI clients may call from a browser context (bearer-only, never cookies). */

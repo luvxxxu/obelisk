@@ -1,4 +1,5 @@
 import type { ISODate, ISOTime } from './dates';
+import type { ServerInfo } from './admin';
 import type { JevStatus } from './jev';
 
 export type TaskStatus = 'todo' | 'doing' | 'done' | 'canceled';
@@ -18,6 +19,10 @@ export interface User {
   homeLayout: HomeLayout | null;
   /** Profile photo, a same-origin path such as /api/avatars/<id>; null = show the initial. */
   avatarUrl: string | null;
+  /** Runs this server (서버 관리). */
+  admin: boolean;
+  /** The address was confirmed by a link mailed to it. */
+  emailVerified: boolean;
   createdAt: string;
 }
 
@@ -211,6 +216,7 @@ export interface Bootstrap {
   projects: Project[];
   tasks: Task[];
   dependencies: Dependency[];
+  server: ServerInfo;
 }
 
 export const PROJECT_COLORS = [

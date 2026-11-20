@@ -28,6 +28,7 @@ import { parse } from '../common/validation';
 import { AccessService, type Access } from '../workspace/access.service';
 import { ActivityService } from '../workspace/activity.service';
 import { WorkspacesService } from '../workspace/workspaces.service';
+import { ServerSettingsService } from '../server/settings.service';
 import { ImpactService } from './impact.service';
 import { ProjectsService } from './projects.service';
 import { TasksService } from './tasks.service';
@@ -59,6 +60,7 @@ export class PlannerController {
     private readonly access: AccessService,
     private readonly activity: ActivityService,
     private readonly workspaces: WorkspacesService,
+    private readonly settings: ServerSettingsService,
   ) {}
 
   private ws(auth: AuthContext, req: Request): Promise<Access> {
@@ -69,7 +71,7 @@ export class PlannerController {
   @Get('bootstrap')
   async bootstrap(@Auth() auth: AuthContext, @Req() req: Request): Promise<Bootstrap> {
     const a = await this.ws(auth, req);
-    const [workspace, workspaces, members, teams, projects, tasks, deps] = await Promise.all([
+    const [workspace, workspaces, members, teams, projects, tasks, deps, server] = await Promise.all([
       this.workspaces.detail(a),
       this.workspaces.listFor(auth.user.id),
       this.workspaces.members(a.workspaceId),
@@ -77,6 +79,7 @@ export class PlannerController {
       this.projects.list(a, { includeArchived: true }),
       this.tasks.listForClient(a),
       this.tasks.dependencies(a),
+      this.settings.info(auth.user),
     ]);
     const ids = new Set(tasks.map((t) => t.id));
     return {
@@ -89,6 +92,7 @@ export class PlannerController {
       projects,
       tasks,
       dependencies: deps.filter((d) => ids.has(d.taskId) && ids.has(d.dependsOnId)),
+      server,
     };
   }
 

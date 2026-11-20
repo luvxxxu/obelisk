@@ -14,6 +14,7 @@ import type { AuthContext } from '../auth/auth.service';
 import { randomToken, sha256 } from '../common/crypto';
 import { InjectDb, type Db } from '../db/db.module';
 import { ReservationsService } from '../migration/reservations.service';
+import { ServerSettingsService } from '../server/settings.service';
 import {
   invites,
   projectMembers,
@@ -43,6 +44,7 @@ export class WorkspacesService {
     private readonly access: AccessService,
     private readonly activity: ActivityService,
     private readonly reservations: ReservationsService,
+    private readonly settings: ServerSettingsService,
   ) {}
 
   // ───────────────────────────── workspaces
@@ -74,6 +76,9 @@ export class WorkspacesService {
   }
 
   async create(auth: AuthContext, name: string): Promise<WorkspaceSummary> {
+    if (!this.settings.canCreateOrg(await this.settings.row(), auth.user)) {
+      throw new ForbiddenException('이 서버에서는 운영자만 조직을 만들 수 있어요');
+    }
     const ws = await this.db.transaction(async (tx) => {
       const [ws] = await tx.insert(workspaces).values({ kind: 'org', name }).returning();
       await tx.insert(workspaceMembers).values({ workspaceId: ws!.id, userId: auth.user.id, role: 'owner' });

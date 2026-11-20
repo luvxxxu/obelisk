@@ -120,7 +120,7 @@ export function WorkspaceSwitcher({ onNavigate = () => {} }: { onNavigate?: () =
             );
           })}
         </div>
-        <div className={ui.menuSep} />
+        {(ws?.kind === 'org' || app.server.canCreateOrg) && <div className={ui.menuSep} />}
         {ws?.kind === 'org' && (
           <>
             <button className={ui.menuItem} onClick={() => go('/settings/org')}>
@@ -131,12 +131,15 @@ export function WorkspaceSwitcher({ onNavigate = () => {} }: { onNavigate?: () =
                 <Icon name="userPlus" size={16} /> 멤버 초대
               </button>
             )}
-            <div className={ui.menuSep} />
+            {app.server.canCreateOrg && <div className={ui.menuSep} />}
           </>
         )}
-        <button className={ui.menuItem} onClick={() => (menu.close(), create.setOpen(true))}>
-          <Icon name="plus" size={16} /> 새 조직 만들기
-        </button>
+        {/* An operator may keep organizations to themselves (서버 관리 → 가입 → 조직 만들기). */}
+        {app.server.canCreateOrg && (
+          <button className={ui.menuItem} onClick={() => (menu.close(), create.setOpen(true))}>
+            <Icon name="plus" size={16} /> 새 조직 만들기
+          </button>
+        )}
       </Popover>
       <CreateOrgModal
         open={create.open}

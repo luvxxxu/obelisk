@@ -1,7 +1,8 @@
 'use client';
 
+import type { Announcement } from '@obelisk/core';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useJevAutoPilot } from '@/lib/jev';
 import { clearPicks, getPicked, useHasInlineBar } from '@/lib/selection';
 import { getState, load, selectTask, startSync, useApp } from '@/lib/store';
@@ -16,6 +17,7 @@ import {
 import { getUi, setUi, useUi } from '@/lib/ui-state';
 import { SelectionDock } from './BulkBar';
 import { Icon, Logo } from './Icon';
+import { GateScreen } from './GateScreen';
 import { CommandPalette, QuickAddModal, ShortcutsHelp, Toaster } from './Overlays';
 import { JevDialogs } from './JevDialogs';
 import { PostponeDialog } from './PostponeDialog';
@@ -199,6 +201,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => clearPicks(), [pathname, workspaceId]);
   const inlineBar = useHasInlineBar();
 
+  if (app.status === 'gated' && app.gate) return <GateScreen gate={app.gate} />;
+
   if (app.status !== 'ready') {
     return (
       <div className={s.splash}>
@@ -231,6 +235,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {nav && <div className={s.scrim} onClick={() => setUi({ nav: false })} />}
 
       <main className={s.main}>
+        {app.server.announcement && <NoticeBanner notice={app.server.announcement} />}
         <TopBar desktop={desktop} collapsed={collapsed} nav={nav} />
         <div key={pathname} className={s.route}>
           {children}
@@ -255,6 +260,42 @@ export function AppShell({ children }: { children: ReactNode }) {
       <JevAutoPilot />
       <Toaster />
       <TooltipLayer />
+    </div>
+  );
+}
+
+const NOTICE_KEY = 'obelisk:notice-dismissed';
+
+/**
+ * The operators' announcement, one quiet line above the top bar. Closing it hides this one in this
+ * browser; a changed announcement shows again.
+ */
+function NoticeBanner({ notice }: { notice: Announcement }) {
+  const [hidden, setHidden] = useState(true);
+  useEffect(() => {
+    try {
+      setHidden(localStorage.getItem(NOTICE_KEY) === notice.at);
+    } catch {
+      setHidden(false);
+    }
+  }, [notice.at]);
+  if (hidden) return null;
+  return (
+    <div className={s.notice} role="status">
+      <Icon name="info" size={15} className={s.noticeIcon} />
+      <p className={s.noticeText}>{notice.text}</p>
+      <button
+        className={s.noticeClose}
+        aria-label="공지 닫기"
+        onClick={() => {
+          setHidden(true);
+          try {
+            localStorage.setItem(NOTICE_KEY, notice.at);
+          } catch {}
+        }}
+      >
+        <Icon name="x" size={14} />
+      </button>
     </div>
   );
 }

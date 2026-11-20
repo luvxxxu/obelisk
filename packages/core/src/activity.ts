@@ -174,14 +174,17 @@ export function describeActivity(e: Pick<ActivityEntry, 'action' | 'data' | 'sub
       return host ? `다른 서버로 보냈어요 · ${host}` : '다른 서버로 보냈어요';
     }
     case 'member.joined':
+      if (d.reservation && d.verifiedEmail) return `확인된 메일 주소로 가져온 자리에 합류했어요 · ${role(d.role)}`;
       if (d.reservation && d.alreadyMember) return `가져온 자리를 이어받았어요 · ${role(d.role)}`;
       if (d.reservation) return `가져온 자리로 합류했어요 · ${role(d.role)}`;
       return `초대 링크로 참여했습니다 · ${role(d.role)}`;
     case 'member.role':
+      if (d.byOperator) return `서버 운영자가 소유자로 지정했어요 · ${role(d.from)} → ${role(d.to)}`;
       return `역할 ${role(d.from)} → ${role(d.to)}`;
     case 'member.removed':
       return '조직에서 내보냈습니다';
     case 'member.left':
+      if (d.byOperator) return '서버 운영자가 계정을 삭제해 조직을 떠났습니다';
       return d.accountDeleted ? '계정을 삭제해 조직을 떠났습니다' : '조직을 떠났습니다';
     case 'invite.created':
       return `${role(d.role)} 초대 링크를 만들었습니다`;

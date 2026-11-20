@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, type OnModuleDestroy } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, type OnModuleDestroy } from '@nestjs/common';
 import {
   jevEndpoint,
   jevPresetOf,
@@ -17,7 +17,7 @@ import {
 } from '@obelisk/core';
 import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
-import { and, count, desc, eq, inArray, max, ne, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, isNull, max, ne, sql } from 'drizzle-orm';
 import { randomToken, sha256 } from '../common/crypto';
 import { mailAvailable } from '../common/mail';
 import { seal } from '../common/secret';
@@ -45,6 +45,8 @@ import {
   type WorkspaceRole,
 } from '../db/schema';
 import { jevKeyContext } from '../jev/status';
+import { ServerSettingsService } from '../server/settings.service';
+import { ReservationsService } from './reservations.service';
 import { secretContext } from '../webhooks/delivery.service';
 import { incomingUrl } from '../webhooks/incoming.service';
 import { assertDeliverable } from '../webhooks/net';
@@ -204,7 +206,16 @@ export class ImportService implements OnModuleDestroy {
   constructor(
     @InjectDb() private readonly db: Db,
     private readonly access: AccessService,
+    private readonly reservations: ReservationsService,
+    private readonly settings: ServerSettingsService,
   ) {}
+
+  /** An organization file becomes a new organization here: only for those who may create one. */
+  private async assertCanCreate(user: UserRow, b: MigrationBundle) {
+    if (b.kind === 'org' && !this.settings.canCreateOrg(await this.settings.row(), user)) {
+      throw new ForbiddenException('이 서버에서는 운영자만 조직을 만들 수 있어요. 조직 파일은 운영자가 가져와야 해요.');
+    }
+  }
 
   onModuleDestroy() {
     this.staging.close();
@@ -314,6 +325,7 @@ export class ImportService implements OnModuleDestroy {
   async preview(user: UserRow, staged: Staged): Promise<MigrationPreview> {
     const b = staged.bundle;
     if (!b) throw new NotFoundException('가져올 파일이 만료됐어요. 다시 올려 주세요');
+    await this.assertCanCreate(user, b);
     const plan = await this.plan(this.db, user, b);
     const secrets = !b.secrets ? 'none' : b.secrets.mode === 'locked' ? 'locked' : 'included';
     const jev = b.account?.jev;
@@ -373,6 +385,7 @@ export class ImportService implements OnModuleDestroy {
 
   private async run(user: UserRow, b: MigrationBundle, input: z.output<typeof migrationImportInput>): Promise<MigrationResult> {
     const extra: string[] = [];
+    await this.assertCanCreate(user, b);
 
     // Secrets first: a wrong passphrase stops here, before anything is written.
     let secrets: MigrationSecrets | null = null;
@@ -773,6 +786,19 @@ export class ImportService implements OnModuleDestroy {
       }
 
       const secretsKind = !b.secrets ? 'none' : b.secrets.mode === 'locked' ? 'locked' : 'included';
+      // ── accounts here that confirmed a reserved address take their place at once: the mailbox is the
+      // proof a claim link would have been. (Signed-up-only accounts with that address still wait.)
+      if (isOrg && places.length) {
+        const confirmed = await tx
+          .select({ u: users })
+          .from(memberReservations)
+          .innerJoin(users, eq(users.email, memberReservations.email))
+          .where(and(eq(memberReservations.workspaceId, workspaceId), isNotNull(users.emailVerifiedAt), isNull(users.suspendedAt)));
+        let joinedNow = 0;
+        for (const { u } of confirmed) joinedNow += await this.reservations.claimVerified(tx, u, { workspaceId });
+        if (joinedNow) extra.push(`이 서버에서 메일 주소를 확인한 ${joinedNow}명은 합류 링크 없이 바로 들어왔어요.`);
+      }
+
       const warnings = [...this.warnings(b, plan, secrets ? secretsKind : 'none'), ...extra].filter((w, i, all) => all.indexOf(w) === i);
       // The "no secrets" lines say it already when the passphrase was left out.
       const finalWarnings =

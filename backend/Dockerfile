@@ -1,4 +1,13 @@
 # Obelisk API (NestJS on Bun). Build context: repository root.
+
+# Which commit this image is (for 서버 관리 → 업데이트 확인), read from the checkout's .git/HEAD and refs
+# (.dockerignore lets only those through). Without a .git it records null; OBELISK_COMMIT overrides.
+FROM oven/bun:1.3-alpine AS buildinfo
+WORKDIR /src
+ARG OBELISK_COMMIT=
+COPY . .
+RUN OBELISK_COMMIT="${OBELISK_COMMIT}" bun backend/scripts/build-info.ts /src > /build-info.json && cat /build-info.json
+
 FROM oven/bun:1.3-alpine
 WORKDIR /app
 
@@ -12,6 +21,7 @@ RUN bun install --frozen-lockfile --production --filter '@obelisk/backend'
 COPY packages/core packages/core
 COPY backend backend
 COPY skills skills
+COPY --from=buildinfo /build-info.json /app/build-info.json
 
 ENV NODE_ENV=production \
     PORT=4000

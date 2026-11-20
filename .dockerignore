@@ -3,6 +3,10 @@
 **/dist
 **/*.tsbuildinfo
 .git
+# …except what names the commit being built (서버 관리 → 업데이트 확인). No objects, no history.
+!.git/HEAD
+!.git/refs
+!.git/packed-refs
 .claude
 **/.env
 **/.env.*

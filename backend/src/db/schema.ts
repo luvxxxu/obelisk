@@ -50,6 +50,18 @@ export const users = pgTable('users', {
   homeLayout: jsonb('home_layout').$type<HomeLayout>(),
   /** Profile photo (avatars row); null = the initial is shown. */
   avatarId: uuid('avatar_id').references((): AnyPgColumn => avatars.id, { onDelete: 'set null' }),
+  /** Runs this server: 서버 관리 (users, sign-up, settings). Never sees what people wrote. */
+  admin: boolean('admin').notNull().default(false),
+  /** The current address was confirmed by a link mailed to it. */
+  emailVerifiedAt: ts('email_verified_at'),
+  /** Signed up while the server required a confirmed address: kept out of the app until confirmed. */
+  mustVerifyEmail: boolean('must_verify_email').notNull().default(false),
+  /** Applied while sign-up needed an operator's approval; null once approved. */
+  pendingApprovalAt: ts('pending_approval_at'),
+  /** Suspended by an operator: can't sign in, every credential was ended. */
+  suspendedAt: ts('suspended_at'),
+  /** Last request with any credential, written at most every few minutes. */
+  lastSeenAt: ts('last_seen_at'),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 
@@ -571,7 +583,87 @@ export const memberReservations = pgTable(
   (t) => [uniqueIndex('member_reservations_workspace_email_idx').on(t.workspaceId, t.email)],
 );
 
+// ───────────────────────────── running the server (서버 관리)
+
+/**
+ * The server's own settings, one row (id = 1). A null signup_mode means SIGNUP_MODE from the
+ * environment applies; everything else starts at its default and is changed in 서버 관리.
+ */
+export const serverSettings = pgTable(
+  'server_settings',
+  {
+    id: smallint('id').primaryKey().default(1),
+    signupMode: text('signup_mode', { enum: ['open', 'approval', 'invite', 'closed'] }),
+    requireEmailVerification: boolean('require_email_verification').notNull().default(false),
+    allowedEmailDomains: jsonb('allowed_email_domains').$type<string[]>().notNull().default([]),
+    orgCreation: text('org_creation', { enum: ['everyone', 'admins'] }).notNull().default('everyone'),
+    updateCheck: boolean('update_check').notNull().default(true),
+    announcementText: text('announcement_text'),
+    announcementAt: ts('announcement_at'),
+    /** sha256 of the one-time link the server logs at start while it has no operator. */
+    adminClaimHash: text('admin_claim_hash'),
+    adminClaimExpiresAt: ts('admin_claim_expires_at'),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [check('server_settings_single_row', sql`${t.id} = 1`)],
+);
+
+/** Links that let one person (or a few) sign up when sign-up is invite-only, without joining an organization. */
+export const serverInvites = pgTable('server_invites', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tokenHash: text('token_hash').notNull().unique(),
+  hint: text('hint').notNull(),
+  note: text('note').notNull().default(''),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  maxUses: integer('max_uses'),
+  uses: integer('uses').notNull().default(0),
+  expiresAt: ts('expires_at'),
+  revokedAt: ts('revoked_at'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+/**
+ * What operators did (suspend, delete, approve, settings…). The target is a snapshot so the line
+ * survives the account; ids are kept without foreign keys for the same reason.
+ */
+export const adminLog = pgTable(
+  'admin_log',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    actorName: text('actor_name').notNull(),
+    action: text('action').notNull(),
+    targetId: uuid('target_id'),
+    targetLabel: text('target_label').notNull().default(''),
+    data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('admin_log_created_idx').on(t.createdAt)],
+);
+
+/**
+ * One-time links mailed to confirm an address: the account's own (verify) or a new one (change).
+ * Only the hash is kept; a link works once, for a day.
+ */
+export const emailTokens = pgTable(
+  'email_tokens',
+  {
+    id: text('id').primaryKey(), // sha256 of the token in the link
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    purpose: text('purpose', { enum: ['verify', 'change'] }).notNull(),
+    /** The address the link was mailed to (lowercase). */
+    email: text('email').notNull(),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('email_tokens_user_idx').on(t.userId)],
+);
+
 export type UserRow = typeof users.$inferSelect;
+export type ServerSettingsRow = typeof serverSettings.$inferSelect;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ProjectRow = typeof projects.$inferSelect;
 export type WorkspaceRow = typeof workspaces.$inferSelect;

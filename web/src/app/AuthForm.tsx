@@ -1,6 +1,6 @@
 'use client';
 
-import type { InvitePreview, User } from '@obelisk/core';
+import type { InvitePreview, SignupStatus, User } from '@obelisk/core';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -134,7 +134,8 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [signupAllowed, setSignupAllowed] = useState<boolean | null>(null);
+  const [status, setStatus] = useState<SignupStatus | null>(null);
+  const signupAllowed = status ? status.allowed : null;
   const [nextQuery, setNextQuery] = useState('');
   const [resetAvailable, setResetAvailable] = useState(false);
   const [invite, setInvite] = useState<{ token: string; org: string | null } | null>(null);
@@ -142,7 +143,9 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   useEffect(() => {
     setNextQuery(location.search);
     const token = inviteParam();
-    if (token) {
+    // A server invite (osi_…) only opens sign-up; it names no organization.
+    if (token && token.startsWith('osi_')) setInvite({ token, org: null });
+    else if (token) {
       setInvite({ token, org: null });
       api<{ invite: InvitePreview }>('GET', `/api/invites/${encodeURIComponent(token)}`)
         .then((r) => {
@@ -159,9 +162,9 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
     api<{ user: User }>('GET', '/api/auth/me')
       .then(() => router.replace(safeNext()))
       .catch(() => {});
-    api<{ allowed: boolean }>('GET', `/api/auth/signup-status${token ? `?invite=${encodeURIComponent(token)}` : ''}`)
-      .then((r) => setSignupAllowed(r.allowed))
-      .catch(() => setSignupAllowed(false));
+    api<SignupStatus>('GET', `/api/auth/signup-status${token ? `?invite=${encodeURIComponent(token)}` : ''}`)
+      .then(setStatus)
+      .catch(() => setStatus({ allowed: false, first: false, mode: 'closed', invited: false, approval: false, verifyEmail: false, domains: [] }));
     if (mode === 'login') {
       api<{ available: boolean }>('GET', '/api/auth/password-reset')
         .then((r) => setResetAvailable(r.available))
@@ -202,6 +205,17 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   const isLogin = mode === 'login';
   const signupClosed = mode === 'signup' && signupAllowed === false;
   const showFooter = isLogin ? !!signupAllowed : true;
+  const serverInvite = !!invite && invite.token.startsWith('osi_');
+  // What happens after "계정 만들기", said before it is pressed.
+  const notes: string[] =
+    mode === 'signup' && status?.allowed
+      ? [
+          ...(status.first ? ['첫 계정이라 이 서버의 운영자가 돼요.'] : []),
+          ...(status.domains.length ? [`${status.domains.map((d) => `@${d}`).join(', ')} 주소로만 가입할 수 있어요.`] : []),
+          ...(status.verifyEmail ? ['가입하면 메일로 주소를 확인해요.'] : []),
+          ...(status.approval ? ['운영자가 가입을 승인하면 쓸 수 있어요.'] : []),
+        ]
+      : [];
 
   return (
     <div className={s.page}>
@@ -213,11 +227,15 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           <h1 className={s.title}>{isLogin ? 'Obelisk에 로그인' : 'Obelisk 시작하기'}</h1>
           {(invite || !isLogin) && (
             <p className={s.description}>
-              {invite
+              {serverInvite
                 ? isLogin
-                  ? `로그인하면 ${invite.org ? `‘${invite.org}’ ` : ''}초대를 수락할 수 있어요.`
-                  : `계정을 만들면 ${invite.org ? `‘${invite.org}’에 ` : '초대받은 조직에 '}바로 참여해요.`
-                : '할 일을 적고, 미루면 무엇이 밀리는지 미리 확인하세요.'}
+                  ? '이미 계정이 있다면 그대로 로그인하세요.'
+                  : '초대 링크로 이 서버에 가입해요.'
+                : invite
+                  ? isLogin
+                    ? `로그인하면 ${invite.org ? `‘${invite.org}’ ` : ''}초대를 수락할 수 있어요.`
+                    : `계정을 만들면 ${invite.org ? `‘${invite.org}’에 ` : '초대받은 조직에 '}바로 참여해요.`
+                  : '할 일을 적고, 미루면 무엇이 밀리는지 미리 확인하세요.'}
             </p>
           )}
         </header>
@@ -226,7 +244,13 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           <div className={ui.alert}>
             <Icon name="lock" size={16} />
             <div className={ui.alertTitle}>지금은 가입할 수 없어요</div>
-            <div className={ui.alertDescription}>이 서버는 새 계정 가입을 받지 않아요. 관리자에게 문의하세요.</div>
+            <div className={ui.alertDescription}>
+              {invite
+                ? '초대 링크가 만료됐거나 더 이상 쓸 수 없어요. 링크를 준 사람에게 새 링크를 받으세요.'
+                : status?.mode === 'invite'
+                  ? '이 서버는 초대 링크로만 가입할 수 있어요. 서버 운영자나 조직 관리자에게 초대 링크를 받으세요.'
+                  : '이 서버는 새 계정 가입을 받지 않아요. 서버 운영자에게 문의하세요.'}
+            </div>
           </div>
         ) : (
           <form className={s.form} onSubmit={submit} aria-busy={busy}>
@@ -295,6 +319,13 @@ export function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
                 '계정 만들기'
               )}
             </button>
+            {notes.length > 0 && (
+              <ul className={s.notes}>
+                {notes.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            )}
           </form>
         )}
 

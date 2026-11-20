@@ -345,3 +345,34 @@
   font-weight: 500;
   color: var(--text);
 }
+
+/* ───────── email row (address · confirmed badge · actions) */
+
+.emailControl {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ───────── small dialogs on settings pages */
+
+.dialogForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dialogText {
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.dialogText strong {
+  font-weight: 500;
+  color: var(--text);
+}
