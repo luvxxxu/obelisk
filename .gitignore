@@ -7,3 +7,9 @@ dist/
 .env.local
 .DS_Store
 coverage/
+
+# iOS build output
+ios/build/
+ios/CoreTests/ParityFixtures.swift
+ios/**/xcuserdata/
+.agents/
