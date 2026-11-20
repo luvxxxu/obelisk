@@ -127,6 +127,13 @@ export function memberName(id: string | null | undefined, s: AppState = state): 
   return s.members.find((m) => m.id === id)?.name ?? null;
 }
 
+/** A member's photo, or null (the Avatar then shows their initial). */
+export function memberAvatar(id: string | null | undefined, s: AppState = state): string | null {
+  if (!id) return null;
+  if (id === s.user?.id) return s.user.avatarUrl; // freshest right after changing your own photo
+  return s.members.find((m) => m.id === id)?.avatarUrl ?? null;
+}
+
 function guard(task: Task | undefined): task is Task {
   if (!task) return false;
   if (canEdit(task)) return true;

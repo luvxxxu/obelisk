@@ -14,12 +14,28 @@ export function workspaceLabel(w: Pick<WorkspaceSummary, 'kind' | 'name'> | null
   return w.kind === 'personal' ? '개인 공간' : w.name;
 }
 
-/** Personal space keeps the Obelisk mark; an organization shows its initial. */
-export function WorkspaceMark({ ws, size = 'md' }: { ws: Pick<WorkspaceSummary, 'kind' | 'name'> | null | undefined; size?: 'sm' | 'md' | 'lg' }) {
+const LOGO_SIZE = { sm: 12, md: 14, lg: 20, xl: 28 } as const;
+
+/** Personal space keeps the Obelisk mark; an organization shows its photo, or its initial without one. */
+export function WorkspaceMark({
+  ws,
+  size = 'md',
+}: {
+  ws: (Pick<WorkspaceSummary, 'kind' | 'name'> & { avatarUrl?: string | null }) | null | undefined;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+}) {
   const org = ws?.kind === 'org';
+  const [broken, setBroken] = useState<string | null>(null);
+  const photo = org && ws?.avatarUrl && broken !== ws.avatarUrl ? ws.avatarUrl : null;
   return (
-    <span className={s.mark} data-size={size} data-kind={org ? 'org' : 'personal'} aria-hidden="true">
-      {org ? (ws!.name.trim().slice(0, 1).toUpperCase() || '?') : <Logo size={size === 'lg' ? 20 : size === 'sm' ? 12 : 14} />}
+    <span className={s.mark} data-size={size} data-kind={org ? 'org' : 'personal'} data-photo={photo ? '' : undefined} aria-hidden="true">
+      {photo ? (
+        <img key={photo} src={photo} alt="" draggable={false} decoding="async" onError={() => setBroken(photo)} />
+      ) : org ? (
+        ws!.name.trim().slice(0, 1).toUpperCase() || '?'
+      ) : (
+        <Logo size={LOGO_SIZE[size]} />
+      )}
     </span>
   );
 }

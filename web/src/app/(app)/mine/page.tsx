@@ -9,7 +9,7 @@ import { Avatar, buttonClass } from '@/components/primitives';
 import { QuickAdd } from '@/components/QuickAdd';
 import { EmptyState, Page, TaskGroup, ViewHeader } from '@/components/View';
 import { useTasks } from '@/lib/hooks';
-import { memberName, useApp } from '@/lib/store';
+import { memberAvatar, memberName, useApp } from '@/lib/store';
 import s from '../views.module.css';
 
 /** 내 작업: what is assigned to me in this organization, plus what I handed to others. */
@@ -87,7 +87,7 @@ export default function MinePage() {
           key={id}
           title={
             <span className={s.groupTitle}>
-              <Avatar name={memberName(id, app)} size="sm" />
+              <Avatar name={memberName(id, app)} src={memberAvatar(id, app)} size="sm" />
               <span className={s.groupName}>{memberName(id, app) ?? '전 멤버'}에게 맡긴 작업</span>
             </span>
           }

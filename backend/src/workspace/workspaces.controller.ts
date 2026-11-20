@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import {
   activityQuery,
   createInviteInput,
@@ -17,6 +17,7 @@ import { parse } from '../common/validation';
 import { config } from '../config';
 import { AccessService } from './access.service';
 import { ActivityService } from './activity.service';
+import { AvatarsService } from './avatars.service';
 import { WorkspacesService } from './workspaces.service';
 
 const inviteLimit = rateLimiter(60, 10 * 60_000);
@@ -33,6 +34,7 @@ export class WorkspacesController {
     private readonly workspaces: WorkspacesService,
     private readonly access: AccessService,
     private readonly activity: ActivityService,
+    private readonly avatars: AvatarsService,
   ) {}
 
   @Get()
@@ -71,6 +73,21 @@ export class WorkspacesController {
   async remove(@Auth() auth: AuthContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
     const { confirm } = parse(z.object({ confirm: z.string() }), body);
     return this.workspaces.remove(await this.access.forWorkspace(auth, id), confirm);
+  }
+
+  /** Organization photo, owners and admins. The body is the image itself, already cut square by the client. */
+  @Put(':id/avatar')
+  @UseGuards(SessionOnlyGuard)
+  async setAvatar(@Auth() auth: AuthContext, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) {
+    await this.avatars.setForWorkspace(await this.access.forWorkspace(auth, id), body);
+    return { workspace: await this.workspaces.detail(await this.access.forWorkspace(auth, id)) };
+  }
+
+  @Delete(':id/avatar')
+  @UseGuards(SessionOnlyGuard)
+  async clearAvatar(@Auth() auth: AuthContext, @Param('id', ParseUUIDPipe) id: string) {
+    await this.avatars.clearForWorkspace(await this.access.forWorkspace(auth, id));
+    return { workspace: await this.workspaces.detail(await this.access.forWorkspace(auth, id)) };
   }
 
   // ── members

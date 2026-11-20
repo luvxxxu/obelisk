@@ -1,0 +1,53 @@
+.field {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* The photo itself is the biggest target: click to change, or drop an image on it. */
+.photo {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  outline: none;
+}
+
+.photo:enabled {
+  cursor: pointer;
+}
+
+.photo:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.photo[data-over] {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ring-color);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+  pointer-events: none;
+}
+
+.photo:enabled:hover .overlay,
+.photo:focus-visible .overlay,
+.photo[data-over] .overlay {
+  opacity: 1;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}

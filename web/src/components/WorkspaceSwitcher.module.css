@@ -79,11 +79,42 @@
   font-size: var(--fs-lg);
 }
 
+.mark[data-size='xl'] {
+  width: 64px;
+  height: 64px;
+  font-size: var(--fs-2xl);
+}
+
 /* An organization reads as "shared": outlined instead of filled. */
 .mark[data-kind='org'] {
   background: transparent;
   color: var(--text);
   box-shadow: inset 0 0 0 1.5px var(--border-strong);
+}
+
+/* An organization's photo fills the disc, with the same inner hairline as a person's. */
+.mark[data-photo] {
+  position: relative;
+  background: var(--surface-3);
+  box-shadow: none;
+}
+
+.mark > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  -webkit-user-drag: none;
+}
+
+.mark[data-photo]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--border);
+  pointer-events: none;
 }
 
 /* 모아보기: every space at once — a quiet disc rather than a space's own mark. */

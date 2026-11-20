@@ -85,6 +85,10 @@ export function changePhrases(changes: Record<string, unknown> | undefined): str
       continue;
     }
     if (field === 'archived') continue;
+    if (field === 'photo') {
+      out.push(c.to ? '사진 변경' : '사진 삭제');
+      continue;
+    }
     const label = FIELD_KO[field] ?? field;
     out.push(`${label} ${val(field, c.from)} → ${val(field, c.to)}`);
   }

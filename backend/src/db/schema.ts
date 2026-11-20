@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  customType,
   date,
   doublePrecision,
   index,
@@ -19,6 +20,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
 
 export const WORKSPACE_ROLES = ['owner', 'admin', 'member'] as const;
 export const ACCESS_LEVELS = ['view', 'edit', 'manage'] as const;
@@ -46,6 +48,8 @@ export const users = pgTable('users', {
   jevAutoApply: boolean('jev_auto_apply').notNull().default(false),
   /** Home dashboard arrangement (core HomeLayout); null = default layout. */
   homeLayout: jsonb('home_layout').$type<HomeLayout>(),
+  /** Profile photo (avatars row); null = the initial is shown. */
+  avatarId: uuid('avatar_id').references((): AnyPgColumn => avatars.id, { onDelete: 'set null' }),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 
@@ -90,9 +94,33 @@ export const workspaces = pgTable('workspaces', {
   /** Task numbers (#12) are unique per workspace. */
   taskSeq: integer('task_seq').notNull().default(0),
   membersCanCreateProjects: boolean('members_can_create_projects').notNull().default(true),
+  /** Organization photo (avatars row); null = the initial is shown. Personal spaces keep the Obelisk mark. */
+  avatarId: uuid('avatar_id').references((): AnyPgColumn => avatars.id, { onDelete: 'set null' }),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
+
+/**
+ * Profile photos of people and organizations: a small square image the browser already cut and
+ * shrank (256 px WebP or PNG). Each upload is a new row with a new id, so its URL can be cached
+ * forever; the owner's previous row is deleted. Rows go with their owner.
+ */
+export const avatars = pgTable(
+  'avatars',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references((): AnyPgColumn => users.id, { onDelete: 'cascade' }),
+    workspaceId: uuid('workspace_id').references((): AnyPgColumn => workspaces.id, { onDelete: 'cascade' }),
+    contentType: text('content_type').notNull(),
+    data: bytea('data').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('avatars_user_idx').on(t.userId),
+    index('avatars_workspace_idx').on(t.workspaceId),
+    check('avatars_one_owner', sql`num_nonnulls(${t.userId}, ${t.workspaceId}) = 1`),
+  ],
+);
 
 export const workspaceMembers = pgTable(
   'workspace_members',
@@ -465,6 +493,7 @@ export type UserRow = typeof users.$inferSelect;
 export type TaskRow = typeof tasks.$inferSelect;
 export type ProjectRow = typeof projects.$inferSelect;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
+export type AvatarRow = typeof avatars.$inferSelect;
 export type ActivityRow = typeof activity.$inferSelect;
 export type WebhookRow = typeof webhooks.$inferSelect;
 export type WebhookDeliveryRow = typeof webhookDeliveries.$inferSelect;

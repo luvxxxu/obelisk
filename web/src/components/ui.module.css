@@ -62,7 +62,7 @@
      .chip           pill-ish muted meta chip (legacy, task meta)
      .dot            8px status circle (data-tone = danger|warn|ok|info|muted); without data-tone it is a
                      rounded-square project swatch (colour via style)
-     .avatar         32px round initial; [data-size='sm'] 24px, [data-size='lg'] 40px
+     .avatar         32px round photo or initial; [data-size='sm'] 24px, [data-size='lg'] 40px, [data-size='xl'] 64px
      .progress       track (4px; [data-size='sm'] 3px, [data-size='lg'] 6px; data-tone on track tints bar)
      .progressBar    the fill — set style={{ width: '40%' }}
      .skeleton       pulsing placeholder block (set width/height)
@@ -633,6 +633,36 @@ textarea.input {
   height: 40px;
   border-radius: var(--radius-full);
   font-size: var(--fs-md);
+}
+
+.avatar[data-size='xl'] {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  font-size: var(--fs-2xl);
+}
+
+/* Photo: fills the disc; a hairline inside keeps a white photo from melting into a white page. */
+.avatar[data-photo] {
+  position: relative;
+}
+
+.avatar > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  -webkit-user-drag: none;
+}
+
+.avatar[data-photo]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--border);
+  pointer-events: none;
 }
 
 /* ───────── switch */

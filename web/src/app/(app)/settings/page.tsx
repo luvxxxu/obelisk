@@ -3,9 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Icon, type IconName } from '@/components/Icon';
-import { ui } from '@/components/primitives';
+import { PhotoField } from '@/components/PhotoField';
+import { Avatar, ui } from '@/components/primitives';
 import { Page, ViewHeader } from '@/components/View';
-import { api } from '@/lib/api';
+import { api, upload } from '@/lib/api';
 import { cx } from '@/lib/format';
 import { load, reset, setUser, useApp } from '@/lib/store';
 import { toast } from '@/lib/toast';
@@ -79,6 +80,21 @@ export default function SettingsPage() {
 
   const dirty = name.trim() !== user?.name || tz !== user?.timezone;
 
+  // A new photo shows up everywhere at once: the sidebar from `user`, lists and assignees after the reload.
+  const savePhoto = async (blob: Blob) => {
+    const { user: u } = await upload<{ user: User }>('PUT', '/api/auth/me/avatar', blob);
+    setUser(u);
+    await load(true);
+    toast.success('프로필 사진을 바꿨어요');
+  };
+
+  const removePhoto = async () => {
+    const { user: u } = await api<{ user: User }>('DELETE', '/api/auth/me/avatar');
+    setUser(u);
+    await load(true);
+    toast.success('프로필 사진을 지웠어요');
+  };
+
   return (
     <Page>
       <ViewHeader title="설정">
@@ -87,7 +103,18 @@ export default function SettingsPage() {
 
       <div className={s.stack}>
         {/* ───────── profile */}
-        <SettingsSection title="프로필" lead="이름과 시간대를 바꿀 수 있어요.">
+        <SettingsSection title="프로필" lead="사진, 이름, 시간대를 바꿀 수 있어요.">
+          <SettingsRow label="사진" description="이름 옆, 담당자, 활동 기록에 보여요. 고른 사진을 원 안에 맞춰 잘라 저장해요.">
+            <PhotoField
+              preview={<Avatar name={name || user?.name} src={user?.avatarUrl} size="xl" />}
+              hasPhoto={!!user?.avatarUrl}
+              editable
+              editorTitle="프로필 사진"
+              editorDescription="원 안에 보이는 부분만 저장돼요."
+              onSave={savePhoto}
+              onRemove={removePhoto}
+            />
+          </SettingsRow>
           <SettingsRow label="이름" htmlFor="name" field>
             <input id="name" className={ui.input} value={name} onChange={(e) => setName(e.target.value)} />
           </SettingsRow>

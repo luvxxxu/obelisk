@@ -14,17 +14,26 @@ export function setWorkspaceHeader(id: string | null) {
   workspaceHeader = id;
 }
 
-export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+export function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+  return request<T>(method, path, body !== undefined ? { type: 'application/json', data: JSON.stringify(body) } : undefined);
+}
+
+/** Send a file as the request body itself (profile photos), with its own content type. */
+export function upload<T = unknown>(method: string, path: string, blob: Blob): Promise<T> {
+  return request<T>(method, path, { type: blob.type || 'application/octet-stream', data: blob });
+}
+
+async function request<T>(method: string, path: string, body?: { type: string; data: BodyInit }): Promise<T> {
   let res: Response;
   try {
     res = await fetch(path, {
       method,
       headers: {
-        ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+        ...(body ? { 'content-type': body.type } : {}),
         'x-obelisk-client': 'web',
         ...(workspaceHeader ? { 'x-obelisk-workspace': workspaceHeader } : {}),
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body?.data,
       credentials: 'same-origin',
       cache: 'no-store',
     });

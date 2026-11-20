@@ -33,6 +33,7 @@ import {
   canEdit,
   canWriteProject,
   createProject,
+  memberAvatar,
   memberName,
   deleteTask,
   removeDependency,
@@ -1106,7 +1107,7 @@ function AssigneePicker({ task, onChange }: { task: Task; onChange: (id: string 
       >
         {task.assigneeId ? (
           <>
-            <Avatar name={current?.name ?? '?'} size="sm" className={s.assigneeAvatar} />
+            <Avatar name={current?.name ?? '?'} src={current?.avatarUrl} size="sm" className={s.assigneeAvatar} />
             <span className={s.triggerText}>{current?.name ?? '전 멤버'}</span>
           </>
         ) : (
@@ -1155,7 +1156,7 @@ function AssigneePicker({ task, onChange }: { task: Task; onChange: (id: string 
                 onClick={() => (onChange(m.id), d.close(), setQ(''))}
                 {...tip(!ok && '이 프로젝트를 볼 수 없는 멤버예요. 먼저 공유하세요.', { side: 'left' })}
               >
-                <Avatar name={m.name} size="sm" className={s.assigneeAvatar} />
+                <Avatar name={m.name} src={m.avatarUrl} size="sm" className={s.assigneeAvatar} />
                 <span className={s.memberText}>
                   <span className={ui.truncate}>
                     {m.name}
@@ -1177,6 +1178,7 @@ function AssigneePicker({ task, onChange }: { task: Task; onChange: (id: string 
 /* ───────── activity (who changed what) */
 
 function TaskActivity({ task }: { task: Task }) {
+  const app = useApp();
   const [entries, setEntries] = useState<ActivityEntry[] | null>(null);
   const [all, setAll] = useState(false);
 
@@ -1205,7 +1207,7 @@ function TaskActivity({ task }: { task: Task }) {
           const via = viaLabelKo(e.via, e.client);
           return (
             <li key={e.id} className={s.activityItem}>
-              <Avatar name={e.actor.name} size="sm" className={s.activityAvatar} />
+              <Avatar name={e.actor.name} src={memberAvatar(e.actor.id, app)} size="sm" className={s.activityAvatar} />
               <div className={s.activityBody}>
                 <span className={s.activityText}>
                   <strong>{e.actor.name}</strong> {describeActivity(e)}

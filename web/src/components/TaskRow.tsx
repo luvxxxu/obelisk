@@ -6,7 +6,7 @@ import { useClock } from '@/lib/clock';
 import { cx, dateTone, dueSoonLabel, overdueLabel, spanLabel, timeLabel } from '@/lib/format';
 import { previewFor, requestDateChange } from '@/lib/reschedule';
 import { clearPicks, getPicked, pickRange, togglePick, useIsPicked, visibleRowIds } from '@/lib/selection';
-import { canEdit, memberName, selectTask, toggleDone, useApp } from '@/lib/store';
+import { canEdit, memberAvatar, memberName, selectTask, toggleDone, useApp } from '@/lib/store';
 import { DatePickerPanel } from './DatePicker';
 import { Icon } from './Icon';
 import { Avatar, Popover, tip, ui } from './primitives';
@@ -268,7 +268,7 @@ export const TaskRow = memo(function TaskRow({
               )}
               {assignee && (
                 <span className={s.assignee} {...tip(`담당 ${assignee}`, { side: 'top' })}>
-                  <Avatar name={assignee} size="sm" className={s.assigneeAvatar} />
+                  <Avatar name={assignee} src={memberAvatar(task.assigneeId, app)} size="sm" className={s.assigneeAvatar} />
                   <span className={s.assigneeName}>{assignee}</span>
                 </span>
               )}

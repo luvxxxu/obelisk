@@ -13,7 +13,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { cx } from '@/lib/format';
-import { refresh, useApp } from '@/lib/store';
+import { memberAvatar, refresh, useApp } from '@/lib/store';
 import { toast } from '@/lib/toast';
 import { Icon } from './Icon';
 import { Avatar, isEnter, Modal, Spinner, ui } from './primitives';
@@ -176,7 +176,7 @@ export function ShareDialog({ project, open, onClose }: { project: Project; open
                             <Icon name="users" size={13} />
                           </span>
                         ) : (
-                          <Avatar name={c.name} size="sm" className={s.avatar} />
+                          <Avatar name={c.name} src={memberAvatar(c.id, app)} size="sm" className={s.avatar} />
                         )}
                         <span className={s.who}>
                           <span className={ui.truncate}>{c.name}</span>
@@ -240,7 +240,7 @@ export function ShareDialog({ project, open, onClose }: { project: Project; open
               const me = g.userId === app.user?.id;
               return (
                 <li key={g.userId} className={s.row}>
-                  <Avatar name={g.member!.name} size="sm" className={s.avatar} />
+                  <Avatar name={g.member!.name} src={g.member!.avatarUrl} size="sm" className={s.avatar} />
                   <span className={s.who}>
                     <span className={s.whoName}>
                       {g.member!.name}

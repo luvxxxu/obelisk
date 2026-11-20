@@ -403,11 +403,36 @@ export function Separator({
   return <div role="none" data-orientation={orientation} className={cls(ui.separator, className)} {...rest} />;
 }
 
-export function Avatar({ name, size = 'md', className }: { name?: string | null; size?: 'sm' | 'md' | 'lg'; className?: string }) {
+/**
+ * A person's photo, or their initial when they have none (or it fails to load).
+ * Photos sit on a muted disc so a transparent logo still reads as round.
+ */
+export function Avatar({
+  name,
+  src,
+  size = 'md',
+  className,
+}: {
+  name?: string | null;
+  src?: string | null;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  className?: string;
+}) {
   const initial = (name ?? '').trim().slice(0, 1).toUpperCase() || '?';
+  const [broken, setBroken] = useState<string | null>(null);
+  const photo = src && broken !== src ? src : null;
   return (
-    <span className={cls(ui.avatar, className)} data-size={size === 'md' ? undefined : size} aria-hidden="true">
-      {initial}
+    <span
+      className={cls(ui.avatar, className)}
+      data-size={size === 'md' ? undefined : size}
+      data-photo={photo ? '' : undefined}
+      aria-hidden="true"
+    >
+      {photo ? (
+        <img key={photo} src={photo} alt="" draggable={false} decoding="async" onError={() => setBroken(photo)} />
+      ) : (
+        initial
+      )}
     </span>
   );
 }

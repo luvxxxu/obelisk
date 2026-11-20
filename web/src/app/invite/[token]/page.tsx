@@ -72,7 +72,7 @@ export default function InvitePage() {
             <>
               <header className={s.header}>
                 <div className={i.mark}>
-                  <WorkspaceMark ws={{ kind: 'org', name: invite.workspace.name }} size="lg" />
+                  <WorkspaceMark ws={{ kind: 'org', name: invite.workspace.name, avatarUrl: invite.workspace.avatarUrl }} size="lg" />
                 </div>
                 <p className={i.eyebrow}>{invite.invitedBy ? `${invite.invitedBy}님의 초대` : '조직 초대'}</p>
                 <h1 className={s.title}>{invite.workspace.name}</h1>

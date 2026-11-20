@@ -27,11 +27,12 @@ import {
 } from '../db/schema';
 import { AccessService, type Access, type Conn } from './access.service';
 import { ActivityService, diff } from './activity.service';
+import { avatarPath } from './avatars.service';
 
 const ROLE_ORDER: Record<WorkspaceRole, number> = { owner: 0, admin: 1, member: 2 };
 
 function toSummary(ws: WorkspaceRow, role: WorkspaceRole, memberCount: number): WorkspaceSummary {
-  return { id: ws.id, kind: ws.kind, name: ws.name, role, memberCount };
+  return { id: ws.id, kind: ws.kind, name: ws.name, role, memberCount, avatarUrl: ws.kind === 'org' ? avatarPath(ws.avatarId) : null };
 }
 
 @Injectable()
@@ -106,7 +107,14 @@ export class WorkspacesService {
   async members(workspaceId: string, conn: Conn = this.db): Promise<Member[]> {
     const [rows, teamRows] = await Promise.all([
       conn
-        .select({ id: users.id, name: users.name, email: users.email, role: workspaceMembers.role, joinedAt: workspaceMembers.createdAt })
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          avatarId: users.avatarId,
+          role: workspaceMembers.role,
+          joinedAt: workspaceMembers.createdAt,
+        })
         .from(workspaceMembers)
         .innerJoin(users, eq(users.id, workspaceMembers.userId))
         .where(eq(workspaceMembers.workspaceId, workspaceId)),
@@ -124,6 +132,7 @@ export class WorkspacesService {
         role: r.role,
         joinedAt: r.joinedAt.toISOString(),
         teamIds: teamRows.filter((t) => t.userId === r.id).map((t) => t.teamId),
+        avatarUrl: avatarPath(r.avatarId),
       }))
       .sort((x, y) => ROLE_ORDER[x.role] - ROLE_ORDER[y.role] || x.name.localeCompare(y.name, 'ko'));
   }
@@ -316,7 +325,7 @@ export class WorkspacesService {
       userId ? this.access.membership(ws.id, userId) : undefined,
     ]);
     return {
-      workspace: { id: ws.id, name: ws.name, memberCount: n?.n ?? 0 },
+      workspace: { id: ws.id, name: ws.name, memberCount: n?.n ?? 0, avatarUrl: avatarPath(ws.avatarId) },
       role: row.role,
       invitedBy: inviter?.name ?? null,
       valid: !reason,

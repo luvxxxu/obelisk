@@ -27,7 +27,7 @@ import {
   type ThemePref,
 } from '@/lib/ui-helpers';
 import { Icon, Logo, type IconName } from './Icon';
-import { Popover, tip, ui, useDisclosure } from './primitives';
+import { Avatar, Popover, tip, ui, useDisclosure } from './primitives';
 import s from './Sidebar.module.css';
 
 type Tone = 'danger' | 'warn';
@@ -133,7 +133,6 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
     menu.toggle();
   };
 
-  const initial = app.user?.name.slice(0, 1).toUpperCase();
   const visibleEvents = data.events.slice(0, EVENT_CAP);
 
   return (
@@ -317,7 +316,7 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
           aria-expanded={menu.open}
           aria-label="계정 메뉴"
         >
-          <span className={s.avatar}>{initial}</span>
+          <Avatar name={app.user?.name} src={app.user?.avatarUrl} className={s.avatar} />
           <span className={s.accountText}>
             <span className={s.accountName}>{app.user?.name ?? '계정'}</span>
             <span className={s.accountMeta}>{app.user?.email}</span>

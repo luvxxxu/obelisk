@@ -8,6 +8,7 @@ import { bearerToken, parseCookies } from '../common/http';
 import { InjectDb, type Db } from '../db/db.module';
 import { apiTokens, oauthGrants, sessions, users, workspaceMembers, workspaces, type UserRow } from '../db/schema';
 import { jevStatus } from '../jev/status';
+import { avatarPath } from '../workspace/avatars.service';
 import { WorkspacesService } from '../workspace/workspaces.service';
 
 export interface AuthContext {
@@ -29,6 +30,7 @@ export function toUser(r: UserRow): User {
     defaultWorkspaceId: r.defaultWorkspaceId,
     jev: jevStatus(r),
     homeLayout: r.homeLayout ?? null,
+    avatarUrl: avatarPath(r.avatarId),
     createdAt: r.createdAt.toISOString(),
   };
 }

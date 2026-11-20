@@ -16,6 +16,8 @@ export interface User {
   jev: JevStatus;
   /** Their own arrangement of the home dashboard; null = the default layout. */
   homeLayout: HomeLayout | null;
+  /** Profile photo, a same-origin path such as /api/avatars/<id>; null = show the initial. */
+  avatarUrl: string | null;
   createdAt: string;
 }
 
@@ -70,7 +72,7 @@ export interface Invite {
 
 /** What an invite link shows before you accept it. */
 export interface InvitePreview {
-  workspace: { id: string; name: string; memberCount: number };
+  workspace: { id: string; name: string; memberCount: number; avatarUrl: string | null };
   role: 'admin' | 'member';
   invitedBy: string | null;
   valid: boolean;
@@ -106,6 +108,8 @@ export interface WorkspaceSummary {
   name: string;
   role: WorkspaceRole;
   memberCount: number;
+  /** Organization photo (/api/avatars/<id>); always null for a personal space, which shows the Obelisk mark. */
+  avatarUrl: string | null;
 }
 
 /** What deleting your account would take with it, and what has to happen first. */
@@ -135,6 +139,8 @@ export interface Member {
   role: WorkspaceRole;
   joinedAt: string;
   teamIds: string[];
+  /** Profile photo (/api/avatars/<id>); null = show the initial. */
+  avatarUrl: string | null;
 }
 
 export interface Team {

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
 import {
   deleteAccountInput,
   loginInput,
@@ -12,6 +12,7 @@ import type { Request, Response } from 'express';
 import { config, SESSION_COOKIE } from '../config';
 import { cookieHeader } from '../common/http';
 import { parse } from '../common/validation';
+import { AvatarsService } from '../workspace/avatars.service';
 import { AccountService } from './account.service';
 import { Auth, AuthGuard, SessionOnlyGuard } from './auth.guard';
 import { AuthService, toUser, type AuthContext } from './auth.service';
@@ -21,6 +22,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly account: AccountService,
+    private readonly avatars: AvatarsService,
   ) {}
 
   private setSession(res: Response, token: string | null) {
@@ -107,6 +109,19 @@ export class AuthController {
   async updateMe(@Auth() auth: AuthContext, @Body() body: unknown) {
     const row = await this.auth.updateMe(auth.user.id, parse(updateMeInput, body));
     return { user: toUser(row) };
+  }
+
+  /** Profile photo: the body is the image itself (WebP, PNG or JPEG), already cut square by the client. */
+  @Put('me/avatar')
+  @UseGuards(AuthGuard, SessionOnlyGuard)
+  async setAvatar(@Auth() auth: AuthContext, @Body() body: unknown) {
+    return { user: toUser(await this.avatars.setForUser(auth.user.id, body)) };
+  }
+
+  @Delete('me/avatar')
+  @UseGuards(AuthGuard, SessionOnlyGuard)
+  async clearAvatar(@Auth() auth: AuthContext) {
+    return { user: toUser(await this.avatars.clearForUser(auth.user.id)) };
   }
 
   // ───────── account deletion (signed-in web or iOS session only, never an API token or AI app)

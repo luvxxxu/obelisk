@@ -15,6 +15,7 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, type IconName } from '@/components/Icon';
+import { PhotoField } from '@/components/PhotoField';
 import {
   Avatar,
   Badge,
@@ -28,7 +29,8 @@ import {
   useDisclosure,
 } from '@/components/primitives';
 import { EmptyState, Page, ViewHeader } from '@/components/View';
-import { api } from '@/lib/api';
+import { WorkspaceMark } from '@/components/WorkspaceSwitcher';
+import { api, upload } from '@/lib/api';
 import { cx, relativeTime } from '@/lib/format';
 import { refresh, switchWorkspace, useApp } from '@/lib/store';
 import { toast } from '@/lib/toast';
@@ -82,13 +84,16 @@ function OrgSettings() {
       </ViewHeader>
 
       <div className={s.orgHead}>
-        <div className={s.orgHeadText}>
-          <p className={s.orgName}>{ws?.name ?? '조직'}</p>
-          {ws && (
-            <p className={s.orgMeta}>
-              {ROLE_LABEL_KO[ws.role]}로 참여 중 · 멤버 {app.members.length}명 · 팀 {app.teams.length}개
-            </p>
-          )}
+        <div className={s.orgIdentity}>
+          <WorkspaceMark ws={ws} size="lg" />
+          <div className={s.orgHeadText}>
+            <p className={s.orgName}>{ws?.name ?? '조직'}</p>
+            {ws && (
+              <p className={s.orgMeta}>
+                {ROLE_LABEL_KO[ws.role]}로 참여 중 · 멤버 {app.members.length}명 · 팀 {app.teams.length}개
+              </p>
+            )}
+          </div>
         </div>
         <div className={ui.segmented} role="tablist" aria-label="조직 설정">
           {TABS.map((t) => (
@@ -180,7 +185,7 @@ function MembersTab({ openInvite }: { openInvite: boolean }) {
             const editable = admin && !(m.role === 'owner' && !owner);
             return (
               <li key={m.id} className={s.person}>
-                <Avatar name={m.name} />
+                <Avatar name={m.name} src={m.avatarUrl} />
                 <div className={s.personText}>
                   <span className={s.personName}>
                     {m.name}
@@ -535,7 +540,7 @@ function TeamsTab() {
                   </div>
                   <div className={s.stack}>
                     {members.slice(0, 4).map((m) => (
-                      <Avatar key={m.id} name={m.name} size="sm" className={s.stackAvatar} />
+                      <Avatar key={m.id} name={m.name} src={m.avatarUrl} size="sm" className={s.stackAvatar} />
                     ))}
                     {members.length > 4 && <span className={s.stackMore}>+{members.length - 4}</span>}
                   </div>
@@ -671,7 +676,7 @@ function TeamModal({ team, onClose }: { team: Team | 'new' | null; onClose: () =
                     <span className={s.pickBox} aria-hidden="true">
                       <Icon name="check" size={12} strokeWidth={3} />
                     </span>
-                    <Avatar name={m.name} size="sm" />
+                    <Avatar name={m.name} src={m.avatarUrl} size="sm" />
                     <span className={s.personText}>
                       <span className={s.personName}>{m.name}</span>
                       <span className={s.personMeta}>{m.email}</span>
@@ -897,9 +902,35 @@ function GeneralTab() {
 
   const personal = app.workspaces.find((w) => w.kind === 'personal');
 
+  const savePhoto = async (blob: Blob) => {
+    await upload('PUT', `/api/workspaces/${ws.id}/avatar`, blob);
+    await refresh();
+    toast.success('조직 사진을 바꿨어요');
+  };
+
+  const removePhoto = async () => {
+    await api('DELETE', `/api/workspaces/${ws.id}/avatar`);
+    await refresh();
+    toast.success('조직 사진을 지웠어요');
+  };
+
   return (
     <>
-      <SettingsSection title="조직 정보" lead="사이드바와 초대 화면에 보이는 이름이에요.">
+      <SettingsSection title="조직 정보" lead="공간 전환 메뉴와 초대 화면에 보이는 사진과 이름이에요.">
+        <SettingsRow
+          label="사진"
+          description={admin ? '로고나 팀 사진을 원 안에 맞춰 잘라 저장해요. 없으면 이름의 첫 글자가 보여요.' : '소유자와 관리자만 바꿀 수 있어요.'}
+        >
+          <PhotoField
+            preview={<WorkspaceMark ws={ws} size="xl" />}
+            hasPhoto={!!ws.avatarUrl}
+            editable={admin}
+            editorTitle="조직 사진"
+            editorDescription="원 안에 보이는 부분만 저장돼요. 모든 멤버에게 보여요."
+            onSave={savePhoto}
+            onRemove={removePhoto}
+          />
+        </SettingsRow>
         <SettingsRow label="이름" htmlFor="org-name" field description={admin ? undefined : '소유자와 관리자만 바꿀 수 있어요.'}>
           <input id="org-name" className={ui.input} value={name} disabled={!admin} maxLength={80} onChange={(e) => setName(e.target.value)} />
         </SettingsRow>

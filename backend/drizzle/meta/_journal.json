@@ -64,6 +64,13 @@
       "when": 1795099152705,
       "tag": "0008_password_resets",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795142508013,
+      "tag": "0009_avatars",
+      "breakpoints": true
     }
   ]
 }

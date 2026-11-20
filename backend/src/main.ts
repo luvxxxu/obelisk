@@ -5,6 +5,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { NextFunction, Request, Response } from 'express';
 import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
+import { AVATAR_MAX_BYTES, AVATAR_UPLOAD_TYPES } from './workspace/avatars.service';
 import { config } from './config';
 import { DbModule, runMigrations } from './db/db.module';
 import { JevModule } from './jev/jev.module';
@@ -65,6 +66,9 @@ async function bootstrap() {
   app.useBodyParser('urlencoded', { extended: false, limit: '64kb' });
   // Incoming webhooks accept a plain-text line ("보고서 내일 !높음").
   app.useBodyParser('text', { limit: '64kb' });
+  // Profile photos arrive as the image bytes themselves. The parser lets a bit more through so the
+  // route can answer an oversized photo in words instead of the parser's bare 413.
+  app.useBodyParser('raw', { type: AVATAR_UPLOAD_TYPES, limit: AVATAR_MAX_BYTES * 2 });
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (PUBLIC_CORS.some((r) => r.test(req.path))) {
