@@ -13,13 +13,13 @@ private func at(_ hhmm: String, _ date: String = TODAY) -> Clock {
 func makeTask(
     id: String = UUID().uuidString, number: Int = 1, status: TaskStatus = .todo, priority: Int = 0, projectId: String? = nil,
     startDate: String? = nil, startTime: String? = nil, dueDate: String? = nil, dueTime: String? = nil,
-    fixed: Bool = false, position: Double = 0, postponedCount: Int = 0, assigneeId: String? = nil,
+    fixed: Bool = false, position: Double = 0, postponedCount: Int = 0, assigneeIds: [String] = [],
     createdBy: String? = "me", completedAt: String? = nil, title: String? = nil
 ) -> TaskItem {
     TaskItem(
         id: id, workspaceId: "w", number: number, title: title ?? id, notes: "", status: status, priority: priority,
         projectId: projectId, startDate: startDate, startTime: startTime, dueDate: dueDate, dueTime: dueTime,
-        fixed: fixed, position: position, postponedCount: postponedCount, assigneeId: assigneeId, createdBy: createdBy,
+        fixed: fixed, position: position, postponedCount: postponedCount, assigneeIds: assigneeIds, createdBy: createdBy,
         completedAt: completedAt, createdAt: "2026-11-01T00:00:00.000Z", updatedAt: "2026-11-01T00:00:00.000Z"
     )
 }

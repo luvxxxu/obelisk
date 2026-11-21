@@ -13,7 +13,8 @@ import { workHoursInput } from './timeplan';
 import { WEBHOOK_EVENT_KEYS, WEBHOOK_FORMATS } from './webhooks';
 
 export const MIGRATION_FORMAT = 'obelisk-export';
-export const MIGRATION_VERSION = 1;
+/** 2: tasks carry `assignees` (several people) instead of one `assignee`. Version 1 files still import. */
+export const MIGRATION_VERSION = 2;
 /** Largest bundle a server writes or reads (after gunzip). */
 export const MIGRATION_MAX_BYTES = 64 * 1024 * 1024;
 /** Content type the web app uploads a bundle file with. */
@@ -231,15 +232,22 @@ const task = z
     createdAt: when,
     updatedAt: when,
     createdBy: ref.nullable(),
-    assignee: ref.nullable(),
+    assignees: z.array(ref).max(20).optional(),
+    /** Version 1: one person or null. */
+    assignee: ref.nullable().optional(),
   })
   // A time only exists with its date (the database insists).
-  .transform((t) => ({ ...t, startTime: t.startDate ? t.startTime : null, dueTime: t.dueDate ? t.dueTime : null }));
+  .transform(({ assignee, assignees, ...t }) => ({
+    ...t,
+    assignees: [...new Set(assignees ?? (assignee ? [assignee] : []))],
+    startTime: t.startDate ? t.startTime : null,
+    dueTime: t.dueDate ? t.dueTime : null,
+  }));
 
 export const migrationBundle = z
   .object({
     format: z.literal(MIGRATION_FORMAT, 'Obelisk 내보내기 파일이 아니에요'),
-    version: z.literal(MIGRATION_VERSION),
+    version: z.union([z.literal(1), z.literal(MIGRATION_VERSION)]),
     exportId: ref,
     exportedAt: when,
     source: z.object({ url: z.string().min(1).max(500) }),
@@ -458,7 +466,7 @@ export interface ActivityIdMap {
 
 /**
  * Ids inside an activity entry's `data` that point at tasks, people or teams, rewritten for the
- * target: `causeId`, `blockedById`, `assignee.fromId/toId`, `userId`, `teamId`, and the
+ * target: `causeId`, `blockedById`, `assignee.fromId/toId`, `assignees.fromIds/toIds`, `userId`, `teamId`, and the
  * `userId`/`teamId` of each change in `project.access`. Anything else passes through untouched.
  */
 export function remapActivityData(action: string, data: Record<string, unknown>, map: ActivityIdMap): Record<string, unknown> {
@@ -478,13 +486,23 @@ export function remapActivityData(action: string, data: Record<string, unknown>,
       return next;
     });
   } else if (changes && typeof changes === 'object' && !Array.isArray(changes)) {
-    const assignee = (changes as Record<string, unknown>).assignee;
+    const next = { ...(changes as Record<string, unknown>) };
+    const assignee = next.assignee;
     if (assignee && typeof assignee === 'object') {
       const a = { ...(assignee as Record<string, unknown>) };
       if (str(a.fromId)) a.fromId = map.user(a.fromId);
       if (str(a.toId)) a.toId = map.user(a.toId);
-      out.changes = { ...(changes as Record<string, unknown>), assignee: a };
+      next.assignee = a;
     }
+    const assignees = next.assignees;
+    if (assignees && typeof assignees === 'object') {
+      const a = { ...(assignees as Record<string, unknown>) };
+      const ids = (v: unknown) => (Array.isArray(v) ? v.filter(str).map((id) => map.user(id)) : v);
+      a.fromIds = ids(a.fromIds);
+      a.toIds = ids(a.toIds);
+      next.assignees = a;
+    }
+    if (assignee || assignees) out.changes = next;
   }
   return out;
 }

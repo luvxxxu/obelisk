@@ -12,7 +12,8 @@ struct NewTask: Hashable, Sendable {
     var dueDate: ISODate? = nil
     var dueTime: ISOTime? = nil
     var fixed: Bool = false
-    var assigneeId: String? = nil
+    /// Who works on it (empty = nobody).
+    var assigneeIds: [String] = []
     /// Tasks that must finish first (ids).
     var blockedBy: [String] = []
     /// Minutes it should take.
@@ -29,7 +30,7 @@ struct NewTask: Hashable, Sendable {
         if let dueDate { o["dueDate"] = .string(dueDate) }
         if let dueTime, dueDate != nil { o["dueTime"] = .string(dueTime) }
         if fixed { o["fixed"] = .bool(true) }
-        if let assigneeId { o["assigneeId"] = .string(assigneeId) }
+        if !assigneeIds.isEmpty { o["assigneeIds"] = .array(assigneeIds.map(JSONValue.string)) }
         if !blockedBy.isEmpty { o["blockedBy"] = .array(blockedBy.map(JSONValue.string)) }
         if let estimateMinutes { o["estimateMinutes"] = .number(Double(estimateMinutes)) }
         return .object(o)
@@ -51,7 +52,8 @@ struct TaskPatch: Hashable, Sendable {
     var dueDate: ISODate??
     var dueTime: ISOTime??
     var fixed: Bool?
-    var assigneeId: String??
+    /// The whole set of assignees: replaces who was assigned (`[]` = nobody).
+    var assigneeIds: [String]?
     var position: Double?
     /// Minutes it should take (`.some(nil)` clears it).
     var estimateMinutes: Int??
@@ -75,7 +77,7 @@ struct TaskPatch: Hashable, Sendable {
         if let dueDate { o["dueDate"] = .orNull(dueDate) }
         if let dueTime { o["dueTime"] = .orNull(dueTime) }
         if let fixed { o["fixed"] = .bool(fixed) }
-        if let assigneeId { o["assigneeId"] = .orNull(assigneeId) }
+        if let assigneeIds { o["assigneeIds"] = .array(assigneeIds.map(JSONValue.string)) }
         if let position { o["position"] = .number(position) }
         if let estimateMinutes { o["estimateMinutes"] = estimateMinutes.map { .number(Double($0)) } ?? .null }
         if status == .done, let completedAt { o["completedAt"] = .string(completedAt) }
@@ -98,7 +100,7 @@ struct TaskPatch: Hashable, Sendable {
         if let dueDate { t.dueDate = dueDate }
         if let dueTime { t.dueTime = dueTime }
         if let fixed { t.fixed = fixed }
-        if let assigneeId { t.assigneeId = assigneeId }
+        if let assigneeIds { t.assigneeIds = assigneeIds }
         if let position { t.position = position }
         if let estimateMinutes { t.estimateMinutes = estimateMinutes }
         // A time goes with its date.
@@ -128,7 +130,7 @@ struct TaskPatch: Hashable, Sendable {
             p.dueTime = .some(prev.dueTime)
         }
         if fixed != nil { p.fixed = prev.fixed }
-        if assigneeId != nil { p.assigneeId = .some(prev.assigneeId) }
+        if assigneeIds != nil { p.assigneeIds = prev.assigneeIds }
         if position != nil { p.position = prev.position }
         if estimateMinutes != nil { p.estimateMinutes = .some(prev.estimateMinutes) }
         return p
@@ -150,7 +152,7 @@ struct TaskPatch: Hashable, Sendable {
         if priority != nil { return "우선순위 변경" }
         if projectId != nil { return "프로젝트 이동" }
         if startDate != nil || dueDate != nil || startTime != nil || dueTime != nil { return "날짜 변경" }
-        if assigneeId != nil { return "담당자 변경" }
+        if assigneeIds != nil { return "담당자 변경" }
         if fixed != nil { return "고정 변경" }
         if position != nil { return "순서 변경" }
         if estimateMinutes != nil { return "예상 시간 변경" }
@@ -176,7 +178,7 @@ extension NewTask {
         dueDate = t.dueDate
         dueTime = t.dueTime
         fixed = t.fixed
-        assigneeId = t.assigneeId
+        assigneeIds = t.assigneeIds
         self.blockedBy = blockedBy
     }
 }

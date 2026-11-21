@@ -5,9 +5,9 @@ import Foundation
 private let JEV_TODAY = "2026-11-16"
 private var jevSeq = 0
 
-private func jt(_ id: String, status: TaskStatus = .todo, startDate: String? = nil, dueDate: String? = nil, fixed: Bool = false, assigneeId: String? = nil) -> TaskItem {
+private func jt(_ id: String, status: TaskStatus = .todo, startDate: String? = nil, dueDate: String? = nil, fixed: Bool = false, assigneeIds: [String] = []) -> TaskItem {
     jevSeq += 1
-    return makeTask(id: id, number: jevSeq, status: status, startDate: startDate, dueDate: dueDate, fixed: fixed, position: Double(jevSeq), assigneeId: assigneeId)
+    return makeTask(id: id, number: jevSeq, status: status, startDate: startDate, dueDate: dueDate, fixed: fixed, position: Double(jevSeq), assigneeIds: assigneeIds)
 }
 
 private func J(_ importance: Double, _ deferrable: Double = 0.5, _ others: Double = 0.2, _ importanceConfidence: Double = 0.95) -> TaskJudgment {
@@ -138,9 +138,9 @@ func runJevTests() {
         }
 
         test("other people's tasks and read-only tasks are left alone") {
-            let tasks = [jt("theirs", dueDate: JEV_TODAY, assigneeId: "other"), jt("ro", dueDate: JEV_TODAY), jt("x", dueDate: JEV_TODAY)]
+            let tasks = [jt("theirs", dueDate: JEV_TODAY, assigneeIds: ["other"]), jt("ro", dueDate: JEV_TODAY), jt("x", dueDate: JEV_TODAY)]
             let plan = planPostpone(
-                tasks: tasks, deps: [], mine: { $0.assigneeId != "other" }, editable: { $0.id != "ro" },
+                tasks: tasks, deps: [], mine: { !$0.assigneeIds.contains("other") }, editable: { $0.id != "ro" },
                 judgments: ["ro": J(0, 1), "x": J(0, 1)], today: JEV_TODAY, scope: .today, capacity: 1, capacitySource: .input
             )
             expectEqual(plan.candidates.map(\.taskId).sorted(), ["ro", "x"])
@@ -356,9 +356,10 @@ func runWebhooksTests() {
 
         test("JSON create with friendly values") {
             expectEqual(
-                try ok(["title": " 배포 확인 ", "dueDate": "내일", "priority": "high", "project": "런칭", "assignee": "me", "fixed": "true", "notes": "n"]),
-                ["kind": "create", "title": "배포 확인", "dueDate": "2026-11-14", "priority": 3, "project": "런칭", "assignee": "me", "fixed": true, "notes": "n"]
+                try ok(["title": " 배포 확인 ", "dueDate": "내일", "priority": "high", "project": "런칭", "assignees": ["me", "민겸", "me"], "fixed": "true", "notes": "n"]),
+                ["kind": "create", "title": "배포 확인", "dueDate": "2026-11-14", "priority": 3, "project": "런칭", "assignees": ["me", "민겸"], "fixed": true, "notes": "n"]
             )
+            expectEqual(try ok(["title": "x", "assignee": "민겸, kim@example.com"])["assignees"], ["민겸", "kim@example.com"])
             let r = try ok(["title": "x", "dueDate": "2026-11-20T09:00:00Z", "priority": "보통"])
             expectEqual(r["dueDate"], "2026-11-20")
             expectEqual(r["priority"], 2)

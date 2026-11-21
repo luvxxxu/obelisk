@@ -301,7 +301,7 @@ export async function duplicateTasks(ids: string[]): Promise<void> {
       dueDate: t.dueDate,
       dueTime: t.dueTime,
       fixed: t.fixed,
-      assigneeId: t.assigneeId,
+      assigneeIds: t.assigneeIds,
       ...(waitsFor.length ? { blockedBy: waitsFor.slice(0, 50) } : {}),
     };
   });
@@ -482,7 +482,7 @@ function fromCopied(list: CopiedTask[], ctx: PasteContext): BulkCreateTasksInput
     dueTime: t.dueDate ? t.dueTime : null,
     priority: t.priority as Priority,
     ...(t.fixed ? { fixed: true } : {}),
-    ...(ctx.assigneeId ? { assigneeId: ctx.assigneeId } : {}),
+    ...(ctx.assigneeId ? { assigneeIds: [ctx.assigneeId] } : {}),
   }));
 }
 
@@ -510,7 +510,7 @@ function fromLines(text: string, ctx: PasteContext): BulkCreateTasksInput['tasks
         dueTime: q.dueDate ? q.dueTime : null,
         priority: q.priority ?? 0,
         ...(q.fixed ? { fixed: true } : {}),
-        ...(ctx.assigneeId ? { assigneeId: ctx.assigneeId } : {}),
+        ...(ctx.assigneeId ? { assigneeIds: [ctx.assigneeId] } : {}),
       },
     ];
   });

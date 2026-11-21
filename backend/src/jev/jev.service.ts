@@ -366,7 +366,7 @@ export class JevService implements OnApplicationBootstrap {
 
   /** In an organization only your own work is yours to rearrange: assigned to you, or unassigned and created by you. */
   private mine(a: Access) {
-    return (t: Task) => a.kind === 'personal' || t.assigneeId === a.userId || (!t.assigneeId && t.createdBy === a.userId);
+    return (t: Task) => a.kind === 'personal' || t.assigneeIds.includes(a.userId) || (!t.assigneeIds.length && t.createdBy === a.userId);
   }
 
   private contexts(a: Access, active: Task[], deps: Dependency[], projects: Map<string, Project>) {
@@ -375,7 +375,7 @@ export class JevService implements OnApplicationBootstrap {
       project: t.projectId ? (projects.get(t.projectId)?.name ?? null) : null,
       waiting: deps.filter((d) => d.dependsOnId === t.id).flatMap((d) => (byId.has(d.taskId) ? [byId.get(d.taskId)!.title] : [])),
       waitsOn: deps.filter((d) => d.taskId === t.id).flatMap((d) => (byId.has(d.dependsOnId) ? [byId.get(d.dependsOnId)!.title] : [])),
-      assignedToOther: a.kind === 'org' && !!t.assigneeId && t.assigneeId !== a.userId,
+      assignedToOther: a.kind === 'org' && t.assigneeIds.length > 0 && !t.assigneeIds.includes(a.userId),
     });
   }
 

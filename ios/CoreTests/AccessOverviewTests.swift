@@ -5,7 +5,7 @@ import Foundation
 private struct Subject: TaskAccessSubject {
     var projectId: String?
     var createdBy: String?
-    var assigneeId: String?
+    var assigneeIds: [String]
 }
 
 private func view(_ levels: [String: AccessLevel], _ kind: WorkspaceKind = .org) -> AccessView {
@@ -34,20 +34,21 @@ func runAccessTests() {
         let a = view(["p1": .view, "p2": .edit])
 
         test("project tasks follow the project level") {
-            expectEqual(taskAccess(Subject(projectId: "p1", createdBy: "me", assigneeId: "me"), a), .view)
-            expectFalse(canEditTask(Subject(projectId: "p1", createdBy: "me", assigneeId: "me"), a))
-            expectTrue(canEditTask(Subject(projectId: "p2", createdBy: "x", assigneeId: nil), a))
-            expectFalse(canViewTask(Subject(projectId: "p3", createdBy: "me", assigneeId: "me"), a))
+            expectEqual(taskAccess(Subject(projectId: "p1", createdBy: "me", assigneeIds: ["me"]), a), .view)
+            expectFalse(canEditTask(Subject(projectId: "p1", createdBy: "me", assigneeIds: ["me"]), a))
+            expectTrue(canEditTask(Subject(projectId: "p2", createdBy: "x", assigneeIds: []), a))
+            expectFalse(canViewTask(Subject(projectId: "p3", createdBy: "me", assigneeIds: ["me"]), a))
         }
 
-        test("org inbox tasks are private to their creator and assignee") {
-            expectTrue(canEditTask(Subject(projectId: nil, createdBy: "me", assigneeId: nil), a))
-            expectTrue(canEditTask(Subject(projectId: nil, createdBy: "x", assigneeId: "me"), a))
-            expectFalse(canViewTask(Subject(projectId: nil, createdBy: "x", assigneeId: "y"), a))
+        test("org inbox tasks are private to their creator and assignees") {
+            expectTrue(canEditTask(Subject(projectId: nil, createdBy: "me", assigneeIds: []), a))
+            expectTrue(canEditTask(Subject(projectId: nil, createdBy: "x", assigneeIds: ["me"]), a))
+            expectFalse(canViewTask(Subject(projectId: nil, createdBy: "x", assigneeIds: ["y"]), a))
+            expectTrue(canEditTask(Subject(projectId: nil, createdBy: "x", assigneeIds: ["y", "me"]), a))
         }
 
         test("everything in a personal space is yours") {
-            expectEqual(taskAccess(Subject(projectId: nil, createdBy: "x", assigneeId: nil), view([:], .personal)), .manage)
+            expectEqual(taskAccess(Subject(projectId: nil, createdBy: "x", assigneeIds: []), view([:], .personal)), .manage)
         }
 
         test("access from the projects the server sent; canWriteProject") {
@@ -83,6 +84,19 @@ func runAccessTests() {
             expectEqual(text, "공유 설정 · 조직 전체 권한 없음 → 보기 · 김민지 권한 없음 → 쓰기")
         }
 
+        test("several assignees are listed by name; old single-assignee entries still read") {
+            let change: (JSONValue, JSONValue) -> String = { from, to in
+                describeActivity(action: "task.updated", data: ["changes": ["assignees": ["from": from, "to": to]]])
+            }
+            expectEqual(change(["김민지", "이서준"], ["박지우"]), "담당자 김민지, 이서준 → 박지우")
+            expectEqual(change([], ["김민지"]), "담당자 없음 → 김민지")
+            expectEqual(change(["김민지"], []), "담당자 해제")
+            expectEqual(describeActivity(action: "task.updated", data: ["changes": ["assignee": ["from": nil, "to": "김민지"]]]), "담당자 → 김민지")
+            expectEqual(describeActivity(action: "task.created", data: ["assignees": ["김민지", "이서준"]]), "작업을 만들고 김민지, 이서준님을 담당자로 지정했습니다")
+            expectEqual(describeActivity(action: "task.created", data: ["assignee": "김민지"]), "작업을 만들고 김민지님을 담당자로 지정했습니다")
+            expectEqual(describeActivity(action: "task.created", data: ["assignees": []]), "작업을 만들었습니다")
+        }
+
         test("a task back from the trash says so") {
             expectEqual(describeActivity(action: "task.restored", data: [:]), "작업을 휴지통에서 되살렸습니다")
             expectEqual(activityKind("task.restored"), .task)
@@ -94,13 +108,13 @@ private let OV_TODAY = "2026-11-17"
 private var ovSeq = 0
 
 private func task(
-    status: TaskStatus = .todo, startDate: String? = nil, dueDate: String? = nil, fixed: Bool = false, assigneeId: String? = nil,
+    status: TaskStatus = .todo, startDate: String? = nil, dueDate: String? = nil, fixed: Bool = false, assigneeIds: [String] = [],
     createdBy: String? = "me"
 ) -> TaskItem {
     ovSeq += 1
     return makeTask(
         id: "t\(ovSeq)", number: ovSeq, status: status, startDate: startDate, dueDate: dueDate, fixed: fixed,
-        position: Double(ovSeq), assigneeId: assigneeId, createdBy: createdBy, title: "task \(ovSeq)"
+        position: Double(ovSeq), assigneeIds: assigneeIds, createdBy: createdBy, title: "task \(ovSeq)"
     )
 }
 
@@ -108,15 +122,16 @@ func runOverviewTests() {
     describe("whose work") {
         test("personal space: everything; organization: only what is assigned to me") {
             expectTrue(isMine(task(), .personal, "me"))
-            expectTrue(isMine(task(assigneeId: "me"), .org, "me"))
-            expectFalse(isMine(task(assigneeId: "kim"), .org, "me"))
-            expectFalse(isMine(task(assigneeId: nil, createdBy: "me"), .org, "me"))
-            expectFalse(isMine(task(assigneeId: nil), .org, ""))
+            expectTrue(isMine(task(assigneeIds: ["me"]), .org, "me"))
+            expectFalse(isMine(task(assigneeIds: ["kim"]), .org, "me"))
+            expectTrue(isMine(task(assigneeIds: ["kim", "me"]), .org, "me"))
+            expectFalse(isMine(task(assigneeIds: [], createdBy: "me"), .org, "me"))
+            expectFalse(isMine(task(assigneeIds: []), .org, ""))
         }
 
         test("org tasks of teammates never make it in, whatever their date") {
-            expectFalse(inOverview(task(dueDate: OV_TODAY, assigneeId: "kim"), .org, "me", OV_TODAY))
-            expectTrue(inOverview(task(dueDate: OV_TODAY, assigneeId: "me"), .org, "me", OV_TODAY))
+            expectFalse(inOverview(task(dueDate: OV_TODAY, assigneeIds: ["kim"]), .org, "me", OV_TODAY))
+            expectTrue(inOverview(task(dueDate: OV_TODAY, assigneeIds: ["me"]), .org, "me", OV_TODAY))
         }
     }
 
@@ -179,7 +194,7 @@ func runOverviewTests() {
         }
 
         test("OverviewTask decodes flat JSON and works with the same functions") {
-            let json = #"{"id":"x","workspaceId":"w","number":4,"title":"보고서","notes":"","status":"todo","priority":2,"projectId":null,"startDate":null,"startTime":null,"dueDate":"2026-11-17","dueTime":"15:00","fixed":false,"position":1,"postponedCount":0,"assigneeId":"me","createdBy":"me","completedAt":null,"createdAt":"","updatedAt":"","editable":true}"#
+            let json = #"{"id":"x","workspaceId":"w","number":4,"title":"보고서","notes":"","status":"todo","priority":2,"projectId":null,"startDate":null,"startTime":null,"dueDate":"2026-11-17","dueTime":"15:00","fixed":false,"position":1,"postponedCount":0,"assigneeIds":["me"],"createdBy":"me","completedAt":null,"createdAt":"","updatedAt":"","editable":true}"#
             let t = try JSONDecoder().decode(OverviewTask.self, from: Data(json.utf8))
             expectEqual(t.title, "보고서")
             expectTrue(t.editable)

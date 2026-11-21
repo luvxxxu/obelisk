@@ -50,7 +50,7 @@ struct ComposeContext {
         case .inbox: t.projectId == nil
         case .today: isToday(t, store.today)
         case .upcoming: matchesView(t, .upcoming, store.today)
-        case .mine: t.assigneeId != nil && t.assigneeId == store.user?.id
+        case .mine: t.isAssigned(to: store.user?.id)
         case .all: true
         case let .project(id): t.projectId == id
         default: false

@@ -36,7 +36,7 @@ const task = (id: string, extra: Partial<Task> = {}): Task => ({
   actualMinutes: 0,
   position: seq,
   postponedCount: 0,
-  assigneeId: null,
+  assigneeIds: [],
   createdBy: 'me',
   completedAt: null,
   createdAt: '2026-11-01T00:00:00Z',
@@ -198,11 +198,11 @@ describe('what to postpone', () => {
   });
 
   test("other people's tasks and read-only tasks are left alone", () => {
-    const tasks = [task('theirs', { dueDate: TODAY, assigneeId: 'other' }), task('ro', { dueDate: TODAY }), task('x', { dueDate: TODAY })];
+    const tasks = [task('theirs', { dueDate: TODAY, assigneeIds: ['other'] }), task('ro', { dueDate: TODAY }), task('x', { dueDate: TODAY })];
     const plan = planPostpone({
       tasks,
       deps: [],
-      mine: (t) => t.assigneeId !== 'other',
+      mine: (t) => !t.assigneeIds.includes('other'),
       editable: (t) => t.id !== 'ro',
       judgments: new Map([['ro', J(0, 1)], ['x', J(0, 1)]]),
       today: TODAY,

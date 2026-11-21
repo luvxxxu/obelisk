@@ -141,7 +141,7 @@ export function accessView(s: AppState = state): AccessView {
   };
 }
 
-export function canEdit(task: Pick<Task, 'projectId' | 'createdBy' | 'assigneeId'>, s: AppState = state): boolean {
+export function canEdit(task: Pick<Task, 'projectId' | 'createdBy' | 'assigneeIds'>, s: AppState = state): boolean {
   return canEditTask(task, accessView(s));
 }
 
@@ -454,7 +454,7 @@ export function patchLabel(prev: Pick<Task, 'status'>, patch: UpdateTaskInput): 
   if (has('notes')) return '메모 변경';
   if (has('priority')) return '우선순위 변경';
   if (has('projectId')) return '프로젝트 이동';
-  if (has('assigneeId')) return '담당자 변경';
+  if (has('assigneeIds')) return '담당자 변경';
   if (has('fixed')) return '고정 변경';
   if (has('position')) return '순서 변경';
   if (has('estimateMinutes')) return '예상 시간 변경';
@@ -843,7 +843,7 @@ export async function restoreTasks(ids: string[], opts: MutationOpts = {}): Prom
     if (!opts.quiet && back.length) {
       notify(back.length === 1 ? `“${res.tasks[0]!.title}”을(를) 되살렸어요` : `작업 ${back.length}개를 되살렸어요`, entry);
     }
-    // In an organization a task from a deleted project goes back to its maker's (or assignee's)
+    // In an organization a task from a deleted project goes back to its maker's (or assignees')
     // inbox, which only they can see: it is restored, just not into this list.
     const elsewhere = new Set(ids).size - back.length - res.missing.length;
     if (!opts.quiet && elsewhere > 0) {

@@ -216,7 +216,8 @@ export interface WebhookTaskRef {
   dueTime: ISOTime | null;
   fixed: boolean;
   project: { id: string; name: string } | null;
-  assignee: { id: string; name: string } | null;
+  /** Everyone working on it, in the order they were added (empty = unassigned). */
+  assignees: { id: string; name: string }[];
   url: string;
 }
 
@@ -443,8 +444,8 @@ export type IncomingCommand =
       fixed?: boolean;
       /** A project name or id. */
       project?: string;
-      /** An email, a member name, a user id or "me". */
-      assignee?: string;
+      /** Each an email, a member name, a user id or "me". */
+      assignees?: string[];
     }
   | { kind: 'update'; task: string; patch: IncomingPatch };
 
@@ -510,6 +511,19 @@ function str(v: unknown, field: string, max: number): string | undefined {
   const s = String(v).trim();
   if (s.length > max) fail(`${field}: ${max}자를 넘을 수 없습니다`);
   return s;
+}
+
+/** `assignees`: an array, one string, or names split by commas — at most 20, duplicates dropped. */
+function people(v: unknown): string[] {
+  if (v === undefined || v === null) return [];
+  const list = Array.isArray(v) ? v : typeof v === 'string' ? v.split(',') : [v];
+  const out: string[] = [];
+  for (const item of list) {
+    const s = str(item, 'assignees', 320);
+    if (s && !out.includes(s)) out.push(s);
+  }
+  if (out.length > 20) fail('assignees: 담당자는 20명까지 지정할 수 있습니다');
+  return out;
 }
 
 interface ParseCtx {
@@ -715,13 +729,13 @@ function fromObject(o: Record<string, unknown>, ctx: ParseCtx): IncomingCommand 
     if (!title) return fail('title: 제목을 입력하세요');
     const patch = patchFrom({ ...o, title: undefined }, ctx);
     const project = str(o.project ?? o.projectId, 'project', 200);
-    const assignee = str(o.assignee ?? o.assigneeId, 'assignee', 320);
+    const assignees = people(o.assignees ?? o.assigneeIds ?? o.assignee ?? o.assigneeId);
     return {
       kind: 'create',
       title,
       ...patch,
       ...(project ? { project } : {}),
-      ...(assignee ? { assignee } : {}),
+      ...(assignees.length ? { assignees } : {}),
     };
   }
 
@@ -739,7 +753,7 @@ function fromObject(o: Record<string, unknown>, ctx: ParseCtx): IncomingCommand 
 
 /**
  * Turn a request body into one command. Accepts plain text, `{ text }`, a create body
- * (`{ title, dueDate, priority, project, assignee, … }`) or an update
+ * (`{ title, dueDate, priority, project, assignees, … }`) or an update
  * (`{ action: "complete" | "start" | "cancel" | "reopen" | "update", task: "#12", … }`).
  * Dates may carry a time ("2026-11-20T15:30", "내일 오후 3시"), or send `dueTime`/`startTime` apart.
  */

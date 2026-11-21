@@ -27,6 +27,7 @@ import {
   workspaces,
   type WorkspaceRow,
 } from '../db/schema';
+import { hasAssignee, withoutAssignee } from '../planner/assignees';
 import { AccessService, type Access, type Conn } from './access.service';
 import { ActivityService, diff } from './activity.service';
 import { avatarPath } from './avatars.service';
@@ -209,8 +210,8 @@ export class WorkspacesService {
       await tx.delete(teamMembers).where(and(eq(teamMembers.userId, userId), inArray(teamMembers.teamId, wsTeams)));
       await tx
         .update(tasks)
-        .set({ assigneeId: null, updatedAt: new Date() })
-        .where(and(eq(tasks.workspaceId, a.workspaceId), eq(tasks.assigneeId, userId)));
+        .set({ assigneeIds: withoutAssignee(userId), updatedAt: new Date() })
+        .where(and(eq(tasks.workspaceId, a.workspaceId), hasAssignee(userId)));
       await tx
         .delete(workspaceMembers)
         .where(and(eq(workspaceMembers.workspaceId, a.workspaceId), eq(workspaceMembers.userId, userId)));

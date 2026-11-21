@@ -90,7 +90,7 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
       .filter((e): e is { task: typeof e.task; date: string; last: string } => !!e.date && !!e.last && e.last >= app.today && e.date <= horizon)
       .sort((a, b) => a.date.localeCompare(b.date) || compareTasks(a.task, b.task));
     return {
-      mine: active.filter((t) => t.assigneeId && t.assigneeId === app.user?.id).length,
+      mine: active.filter((t) => !!app.user && t.assigneeIds.includes(app.user.id)).length,
       today: list.filter((t) => isToday(t, app.today)).length,
       overdue: list.filter((t) => isOverdue(t, app.today, now)).length,
       inbox: active.filter((t) => !t.projectId).length,

@@ -21,7 +21,7 @@ const task = (p: Partial<Task> = {}): Task => ({
   actualMinutes: 0,
   position: n,
   postponedCount: 0,
-  assigneeId: null,
+  assigneeIds: [],
   createdBy: 'me',
   completedAt: null,
   createdAt: '2026-11-01T00:00:00.000Z',
@@ -32,15 +32,16 @@ const task = (p: Partial<Task> = {}): Task => ({
 describe('whose work', () => {
   test('personal space: everything; organization: only what is assigned to me', () => {
     expect(isMine(task(), 'personal', 'me')).toBe(true);
-    expect(isMine(task({ assigneeId: 'me' }), 'org', 'me')).toBe(true);
-    expect(isMine(task({ assigneeId: 'kim' }), 'org', 'me')).toBe(false);
-    expect(isMine(task({ assigneeId: null, createdBy: 'me' }), 'org', 'me')).toBe(false);
-    expect(isMine(task({ assigneeId: null }), 'org', '')).toBe(false);
+    expect(isMine(task({ assigneeIds: ['me'] }), 'org', 'me')).toBe(true);
+    expect(isMine(task({ assigneeIds: ['kim'] }), 'org', 'me')).toBe(false);
+    expect(isMine(task({ assigneeIds: ['kim', 'me'] }), 'org', 'me')).toBe(true);
+    expect(isMine(task({ assigneeIds: [], createdBy: 'me' }), 'org', 'me')).toBe(false);
+    expect(isMine(task({ assigneeIds: [] }), 'org', '')).toBe(false);
   });
 
   test('org tasks of teammates never make it in, whatever their date', () => {
-    expect(inOverview(task({ dueDate: TODAY, assigneeId: 'kim' }), 'org', 'me', TODAY)).toBe(false);
-    expect(inOverview(task({ dueDate: TODAY, assigneeId: 'me' }), 'org', 'me', TODAY)).toBe(true);
+    expect(inOverview(task({ dueDate: TODAY, assigneeIds: ['kim'] }), 'org', 'me', TODAY)).toBe(false);
+    expect(inOverview(task({ dueDate: TODAY, assigneeIds: ['me'] }), 'org', 'me', TODAY)).toBe(true);
   });
 });
 

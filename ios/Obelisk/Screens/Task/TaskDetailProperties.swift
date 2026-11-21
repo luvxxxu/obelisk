@@ -312,7 +312,8 @@ struct TaskDetailProperties: View {
     // MARK: 담당자 (organizations)
 
     private var assigneeRow: some View {
-        let current = task.assigneeId.flatMap { id in store.members.first { $0.id == id } }
+        let ids = task.assigneeIds
+        let names = store.assigneeNames(task)
         let me = store.user?.id
         let members = store.members.enumerated()
             .sorted { a, b in
@@ -320,34 +321,44 @@ struct TaskDetailProperties: View {
                 return am != bm ? am : a.offset < b.offset
             }
             .map(\.element)
-        return menuRow(icon: "person", label: "담당자", a11y: "담당자: \(task.assigneeId == nil ? "없음" : current?.name ?? "전 멤버")") {
-            if task.assigneeId != nil {
-                Button {
-                    assign(nil)
-                } label: {
-                    Label("담당자 해제", systemImage: "xmark")
+        let full = ids.count >= ASSIGNEES_MAX
+        return menuRow(icon: "person", label: "담당자", a11y: "담당자: \(names.isEmpty ? "없음" : names.joined(separator: ", "))") {
+            // Several people: each tap adds or removes one, and the list stays open for the next.
+            Section {
+                ForEach(members) { m in
+                    let ok = canSee(m.id)
+                    let on = ids.contains(m.id)
+                    Toggle(isOn: Binding(get: { on }, set: { _ in toggle(m.id) })) {
+                        Text(m.id == me ? "\(m.name) (나)" : m.name)
+                        Text(ok ? m.email : "프로젝트 권한 없음")
+                    }
+                    .disabled(!on && (!ok || full))
+                    .menuActionDismissBehavior(.disabled)
                 }
-                Divider()
-            }
-            ForEach(members) { m in
-                let ok = canSee(m.id)
-                Toggle(isOn: Binding(get: { task.assigneeId == m.id }, set: { _ in assign(m.id) })) {
-                    Text(m.id == me ? "\(m.name) (나)" : m.name)
-                    Text(ok ? m.email : "프로젝트 권한 없음")
+                if members.isEmpty {
+                    Text("일치하는 멤버가 없어요")
                 }
-                .disabled(!ok)
+            } header: {
+                if ids.count > 1 { Text("\(ids.count)명 지정됨") }
             }
-            if members.isEmpty {
-                Text("일치하는 멤버가 없어요")
+            if !ids.isEmpty {
+                Section {
+                    Button {
+                        setAssignees([])
+                    } label: {
+                        Label("담당자 없음", systemImage: "xmark")
+                    }
+                }
             }
         } value: {
             HStack(spacing: 6) {
-                if task.assigneeId != nil {
-                    Avatar(name: current?.name ?? "?", size: 22)
-                    Text(current?.name ?? "전 멤버")
+                if !names.isEmpty {
+                    AvatarStack(names: names, size: 22, limit: 3)
+                    Text(names.joined(separator: ", "))
                         .font(ObFont.body)
                         .foregroundStyle(Ob.text)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.trailing)
                 } else {
                     Text(readOnly ? "없음" : "담당자 지정")
                         .font(ObFont.body)
@@ -362,10 +373,23 @@ struct TaskDetailProperties: View {
         return access.effective.contains { $0.userId == userId && $0.level != nil }
     }
 
-    private func assign(_ id: String?) {
-        guard id != task.assigneeId else { return }
+    /// Adds or removes one person. Reads the store's copy, not this view's: with the list kept open,
+    /// taps can come faster than the row re-renders.
+    private func toggle(_ id: String) {
+        var ids = (store.task(task.id) ?? task).assigneeIds
+        if let i = ids.firstIndex(of: id) {
+            ids.remove(at: i)
+        } else {
+            guard ids.count < ASSIGNEES_MAX else { return }
+            ids.append(id)
+        }
+        setAssignees(ids)
+    }
+
+    private func setAssignees(_ ids: [String]) {
+        guard ids != (store.task(task.id) ?? task).assigneeIds else { return }
         var p = TaskPatch()
-        p.assigneeId = .some(id)
+        p.assigneeIds = ids
         Task { await store.updateTask(task.id, p) }
     }
 

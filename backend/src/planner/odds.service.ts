@@ -25,7 +25,7 @@ import type { Access } from '../workspace/access.service';
 import { TasksService } from './tasks.service';
 import { WorkService } from './work.service';
 
-const oddsTask = (t: Task, queue: string, external = false): OddsTask => ({
+const oddsTask = (t: Task, queues: readonly string[], external = false): OddsTask => ({
   id: t.id,
   title: t.title,
   number: t.number,
@@ -39,7 +39,7 @@ const oddsTask = (t: Task, queue: string, external = false): OddsTask => ({
   dueTime: t.dueTime,
   estimateMinutes: t.estimateMinutes,
   actualMinutes: t.actualMinutes,
-  queue,
+  queues,
   ...(external ? { external: true } : {}),
 });
 
@@ -56,9 +56,10 @@ export class OddsService {
     private readonly work: WorkService,
   ) {}
 
-  private queueOf(t: Pick<Task, 'assigneeId' | 'createdBy'>, a: Access): string {
-    if (a.kind === 'personal') return a.userId;
-    return t.assigneeId ?? UNASSIGNED;
+  /** Everyone assigned works through it in their own queue; unassigned work has a queue of its own. */
+  private queuesOf(t: Pick<Task, 'assigneeIds'>, a: Access): string[] {
+    if (a.kind === 'personal') return [a.userId];
+    return t.assigneeIds.length ? t.assigneeIds : [UNASSIGNED];
   }
 
   private async input(auth: AuthContext, a: Access, runs?: number): Promise<{ input: OddsInput; mine: Calibration; external: number }> {
@@ -67,10 +68,10 @@ export class OddsService {
     const elsewhere = (await this.work.active(others)).flatMap((x) => x.tasks);
     const mine = await this.work.calibration(auth.user, spaces.map((s) => s.a), true);
 
-    const tasks = active.map((t) => oddsTask(t, this.queueOf(t, a)));
+    const tasks = active.map((t) => oddsTask(t, this.queuesOf(t, a)));
     const people = new Map<string, OddsPerson>();
     people.set(auth.user.id, { hours: workHoursOf(auth.user.workHours), calibration: mine });
-    const teammates = [...new Set(tasks.map((t) => t.queue))].filter((q) => q !== auth.user.id && q !== UNASSIGNED);
+    const teammates = [...new Set(tasks.flatMap((t) => t.queues))].filter((q) => q !== auth.user.id && q !== UNASSIGNED);
     if (teammates.length) {
       const rows = await this.db.query.users.findMany({ where: inArray(users.id, teammates) });
       await Promise.all(
@@ -84,7 +85,7 @@ export class OddsService {
       input: {
         today: now.date,
         nowMinutes: now.minutes,
-        tasks: [...tasks, ...elsewhere.map((t) => oddsTask(t, auth.user.id, true))],
+        tasks: [...tasks, ...elsewhere.map((t) => oddsTask(t, [auth.user.id], true))],
         deps,
         people,
         runs,
@@ -111,7 +112,7 @@ export class OddsService {
         title: task.title,
         estimateMinutes: body.estimateMinutes !== undefined ? body.estimateMinutes : task.estimateMinutes,
         projectId: task.projectId,
-        queue: task.queue,
+        queues: task.queues,
         priority: body.priority ?? task.priority,
         blockedBy: input.deps.filter((d) => d.taskId === task.id).map((d) => d.dependsOnId),
         startDate: body.startDate !== undefined ? body.startDate : task.startDate,
@@ -121,23 +122,25 @@ export class OddsService {
       const ids = new Set(input.tasks.filter((t) => !t.external).map((t) => t.id));
       const blockedBy = (body.blockedBy ?? []).filter((id) => ids.has(id));
       if (blockedBy.length !== (body.blockedBy ?? []).length) throw new BadRequestException('선행 작업은 이 공간의 진행 중인 작업이어야 합니다');
-      const assignee = a.kind === 'personal' ? a.userId : (body.assigneeId ?? a.userId);
+      const assignees = a.kind === 'personal' || !body.assigneeIds?.length ? [a.userId] : body.assigneeIds;
       subject = {
         title: body.title?.trim() || '새 작업',
         estimateMinutes: body.estimateMinutes ?? null,
         projectId: body.projectId ?? null,
-        queue: assignee,
+        queues: assignees,
         priority: body.priority ?? 0,
         blockedBy,
         startDate: body.startDate ?? null,
       };
     }
-    const person = input.people.get(subject.queue);
-    if (!person && subject.queue !== UNASSIGNED) {
-      const u = await this.db.query.users.findFirst({ where: inArray(users.id, [subject.queue]) });
-      if (u) (input.people as Map<string, OddsPerson>).set(u.id, { hours: workHoursOf(u.workHours), calibration: await this.work.calibration(u, [a], false) });
+    const missing = subject.queues.filter((q) => q !== UNASSIGNED && !input.people.has(q));
+    if (missing.length) {
+      const rows = await this.db.query.users.findMany({ where: inArray(users.id, missing) });
+      for (const u of rows) {
+        (input.people as Map<string, OddsPerson>).set(u.id, { hours: workHoursOf(u.workHours), calibration: await this.work.calibration(u, [a], false) });
+      }
     }
-    const cal = input.people.get(subject.queue)?.calibration ?? mine;
+    const cal = input.people.get(subject.queues[0] ?? UNASSIGNED)?.calibration ?? mine;
     const report = commitOdds(input, subject, { confidence: body.confidence, date: body.date });
     return {
       today: input.today,

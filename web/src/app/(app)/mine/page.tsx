@@ -5,7 +5,7 @@ import { useClock } from '@/lib/clock';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { Icon } from '@/components/Icon';
-import { Avatar, buttonClass } from '@/components/primitives';
+import { Avatar, AvatarStack, buttonClass } from '@/components/primitives';
 import { QuickAdd } from '@/components/QuickAdd';
 import { EmptyState, Page, TaskGroup, ViewHeader } from '@/components/View';
 import { useTasks } from '@/lib/hooks';
@@ -22,24 +22,30 @@ export default function MinePage() {
 
   const groups = useMemo(() => {
     const active = (t: Task) => t.status === 'todo' || t.status === 'doing';
-    const mine = tasks.filter((t) => active(t) && t.assigneeId === me).sort(compareTasks);
+    const mine = tasks.filter((t) => active(t) && !!me && t.assigneeIds.includes(me)).sort(compareTasks);
     const overdue = mine.filter((t) => isOverdue(t, today, clock));
     const now = mine.filter((t) => !isOverdue(t, today, clock) && isToday(t, today));
     const later = mine.filter((t) => !isToday(t, today) && (t.startDate || t.dueDate));
     const undated = mine.filter((t) => !t.startDate && !t.dueDate);
     const done = tasks
-      .filter((t) => t.status === 'done' && t.assigneeId === me)
+      .filter((t) => t.status === 'done' && !!me && t.assigneeIds.includes(me))
       .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''))
       .slice(0, 30);
     const delegated = tasks
-      .filter((t) => active(t) && t.createdBy === me && t.assigneeId && t.assigneeId !== me)
+      .filter((t) => active(t) && t.createdBy === me && t.assigneeIds.length > 0 && !t.assigneeIds.includes(me!))
       .sort(compareTasks);
     return { total: mine.length, overdue, now, later, undated, done, delegated };
   }, [tasks, me, today, clock]);
 
+  // One group per set of people (a task handed to two people is one group, not two).
   const byAssignee = useMemo(() => {
-    const map = new Map<string, Task[]>();
-    for (const t of groups.delegated) map.set(t.assigneeId!, [...(map.get(t.assigneeId!) ?? []), t]);
+    const map = new Map<string, { ids: string[]; tasks: Task[] }>();
+    for (const t of groups.delegated) {
+      const key = [...t.assigneeIds].sort().join(',');
+      const g = map.get(key) ?? { ids: t.assigneeIds, tasks: [] };
+      g.tasks.push(t);
+      map.set(key, g);
+    }
     return [...map.entries()];
   }, [groups.delegated]);
 
@@ -82,13 +88,17 @@ export default function MinePage() {
         />
       )}
 
-      {byAssignee.map(([id, list]) => (
+      {byAssignee.map(([key, { ids, tasks: list }]) => (
         <TaskGroup
-          key={id}
+          key={key}
           title={
             <span className={s.groupTitle}>
-              <Avatar name={memberName(id, app)} src={memberAvatar(id, app)} size="sm" />
-              <span className={s.groupName}>{memberName(id, app) ?? '전 멤버'}에게 맡긴 작업</span>
+              {ids.length === 1 ? (
+                <Avatar name={memberName(ids[0], app)} src={memberAvatar(ids[0], app)} size="sm" />
+              ) : (
+                <AvatarStack people={ids.map((id) => ({ id, name: memberName(id, app), src: memberAvatar(id, app) }))} size="sm" />
+              )}
+              <span className={s.groupName}>{ids.map((id) => memberName(id, app) ?? '전 멤버').join(', ')}에게 맡긴 작업</span>
             </span>
           }
           tasks={list}

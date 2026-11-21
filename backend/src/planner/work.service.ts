@@ -12,7 +12,8 @@ import {
   type Task,
   type WorkspaceSummary,
 } from '@obelisk/core';
-import { and, desc, eq, gte, inArray, isNull, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, or, type SQL } from 'drizzle-orm';
+import { hasAssignee, unassigned } from './assignees';
 import type { AuthContext } from '../auth/auth.service';
 import { InjectDb, type Db } from '../db/db.module';
 import { projects, tasks } from '../db/schema';
@@ -53,11 +54,11 @@ export class WorkService {
   /** SQL for "mine" in a space. */
   mineWhere(a: Access): SQL | undefined {
     if (a.kind === 'personal') return undefined;
-    return or(eq(tasks.assigneeId, a.userId), and(isNull(tasks.assigneeId), eq(tasks.createdBy, a.userId)));
+    return or(hasAssignee(a.userId), and(unassigned(), eq(tasks.createdBy, a.userId)));
   }
 
-  isMine(t: Pick<Task, 'assigneeId' | 'createdBy'>, a: Access): boolean {
-    return a.kind === 'personal' || t.assigneeId === a.userId || (!t.assigneeId && t.createdBy === a.userId);
+  isMine(t: Pick<Task, 'assigneeIds' | 'createdBy'>, a: Access): boolean {
+    return a.kind === 'personal' || t.assigneeIds.includes(a.userId) || (!t.assigneeIds.length && t.createdBy === a.userId);
   }
 
   /** Active work that is mine, per space, with the links between visible tasks. */
@@ -80,7 +81,7 @@ export class WorkService {
     const rows = (
       await Promise.all(
         spaces.map((a) => {
-          const whose = self ? this.mineWhere(a) : eq(tasks.assigneeId, user.id);
+          const whose = self ? this.mineWhere(a) : hasAssignee(user.id);
           return this.db
             .select()
             .from(tasks)

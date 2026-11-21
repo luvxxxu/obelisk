@@ -486,7 +486,7 @@ func webhooksIncomingExamples(_ url: String, allowUpdates: Bool, due: ISODate) -
         ),
         (
             "JSON으로 만들기",
-            "curl -X POST \"\(url)\" \\\n  -H \"content-type: application/json\" \\\n  -d '{\"title\":\"배포 확인\",\"dueDate\":\"\(due)\",\"priority\":\"high\",\"assignee\":\"me\"}'"
+            "curl -X POST \"\(url)\" \\\n  -H \"content-type: application/json\" \\\n  -d '{\"title\":\"배포 확인\",\"dueDate\":\"\(due)\",\"priority\":\"high\",\"assignees\":[\"me\"]}'"
         ),
     ]
     if allowUpdates {

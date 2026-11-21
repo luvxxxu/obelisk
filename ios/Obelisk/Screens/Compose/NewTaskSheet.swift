@@ -36,7 +36,7 @@ struct NewTaskSheet: View {
     @State private var fixed = false
     @State private var estimate: Int?
     @State private var customEstimate = false
-    @State private var assigneeId: String?
+    @State private var assigneeIds: [String] = []
     @State private var blockedBy: [String] = []
     @State private var busy = false
     @State private var ready = false
@@ -119,9 +119,7 @@ struct NewTaskSheet: View {
                         setProject(id)
                     }
                 case .assignee:
-                    ComposeAssigneePicker(selection: assigneeId, projectId: effectiveProject(parsed, matched)) { id in
-                        assigneeId = id
-                    }
+                    ComposeAssigneePicker(selection: $assigneeIds, projectId: effectiveProject(parsed, matched))
                 case .blockers:
                     ComposeBlockerPicker(selection: $blockedBy, projectId: effectiveProject(parsed, matched))
                 }
@@ -186,11 +184,11 @@ struct NewTaskSheet: View {
         dueTime = prefill.dueDate == nil ? nil : prefill.dueTime
         fixed = prefill.fixed
         estimate = prefill.estimateMinutes
-        assigneeId = prefill.assigneeId
+        assigneeIds = prefill.assigneeIds
         blockedBy = prefill.blockedBy
         // The page's defaults, like the web dialog: 오늘 → due today, 내 작업 → assigned to me.
         if router.page == .today, dueDate == nil, startDate == nil { dueDate = store.today }
-        if router.page == .mine, assigneeId == nil, store.isOrg { assigneeId = store.user?.id }
+        if router.page == .mine, assigneeIds.isEmpty, store.isOrg, let me = store.user?.id { assigneeIds = [me] }
         Task {
             try? await Task.sleep(for: .milliseconds(80))
             focus = .title
@@ -385,11 +383,15 @@ struct NewTaskSheet: View {
                 rowDivider
                 NavigationLink(value: ComposeFormRoute.assignee) {
                     ComposeFormRow(symbol: "person", label: "담당자") {
-                        if let id = assigneeId {
-                            let name = store.memberName(id) ?? "전 멤버"
+                        if !assigneeIds.isEmpty {
+                            let me = store.user?.id
+                            let names = assigneeIds.map { id in
+                                let name = store.memberName(id) ?? "전 멤버"
+                                return id == me && assigneeIds.count == 1 ? "\(name) (나)" : name
+                            }
                             HStack(spacing: 6) {
-                                Avatar(name: name, size: 22)
-                                Text(id == store.user?.id ? "\(name) (나)" : name).foregroundStyle(Ob.text)
+                                AvatarStack(names: names, size: 22, limit: 3)
+                                Text(names.joined(separator: ", ")).foregroundStyle(Ob.text).lineLimit(1)
                             }
                         } else {
                             Text("담당자 지정").foregroundStyle(Ob.text3)
@@ -691,7 +693,7 @@ struct NewTaskSheet: View {
         input.dueTime = span.dueTime
         input.fixed = parsed.fixed || fixed
         input.estimateMinutes = parsed.estimateMinutes ?? estimate
-        input.assigneeId = store.isOrg ? assigneeId : nil
+        input.assigneeIds = store.isOrg ? assigneeIds : []
         input.blockedBy = blockedBy
         guard let created = await store.createTask(input) else { return }
         Haptics.tap()
@@ -841,13 +843,12 @@ struct ComposeProjectPicker: View {
 }
 
 /// 담당자: members of the organization, those who can't see the project disabled (web AssigneePicker).
+/// Several can be picked: a tap adds or removes one and the list stays open.
 struct ComposeAssigneePicker: View {
-    var selection: String?
+    @Binding var selection: [String]
     var projectId: String?
-    var onPick: (String?) -> Void
 
     @Environment(AppStore.self) private var store
-    @Environment(\.dismiss) private var dismiss
     @State private var q = ""
     @State private var access: ProjectAccessInfo?
 
@@ -861,33 +862,36 @@ struct ComposeAssigneePicker: View {
             .sorted { ($0.id == me ? 0 : 1) < ($1.id == me ? 0 : 1) }
 
         List {
-            if selection != nil, ql.isEmpty {
-                composePickRow(selected: false) {
-                    Image(systemName: "xmark").foregroundStyle(Ob.text2).frame(width: 24)
-                    Text("담당자 해제").foregroundStyle(Ob.text)
+            if ql.isEmpty {
+                composePickRow(selected: selection.isEmpty) {
+                    Image(systemName: "person.slash").foregroundStyle(Ob.text2).frame(width: 24)
+                    Text("담당자 없음").foregroundStyle(Ob.text)
                 } action: {
-                    pick(nil)
+                    Haptics.select()
+                    selection = []
                 }
             }
             ForEach(list) { m in
-                let ok = canSee(m.id)
-                composePickRow(selected: m.id == selection) {
+                let on = selection.contains(m.id)
+                let visible = canSee(m.id)
+                let ok = visible && (on || selection.count < ASSIGNEES_MAX)
+                composePickRow(selected: on) {
                     Avatar(name: m.name, size: 24)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(m.id == me ? "\(m.name) (나)" : m.name)
                             .foregroundStyle(Ob.text)
                             .lineLimit(1)
-                        Text(ok ? m.email : "프로젝트 권한 없음")
+                        Text(visible ? m.email : "프로젝트 권한 없음")
                             .font(ObFont.footnote)
                             .foregroundStyle(Ob.text3)
                             .lineLimit(1)
                     }
                 } action: {
-                    pick(m.id)
+                    toggle(m.id)
                 }
-                .disabled(!ok)
-                .opacity(ok ? 1 : 0.5)
-                .accessibilityHint(ok ? "" : "이 프로젝트를 볼 수 없는 멤버예요. 먼저 공유하세요.")
+                .disabled(!ok && !on)
+                .opacity(ok || on ? 1 : 0.5)
+                .accessibilityHint(ok || on ? "" : visible ? "담당자는 \(ASSIGNEES_MAX)명까지 지정할 수 있어요." : "이 프로젝트를 볼 수 없는 멤버예요. 먼저 공유하세요.")
             }
             if list.isEmpty {
                 Text("일치하는 멤버가 없어요")
@@ -899,7 +903,7 @@ struct ComposeAssigneePicker: View {
         }
         .composePickerList()
         .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "이름이나 이메일로 찾기")
-        .navigationTitle("담당자")
+        .navigationTitle(selection.count > 1 ? "담당자 \(selection.count)명" : "담당자")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: projectId) {
             // Who can see this task's project: someone who can't can't be its assignee.
@@ -921,10 +925,13 @@ struct ComposeAssigneePicker: View {
         return access.effective.contains { $0.userId == id && $0.level != nil }
     }
 
-    private func pick(_ id: String?) {
+    private func toggle(_ id: String) {
         Haptics.select()
-        onPick(id)
-        dismiss()
+        if let i = selection.firstIndex(of: id) {
+            selection.remove(at: i)
+        } else if selection.count < ASSIGNEES_MAX {
+            selection.append(id)
+        }
     }
 }
 

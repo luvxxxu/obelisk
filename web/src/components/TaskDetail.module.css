@@ -803,6 +803,46 @@ span.assigneeAvatar {
   text-overflow: ellipsis;
 }
 
+/* Multi-select: a square tick box at the end of each member row. */
+.menuCheckBox {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  color: var(--bg);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.menuCheckBox[data-on='true'] {
+  background: var(--text);
+  box-shadow: none;
+}
+
+.menuCheckBox[data-on='true'] > svg {
+  animation: checkPop var(--dur-fast) var(--ease);
+}
+
+@keyframes checkPop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+
+.cmdHint {
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+
 .cmdEmpty {
   padding: 10px 8px;
   font-size: var(--fs-sm);

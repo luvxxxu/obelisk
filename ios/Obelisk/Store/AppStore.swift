@@ -91,6 +91,11 @@ final class AppStore {
         return members.first { $0.id == id }?.name
     }
 
+    /// A task's people by name, in the order they were added ("전 멤버" for someone who left).
+    func assigneeNames(_ t: TaskItem) -> [String] {
+        t.assigneeIds.map { memberName($0) ?? "전 멤버" }
+    }
+
     /// Tasks this one waits for / tasks waiting for this one.
     func blockers(of id: String) -> [TaskItem] {
         deps.filter { $0.taskId == id }.compactMap { tasks[$0.dependsOnId] }
@@ -113,7 +118,7 @@ final class AppStore {
     func taskAccess(_ t: TaskItem) -> AccessLevel? {
         if let pid = t.projectId { return project(pid)?.access }
         if workspace?.kind ?? .personal == .personal { return .manage }
-        if let uid = user?.id, t.createdBy == uid || t.assigneeId == uid { return .edit }
+        if let uid = user?.id, t.createdBy == uid || t.assigneeIds.contains(uid) { return .edit }
         return nil
     }
 
@@ -474,8 +479,9 @@ final class AppStore {
                 let back = patch.reverting(prev)
                 let again = patch.redoing(prev, r.task)
                 let name = label ?? patch.undoLabel
-                // Titles and notes save as you type: one entry per field while you keep at it.
-                let key = patch.title != nil || patch.notes != nil ? "\(name)|\(id)" : nil
+                // Titles and notes save as you type, and assignees toggle one by one in an open list:
+                // one entry per field while you keep at it.
+                let key = patch.title != nil || patch.notes != nil || patch.assigneeIds != nil ? "\(name)|\(id)" : nil
                 history.push(name, key: key, undo: { [weak self] in
                     await self?.updateTask(id, back, record: false) != nil
                 }, redo: { [weak self] in
@@ -780,7 +786,7 @@ final class AppStore {
             upsert(r.tasks)
             mergeDeps(r.dependencies)
             trashRevision += 1
-            // In an organization a task from a deleted project goes back to its maker's (or assignee's)
+            // In an organization a task from a deleted project goes back to its maker's (or an assignee's)
             // private inbox: restored, just not into this list.
             // One toast at a time on iOS, so this note rides on the restore toast when there is one.
             let elsewhere = Set(ids).count - r.tasks.count - r.missing.count

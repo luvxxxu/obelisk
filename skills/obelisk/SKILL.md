@@ -26,8 +26,8 @@ Server: `{{OBELISK_URL}}`
 |---|---|
 | Workspace | The user's **personal space** plus any **organizations** they belong to (`list_workspaces`). Every tool takes an optional `workspace` (name or id); without it the user's default workspace is used. |
 | Ref `#12` | Short task number, **per workspace**. Always show tasks to the user as `#12 Title`. Tools accept `#12`, `12`, an id, or a unique title fragment — within the workspace you are working in. |
-| Access | In an organization the user sees only projects shared with them, at **view < edit < manage**. Tasks marked `readOnly` can't be changed. Owners/admins manage every project. A project-less task in an org is private to its creator and assignee. |
-| Assignee | Who does a task (`assignee`: `"me"`, a member's name or email). `list_members` lists who can be assigned; they must be able to see the task's project. |
+| Access | In an organization the user sees only projects shared with them, at **view < edit < manage**. Tasks marked `readOnly` can't be changed. Owners/admins manage every project. A project-less task in an org is private to its creator and its assignees. |
+| Assignees | Who does a task — any number of people (up to 20), all equally responsible (`assignees`: `["me", "민겸"]`, names or emails). `list_members` lists who can be assigned; they must be able to see the task's project. |
 | Status | `todo`, `doing`, `done`, `canceled` |
 | Priority | `none`, `low`, `medium`, `high` |
 | Dates | `startDate` / `dueDate` as `YYYY-MM-DD` in the user's timezone. Only a due date = one-day task. Get "today" from `get_overview` — never assume it. |
@@ -44,7 +44,7 @@ How delays propagate (needed to explain predictions): [references/delay-model.md
 
 ### Organizations and permissions
 - Not sure where to work? `list_workspaces`. Say which workspace you used when the user has more than one ("에이컴퍼니에서 …").
-- "My tasks" in an org → `list_tasks` with `assignee: "me"`. Delegating → `update_task` with `assignee`.
+- "My tasks" in an org → `list_tasks` with `assignee: "me"`. Delegating → `update_task` with `assignees` (replaces the list) or `addAssignees` / `removeAssignees` (keeps the others).
 - A permission error means the user's account may not do that (e.g. a view-only project). Tell them who can grant access — a project manager or an org owner/admin — and stop; don't route around it (e.g. by recreating the task elsewhere).
 - Sharing projects, inviting people, roles and teams are managed in the web app (조직 설정 / 프로젝트 → 공유), not through tools.
 - Moving a personal space or an organization to another Obelisk server (export file or 이전 링크, then import) is done in the web app (설정 → 데이터 이전), not through tools.

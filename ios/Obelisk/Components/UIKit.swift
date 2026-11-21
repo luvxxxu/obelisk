@@ -321,6 +321,33 @@ struct Avatar: View {
     }
 }
 
+/// Overlapping initials, at most `limit` of them, then "+N" (web .stack): a team's members, a task's
+/// assignees. Each circle is ringed in the page colour so the overlap reads as separate people.
+struct AvatarStack: View {
+    var names: [String]
+    var size: CGFloat = 24
+    var limit = 3
+
+    var body: some View {
+        if !names.isEmpty {
+            let shown = names.count > limit ? limit : names.count
+            HStack(spacing: -(size * 0.3).rounded()) {
+                ForEach(Array(names.prefix(shown).enumerated()), id: \.offset) { _, n in
+                    Avatar(name: n, size: size)
+                        .overlay(Circle().strokeBorder(Ob.bg, lineWidth: size < 20 ? 1.5 : 2))
+                }
+                if names.count > shown {
+                    Text("+\(names.count - shown)")
+                        .font((size < 20 ? ObFont.footnote : ObFont.caption).monospacedDigit())
+                        .foregroundStyle(Ob.text3)
+                        .padding(.leading, (size * 0.3).rounded() + 3)
+                }
+            }
+            .accessibilityHidden(true)
+        }
+    }
+}
+
 /// The Obelisk mark (template image from the asset catalog).
 struct LogoMark: View {
     var size: CGFloat = 24

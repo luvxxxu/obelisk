@@ -96,6 +96,6 @@ One line, no heading: `✓ \`#12\` 기획서 초안 — 완료했습니다.` Add
 ## Don'ts
 
 - No emoji per task, no colour words ("🔴 urgent"), no nested bullet trees.
-- Don't invent fields Obelisk doesn't have (assignee, labels, estimates).
+- Don't invent fields Obelisk doesn't have (labels, tags, story points).
 - Don't print raw ids, JSON, or ISO dates (`2026-11-20`) to the user.
 - Don't paste the whole list when the user asked one question — answer it, then show the few lines that support it.

@@ -19,6 +19,7 @@ let FIELD_KO: [String: String] = [
     "estimateMinutes": "예상 시간",
     "project": "프로젝트",
     "assignee": "담당자",
+    "assignees": "담당자",
     "name": "이름",
     "color": "색",
     "membersCanCreateProjects": "멤버 프로젝트 생성",
@@ -104,7 +105,15 @@ func changePhrases(_ changes: JSONValue?) -> [String] {
             continue
         }
         if field == "assignee" {
+            // Entries from before tasks could have several people.
             out.append(JS.truthy(to) ? "담당자 → \(JS.string(to))" : "담당자 해제")
+            continue
+        }
+        if field == "assignees" {
+            let names: (JSONValue?) -> [String] = { v in v?.array?.map { JS.string($0) } ?? [] }
+            let toNames = names(to)
+            let fromNames = names(from)
+            out.append(toNames.isEmpty ? "담당자 해제" : "담당자 \(fromNames.isEmpty ? "없음" : fromNames.joined(separator: ", ")) → \(toNames.joined(separator: ", "))")
             continue
         }
         if field == "archived" { continue }
@@ -131,7 +140,9 @@ func describeActivity(action: String, data: [String: JSONValue]?, subject: Strin
     let changes = d["changes"]
     switch action {
     case "task.created":
-        return JS.truthy(d["assignee"]) ? "작업을 만들고 \(JS.string(d["assignee"]))님을 담당자로 지정했습니다" : "작업을 만들었습니다"
+        let names = d["assignees"]?.array.map { $0.map { JS.string($0) } }
+            ?? (JS.truthy(d["assignee"]) ? [JS.string(d["assignee"])] : [])
+        return names.isEmpty ? "작업을 만들었습니다" : "작업을 만들고 \(names.joined(separator: ", "))님을 담당자로 지정했습니다"
     case "task.updated":
         let parts = changePhrases(changes).joined(separator: " · ")
         let cause = JS.truthy(d["cause"]) ? " · \(JS.string(d["cause"])) 지연으로 함께 밀림" : ""

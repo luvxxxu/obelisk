@@ -36,14 +36,14 @@ export interface Overview {
 
 type OverviewSubject = Pick<
   Task,
-  'status' | 'startDate' | 'dueDate' | 'fixed' | 'assigneeId' | 'projectId' | 'priority' | 'number' | 'completedAt' | 'position'
+  'status' | 'startDate' | 'dueDate' | 'fixed' | 'assigneeIds' | 'projectId' | 'priority' | 'number' | 'completedAt' | 'position'
 >;
 
 const active = (t: Pick<Task, 'status'>) => t.status === 'todo' || t.status === 'doing';
 
 /** Personal space: all of it. Organization: what is assigned to the user. */
-export function isMine(t: Pick<Task, 'assigneeId'>, kind: WorkspaceKind, userId: string): boolean {
-  return kind === 'personal' || (!!userId && t.assigneeId === userId);
+export function isMine(t: Pick<Task, 'assigneeIds'>, kind: WorkspaceKind, userId: string): boolean {
+  return kind === 'personal' || (!!userId && t.assigneeIds.includes(userId));
 }
 
 /** The day a task sits on in the week list: its due date, else its start (as on the Upcoming page). */

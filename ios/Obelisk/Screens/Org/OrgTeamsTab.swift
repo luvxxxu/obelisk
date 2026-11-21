@@ -50,7 +50,7 @@ struct OrgTeamsTab: View {
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            OrgAvatarStack(names: members.map(\.name))
+            AvatarStack(names: members.map(\.name), size: 24, limit: 4)
         }
         .padding(.leading, ObSpace.lg)
         .padding(.trailing, admin ? 0 : ObSpace.lg)
@@ -114,30 +114,6 @@ struct OrgTeamsTab: View {
             store.toasts.show("팀을 삭제했어요")
         } catch {
             store.report(error)
-        }
-    }
-}
-
-/// Up to four overlapping initials, then "+N" (web .stack).
-struct OrgAvatarStack: View {
-    var names: [String]
-    var size: CGFloat = 24
-
-    var body: some View {
-        if !names.isEmpty {
-            HStack(spacing: -6) {
-                ForEach(Array(names.prefix(4).enumerated()), id: \.offset) { _, n in
-                    Avatar(name: n, size: size)
-                        .overlay(Circle().strokeBorder(Ob.bg, lineWidth: 2))
-                }
-                if names.count > 4 {
-                    Text("+\(names.count - 4)")
-                        .font(ObFont.caption.monospacedDigit())
-                        .foregroundStyle(Ob.text3)
-                        .padding(.leading, 10)
-                }
-            }
-            .accessibilityHidden(true)
         }
     }
 }

@@ -6,7 +6,8 @@ import { randomToken, sha256 } from '../common/crypto';
 import { actionMail, mailAvailable, sendMail } from '../common/mail';
 import { rateLimiter } from '../common/rate-limit';
 import { InjectDb, type Db } from '../db/db.module';
-import { passwordResets, projects, sessions, tasks, users, workspaceMembers, workspaces, type UserRow } from '../db/schema';
+import { passwordResets, projects, sessions, tasks, taskTrash, users, workspaceMembers, workspaces, type UserRow } from '../db/schema';
+import { hasAssignee, withoutAssignee } from '../planner/assignees';
 import type { Conn } from '../workspace/access.service';
 import { AccessService } from '../workspace/access.service';
 import { ActivityService } from '../workspace/activity.service';
@@ -216,7 +217,13 @@ export class AccountService {
         .delete(workspaces)
         .where(or(eq(workspaces.personalUserId, userId), solo.length ? inArray(workspaces.id, solo.map((o) => o.id)) : undefined));
       // Everything else hangs off the user row: memberships, grants, sessions, tokens, incoming
-      // webhooks and reset links cascade; authorship and assignments in shared orgs become empty.
+      // webhooks and reset links cascade; authorship in shared orgs becomes empty. Assignee lists
+      // have no foreign key, so the person is taken out of them here.
+      await tx.update(tasks).set({ assigneeIds: withoutAssignee(userId) }).where(hasAssignee(userId));
+      await tx
+        .update(taskTrash)
+        .set({ assigneeIds: withoutAssignee(userId, taskTrash.assigneeIds) })
+        .where(hasAssignee(userId, taskTrash.assigneeIds));
       await tx.delete(users).where(eq(users.id, userId));
       await opts.inTx?.(tx);
     });

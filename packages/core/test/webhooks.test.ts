@@ -192,17 +192,18 @@ describe('parseIncoming', () => {
 
   test('JSON create with friendly values', () => {
     expect(
-      ok({ title: ' 배포 확인 ', dueDate: '내일', priority: 'high', project: '런칭', assignee: 'me', fixed: 'true', notes: 'n' }),
+      ok({ title: ' 배포 확인 ', dueDate: '내일', priority: 'high', project: '런칭', assignees: ['me', '민겸', 'me'], fixed: 'true', notes: 'n' }),
     ).toEqual({
       kind: 'create',
       title: '배포 확인',
       dueDate: '2026-11-14',
       priority: 3,
       project: '런칭',
-      assignee: 'me',
+      assignees: ['me', '민겸'],
       fixed: true,
       notes: 'n',
     });
+    expect(ok({ title: 'x', assignee: '민겸, kim@example.com' })).toMatchObject({ assignees: ['민겸', 'kim@example.com'] });
     expect(ok({ title: 'x', dueDate: '2026-11-20T09:00:00Z', priority: '보통' })).toMatchObject({ dueDate: '2026-11-20', priority: 2 });
     expect(err({ title: 'x', dueDate: '언젠가' })).toContain('dueDate');
     expect(err({ title: 'x', priority: 9 })).toContain('priority');

@@ -13,7 +13,7 @@ import { useElapsed, useRunning } from '@/lib/timeplan';
 import { setUi, useUi } from '@/lib/ui-state';
 import { DatePickerPanel } from './DatePicker';
 import { Icon } from './Icon';
-import { Avatar, isEnter, Popover, tip, ui } from './primitives';
+import { Avatar, AvatarStack, isEnter, Popover, tip, ui } from './primitives';
 import s from './TaskRow.module.css';
 
 export function shiftSpan(t: Pick<Task, 'startDate' | 'dueDate'>, days: number) {
@@ -228,7 +228,11 @@ export const TaskRow = memo(function TaskRow({
   const editable = canEdit(task, app);
   const canPostpone = editable && active && !!(task.dueDate || task.startDate);
   const org = app.workspace?.kind === 'org';
-  const assignee = org && task.assigneeId ? (memberName(task.assigneeId, app) ?? '전 멤버') : null;
+  const assignees = org
+    ? task.assigneeIds.map((id) => ({ id, name: memberName(id, app) ?? '전 멤버', src: memberAvatar(id, app) }))
+    : [];
+  // One person by name; more as "민겸 외 2명" (everyone in the tooltip).
+  const assignee = assignees.length ? (assignees.length === 1 ? assignees[0]!.name : `${assignees[0]!.name} 외 ${assignees.length - 1}명`) : null;
 
   const complete = () => {
     if (task.status === 'done' || !editable) return void toggleDone(task.id);
@@ -351,8 +355,12 @@ export const TaskRow = memo(function TaskRow({
                 </span>
               )}
               {assignee && (
-                <span className={s.assignee} {...tip(`담당 ${assignee}`, { side: 'top' })}>
-                  <Avatar name={assignee} src={memberAvatar(task.assigneeId, app)} size="sm" className={s.assigneeAvatar} />
+                <span className={s.assignee} {...tip(`담당 ${assignees.map((p) => p.name).join(', ')}`, { side: 'top' })}>
+                  {assignees.length === 1 ? (
+                    <Avatar name={assignee} src={assignees[0]!.src} size="sm" className={s.assigneeAvatar} />
+                  ) : (
+                    <AvatarStack people={assignees} size="xs" />
+                  )}
                   <span className={s.assigneeName}>{assignee}</span>
                 </span>
               )}

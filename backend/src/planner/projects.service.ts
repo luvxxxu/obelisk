@@ -294,7 +294,7 @@ export class ProjectsService {
       // Lock both sequences in a stable order: numbering in the target must not race other inserts.
       await tx.execute(sql`select id from ${workspaces} where id in (${a.workspaceId}, ${targetId}) order by id for update`);
       const moving = await tx
-        .select({ id: tasks.id, number: tasks.number, assigneeId: tasks.assigneeId })
+        .select({ id: tasks.id, number: tasks.number, assigneeIds: tasks.assigneeIds })
         .from(tasks)
         .where(and(eq(tasks.projectId, id), eq(tasks.workspaceId, a.workspaceId)))
         .orderBy(asc(tasks.number));
@@ -327,12 +327,13 @@ export class ProjectsService {
           ),
         );
         for (const [i, t] of moving.entries()) {
+          const kept = t.assigneeIds.filter((id) => targetMembers.has(id));
           await tx
             .update(tasks)
             .set({
               workspaceId: targetId,
               number: first + i,
-              ...(t.assigneeId && !targetMembers.has(t.assigneeId) ? { assigneeId: null } : {}),
+              ...(kept.length !== t.assigneeIds.length ? { assigneeIds: kept } : {}),
             })
             .where(eq(tasks.id, t.id));
         }

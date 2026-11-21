@@ -224,7 +224,7 @@ function oddsKey(): string {
   const parts: string[] = [s.workspace?.id ?? '', s.today, String(timeVersion.get())];
   for (const t of Object.values(s.tasks)) {
     if (t.status !== 'todo' && t.status !== 'doing') continue;
-    parts.push(`${t.id}:${t.status}:${t.startDate}:${t.dueDate}:${t.dueTime}:${t.fixed ? 1 : 0}:${t.estimateMinutes}:${t.actualMinutes}:${t.assigneeId}:${t.priority}`);
+    parts.push(`${t.id}:${t.status}:${t.startDate}:${t.dueDate}:${t.dueTime}:${t.fixed ? 1 : 0}:${t.estimateMinutes}:${t.actualMinutes}:${t.assigneeIds.join(',')}:${t.priority}`);
   }
   parts.push(String(s.deps.length));
   return parts.join('|');

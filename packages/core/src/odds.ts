@@ -41,8 +41,11 @@ export interface OddsTask {
   dueTime: string | null;
   estimateMinutes: number | null;
   actualMinutes: number;
-  /** Whose time it takes: a user id, or UNASSIGNED. */
-  queue: string;
+  /**
+   * Whose time it takes: user ids, or [UNASSIGNED]. With several people each of them works
+   * through it in their own queue, and it is done when the last of them is.
+   */
+  queues: readonly string[];
   /** The person's work in another space: it takes their time but isn't reported here. */
   external?: boolean;
 }
@@ -267,9 +270,13 @@ interface Prepared {
   /** Held to the slip record. */
   slips: Uint8Array;
   preds: number[][];
-  queueOf: Int32Array;
+  /** One part per (task, person): its task and queue. A task's parts are contiguous from partStart. */
+  partTask: Int32Array;
+  partQueue: Int32Array;
+  partStart: Int32Array;
   /** Per-task stream seeds. */
   seeds: Uint32Array;
+  /** `order` holds part indices. */
   queues: { id: string; person: OddsPerson; order: number[]; cap: Float64Array }[];
   horizon: number;
 }
@@ -301,7 +308,9 @@ function prepare(input: OddsInput): Prepared {
   const base = new Float64Array(n);
   const estimated = new Uint8Array(n);
   const slips = new Uint8Array(n);
-  const queueOf = new Int32Array(n);
+  const partStart = new Int32Array(n + 1);
+  const partTaskList: number[] = [];
+  const partQueueList: number[] = [];
   const preds: number[][] = Array.from({ length: n }, () => []);
   const succs: number[][] = Array.from({ length: n }, () => []);
   for (const d of input.deps) {
@@ -316,12 +325,17 @@ function prepare(input: OddsInput): Prepared {
   const queueIndex = new Map<string, number>();
   const person = (q: string) => input.people.get(q) ?? DEFAULT_PERSON(input.people.values().next().value?.hours ?? FALLBACK_HOURS);
   for (const [i, t] of tasks.entries()) {
-    if (!queueIndex.has(t.queue)) {
-      queueIndex.set(t.queue, queueIds.length);
-      queueIds.push(t.queue);
+    const own = t.queues.length ? [...new Set(t.queues)] : [UNASSIGNED];
+    partStart[i] = partTaskList.length;
+    for (const q of own) {
+      if (!queueIndex.has(q)) {
+        queueIndex.set(q, queueIds.length);
+        queueIds.push(q);
+      }
+      partTaskList.push(i);
+      partQueueList.push(queueIndex.get(q)!);
     }
-    queueOf[i] = queueIndex.get(t.queue)!;
-    const cal = person(t.queue).calibration;
+    const cal = person(own[0]!).calibration;
     const off = (d: ISODate | null) => (d ? toDay(d) - t0 : NONE);
     const due = off(t.dueDate ?? (isMilestone(t) ? t.startDate : null));
     dueOff[i] = due;
@@ -364,26 +378,34 @@ function prepare(input: OddsInput): Prepared {
     }
     return { id, person: p, order: [] as number[], cap };
   });
-  // Meetings take their time from that day.
+  partStart[n] = partTaskList.length;
+  const partTask = Int32Array.from(partTaskList);
+  const partQueue = Int32Array.from(partQueueList);
+  // Meetings take their time from that day, for everyone in them.
   for (let i = 0; i < n; i++) {
     if (kind[i] !== 'event') continue;
     const d = dueOff[i]!;
     if (d < 0 || d > horizon) continue;
-    const q = queues[queueOf[i]!]!;
-    q.cap[d] = Math.max(0, q.cap[d]! - eventMinutes(tasks[i]!));
+    for (let k = partStart[i]!; k < partStart[i + 1]!; k++) {
+      const q = queues[partQueue[k]!]!;
+      q.cap[d] = Math.max(0, q.cap[d]! - eventMinutes(tasks[i]!));
+    }
   }
-  for (let i = 0; i < n; i++) if (kind[i] === 'work') queues[queueOf[i]!]!.order.push(i);
+  for (let k = 0; k < partTask.length; k++) if (kind[partTask[k]!] === 'work') queues[partQueue[k]!]!.order.push(k);
   for (const q of queues) {
     q.order.sort(
-      (a, b) =>
-        eff[a]! - eff[b]! ||
+      (pa, pb) => {
+        const a = partTask[pa]!;
+        const b = partTask[pb]!;
+        return eff[a]! - eff[b]! ||
         (tasks[a]!.status === 'doing' ? 0 : 1) - (tasks[b]!.status === 'doing' ? 0 : 1) ||
         tasks[b]!.priority - tasks[a]!.priority ||
-        (tasks[a]!.number ?? 0) - (tasks[b]!.number ?? 0),
+        (tasks[a]!.number ?? 0) - (tasks[b]!.number ?? 0);
+      },
     );
   }
   const seeds = Uint32Array.from(tasks.map((t) => hash(t.id)));
-  return { n, ids: tasks.map((t) => t.id), tasks, kind, startOff, dueOff, dayOff, base, estimated, slips, preds, queueOf, seeds, queues, horizon };
+  return { n, ids: tasks.map((t) => t.id), tasks, kind, startOff, dueOff, dayOff, base, estimated, slips, preds, partTask, partQueue, partStart, seeds, queues, horizon };
 }
 
 function topo(n: number, preds: number[][], succs: number[][]): number[] {
@@ -417,8 +439,11 @@ function hash(text: string): number {
  * removing one task leaves everyone else's luck as it was: differences between two plans are real.
  */
 function runOnce(p: Prepared, seed: number, run: number, finish: Int32Array, conflict: Uint8Array) {
-  const { n, kind, startOff, dueOff, preds, queues, horizon } = p;
-  const remaining = new Float64Array(n);
+  const { n, kind, startOff, dueOff, preds, queues, horizon, partTask, partQueue, partStart } = p;
+  // Work left per part; a part is done once it reaches zero (partDone), its task once all its parts are.
+  const remaining = new Float64Array(partTask.length);
+  const partDone = new Uint8Array(partTask.length);
+  const pending = new Int32Array(n);
   const hold = new Int32Array(n);
   let open = 0;
   for (let i = 0; i < n; i++) {
@@ -430,8 +455,12 @@ function runOnce(p: Prepared, seed: number, run: number, finish: Int32Array, con
     finish[i] = -1;
     open++;
     const r = rng((p.seeds[i]! ^ seed) + run * 0x9e3779b1);
-    const cal = queues[p.queueOf[i]!]!.person.calibration;
-    remaining[i] = p.estimated[i] ? p.base[i]! * sampleRatio(r, cal) : logNormal(r, p.base[i]!, GUESS_SIGMA);
+    pending[i] = partStart[i + 1]! - partStart[i]!;
+    for (let k = partStart[i]!; k < partStart[i + 1]!; k++) {
+      const cal = queues[partQueue[k]!]!.person.calibration;
+      remaining[k] = p.estimated[i] ? p.base[i]! * sampleRatio(r, cal) : logNormal(r, p.base[i]!, GUESS_SIGMA);
+    }
+    const cal = queues[partQueue[partStart[i]!]!]!.person.calibration;
     hold[i] = p.slips[i] ? dueOff[i]! + sampleSlip(r, cal) : -NONE;
   }
   const days = queues.map((q) => rng((hash(q.id) ^ seed) + run * 0x85ebca6b));
@@ -449,10 +478,11 @@ function runOnce(p: Prepared, seed: number, run: number, finish: Int32Array, con
       for (let q = 0; q < queues.length; q++) {
         if (left[q]! <= 0) continue;
         const order = queues[q]!.order;
-        while (firstOpen[q]! < order.length && finish[order[firstOpen[q]!]!]! >= 0) firstOpen[q]!++;
+        while (firstOpen[q]! < order.length && partDone[order[firstOpen[q]!]!]) firstOpen[q]!++;
         for (let k = firstOpen[q]!; k < order.length && left[q]! > 0; k++) {
-          const i = order[k]!;
-          if (finish[i]! >= 0 || startOff[i]! > day) continue;
+          const part = order[k]!;
+          const i = partTask[part]!;
+          if (partDone[part] || startOff[i]! > day) continue;
           let ready = true;
           for (const b of preds[i]!) {
             const f = finish[b]!;
@@ -462,13 +492,16 @@ function runOnce(p: Prepared, seed: number, run: number, finish: Int32Array, con
             }
           }
           if (!ready) continue;
-          const use = Math.min(left[q]!, remaining[i]!);
-          remaining[i]! -= use;
+          const use = Math.min(left[q]!, remaining[part]!);
+          remaining[part]! -= use;
           left[q]! -= use;
-          if (remaining[i]! <= 1e-6) {
-            finish[i] = Math.max(day, hold[i]!);
-            open--;
+          if (remaining[part]! <= 1e-6) {
+            partDone[part] = 1;
             progressed = true;
+            if (--pending[i]! === 0) {
+              finish[i] = Math.max(day, hold[i]!);
+              open--;
+            }
           }
         }
       }
@@ -626,7 +659,7 @@ export interface CommitSubject {
   title: string;
   estimateMinutes: number | null;
   projectId: string | null;
-  queue: string;
+  queues: readonly string[];
   priority: Priority;
   blockedBy: readonly string[];
   /** Can't start before this. */
@@ -675,7 +708,7 @@ export const commitInput = z.object({
   title: z.string().trim().max(500).optional(),
   estimateMinutes: z.number().int().min(1).max(100 * 60).nullable().optional(),
   projectId: uuid.nullable().optional(),
-  assigneeId: uuid.nullable().optional(),
+  assigneeIds: z.array(uuid).max(20).optional(),
   priority: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]).optional(),
   blockedBy: z.array(uuid).max(50).optional(),
   startDate: isoDate.nullable().optional(),
@@ -710,7 +743,7 @@ export function commitOdds(input: OddsInput, subject: CommitSubject, opts: { con
     dueTime: null,
     estimateMinutes: subject.estimateMinutes,
     actualMinutes: existing?.actualMinutes ?? 0,
-    queue: subject.queue,
+    queues: subject.queues,
   });
 
   // Baseline: the plan as it is (an existing subject without its due date, so it doesn't count twice).

@@ -261,7 +261,11 @@ export const tasks = pgTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: 'cascade' }),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
-    assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+    /**
+     * Who works on it, in the order they were added. No foreign key on array items: leaving a
+     * workspace or deleting the account takes the person out (WorkspacesService, AccountService).
+     */
+    assigneeIds: uuid('assignee_ids').array().notNull().default(sql`'{}'::uuid[]`),
     number: integer('number').notNull(),
     projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
     title: text('title').notNull(),
@@ -290,7 +294,8 @@ export const tasks = pgTable(
     uniqueIndex('tasks_workspace_number_idx').on(t.workspaceId, t.number),
     index('tasks_workspace_status_idx').on(t.workspaceId, t.status),
     index('tasks_project_idx').on(t.projectId),
-    index('tasks_assignee_idx').on(t.assigneeId),
+    index('tasks_assignees_idx').using('gin', t.assigneeIds),
+    check('tasks_assignees_check', sql`cardinality(${t.assigneeIds}) <= 20`),
     // A time is "HH:MM" and only exists with its date.
     check('tasks_start_time_check', sql`${t.startTime} is null or (${t.startTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' and ${t.startDate} is not null)`),
     check('tasks_estimate_check', sql`${t.estimateMinutes} is null or ${t.estimateMinutes} between 1 and 1440`),
@@ -335,7 +340,7 @@ export const taskTrash = pgTable(
       .references(() => workspaces.id, { onDelete: 'cascade' }),
     projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
-    assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+    assigneeIds: uuid('assignee_ids').array().notNull().default(sql`'{}'::uuid[]`),
     deletedBy: uuid('deleted_by').references(() => users.id, { onDelete: 'set null' }),
     deletedAt: ts('deleted_at').notNull().defaultNow(),
     /** The task as it was (core Task: dates as strings). */

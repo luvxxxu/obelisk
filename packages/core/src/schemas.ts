@@ -48,6 +48,14 @@ const title = z.string().trim().min(1, '제목을 입력하세요').max(500);
 const estimate = z.number().int().min(1, '예상 시간은 1분 이상이어야 해요').max(24 * 60, '예상 시간은 24시간까지 적을 수 있어요');
 const notes = z.string().max(20_000);
 
+/** Most people one task can have. */
+export const ASSIGNEES_MAX = 20;
+/** Duplicates are dropped, first mention wins. */
+const assigneeIds = z
+  .array(uuid)
+  .max(ASSIGNEES_MAX, `담당자는 ${ASSIGNEES_MAX}명까지 지정할 수 있습니다`)
+  .transform((ids) => [...new Set(ids)]);
+
 export const createTaskInput = z
   .object({
     title,
@@ -61,7 +69,7 @@ export const createTaskInput = z
     dueTime: isoTime.nullable().optional(),
     fixed: z.boolean().optional(),
     estimateMinutes: estimate.nullable().optional(),
-    assigneeId: uuid.nullable().optional(),
+    assigneeIds: assigneeIds.optional(),
     blockedBy: z.array(uuid).max(50).optional(),
   })
   .superRefine(checkSpan);
@@ -80,7 +88,8 @@ export const updateTaskInput = z.object({
   dueTime: isoTime.nullable().optional(),
   fixed: z.boolean().optional(),
   estimateMinutes: estimate.nullable().optional(),
-  assigneeId: uuid.nullable().optional(),
+  /** The whole set: replaces who was assigned ([] = nobody). */
+  assigneeIds: assigneeIds.optional(),
   position: z.number().finite().optional(),
   /**
    * When the task ends up done: when it was finished, instead of now (an undo puts the old time
@@ -106,7 +115,7 @@ export const bulkCreateTasksInput = z.object({
         dueTime: isoTime.nullable().optional(),
         fixed: z.boolean().optional(),
         estimateMinutes: estimate.nullable().optional(),
-        assigneeId: uuid.nullable().optional(),
+        assigneeIds: assigneeIds.optional(),
         /** keys of tasks in this batch, or ids / #numbers of existing tasks */
         blockedBy: z.array(z.string().min(1)).max(50).optional(),
       }).superRefine(checkSpan),

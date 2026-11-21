@@ -173,15 +173,15 @@ try {
     teams: [{ teamId: team.id, level: 'view' }],
   });
 
-  const { task: t1 } = await ann.api('POST', '/api/tasks', { title: '스펙', projectId: p1.id, startDate: day(1), dueDate: day(2), assigneeId: danA.id });
+  const { task: t1 } = await ann.api('POST', '/api/tasks', { title: '스펙', projectId: p1.id, startDate: day(1), dueDate: day(2), assigneeIds: [danA.id] });
   const { task: t2 } = await ann.api('POST', '/api/tasks', { title: '구현', projectId: p1.id, startDate: day(3), dueDate: day(4), dueTime: '18:00', blockedBy: [t1.id] });
   await dan.api('POST', '/api/tasks', { title: '댄의 비공개 메모', projectId: null });
-  const { task: t4 } = await ann.api('POST', '/api/tasks', { title: '킥오프', projectId: p2.id, dueDate: day(-1), assigneeId: eveA.id });
+  const { task: t4 } = await ann.api('POST', '/api/tasks', { title: '킥오프', projectId: p2.id, dueDate: day(-1), assigneeIds: [eveA.id, danA.id] });
   await ann.api('PATCH', `/api/tasks/${t4.id}`, { status: 'done' });
   await cat.api('POST', '/api/tasks', { title: '캣의 메모', projectId: null });
   await fay.api('POST', '/api/tasks', { title: '페이의 메모', projectId: null });
   await ann.api('POST', '/api/impact/postpone', { taskId: t1.id, days: 1, cascade: true });
-  await ann.api('PATCH', `/api/tasks/${t2.id}`, { assigneeId: bobA.id });
+  await ann.api('PATCH', `/api/tasks/${t2.id}`, { assigneeIds: [bobA.id] });
   // Fay leaves; her task and history still name her (a former member).
   await ann.api('DELETE', `/api/workspaces/${org.id}/members/${fayA.id}`);
   const numbersA = new Map<string, number>((await allTasks(ann)).map((t: any) => [t.title, t.number]));
@@ -229,7 +229,8 @@ try {
   const disposition = exportRes.headers.get('content-disposition') ?? '';
   check(exportRes.ok && exportRes.headers.get('content-type')?.startsWith('application/json'), 'export answers JSON');
   check(/attachment; filename="obelisk-[a-z0-9-]+-\d{8}\.json"; filename\*=UTF-8''/.test(disposition), `file name header (${disposition.slice(0, 60)}…)`);
-  check(file.format === 'obelisk-export' && file.version === 1 && file.kind === 'org', 'bundle header');
+  check(file.format === 'obelisk-export' && file.version === 2 && file.kind === 'org', 'bundle header');
+  check(file.tasks.find((t: any) => t.title === '킥오프')?.assignees?.length === 2, 'a task keeps all its assignees in the file');
   check(file.secrets?.mode === 'locked' && !fileText.includes(hookSecret), 'secrets are locked, the webhook secret is not in clear');
   check(file.tasks.length === 6 && file.projects.length === 3 && file.people.length === 5 && file.dependencies.length === 1, 'bundle has every task, project, person and link');
   check(file.formerPeople?.length === 1 && file.formerPeople[0].email === mail('fay'), 'a member who left but authored rows comes along as former');
@@ -251,7 +252,7 @@ try {
   check((await annB.fails('POST', '/api/migration/stage-remote', { link: `omg_${'x'.repeat(32)}` })).status === 400, 'a bare code is refused');
   const bad = await annB.upload('/api/migration/stage', JSON.stringify({ hello: 'world' })).catch((e) => e);
   check(bad instanceof HttpError && bad.status === 400 && bad.body.message.includes('내보내기 파일이 아니에요'), 'a random JSON file is refused');
-  const newer = await annB.upload('/api/migration/stage', JSON.stringify({ ...file, version: 2 })).catch((e) => e);
+  const newer = await annB.upload('/api/migration/stage', JSON.stringify({ ...file, version: 3 })).catch((e) => e);
   check(newer instanceof HttpError && newer.body.message.includes('더 새 버전'), 'a newer format version is refused');
   const twice = await annB.upload('/api/migration/stage', JSON.stringify({ ...file, tasks: [...file.tasks, file.tasks[0]] })).catch((e) => e);
   check(twice instanceof HttpError && twice.status === 400 && twice.body.message.includes('두 번'), 'a file repeating a task is refused in words');
@@ -306,7 +307,7 @@ try {
   const t1B = tasksB.find((t) => t.title === '스펙');
   const t2B = tasksB.find((t) => t.title === '구현');
   const t4B = tasksB.find((t) => t.title === '킥오프');
-  check(t1B.postponedCount === 1 && t1B.assigneeId === null && t4B.assigneeId === null, 'postponed count kept; reserved assignees left empty');
+  check(t1B.postponedCount === 1 && t1B.assigneeIds.length === 0 && t4B.assigneeIds.length === 0, 'postponed count kept; reserved assignees left empty');
   check(t4B.status === 'done' && !!t4B.completedAt && t2B.dueTime === '18:00', 'status, completion and times kept');
   check(bootB.dependencies?.some((d: any) => d.taskId === t2B.id && d.dependsOnId === t1B.id), 'dependency kept');
   const projectsB = (await annB.api('GET', '/api/projects?archived=true')).projects as any[];
@@ -390,7 +391,7 @@ try {
   dan.workspace = chain.workspaceId;
   const danChainTasks = (await allTasks(dan)) as any[];
   check(
-    danChainTasks.find((t) => t.title === '스펙')?.assigneeId === danA.id && danChainTasks.find((t) => t.title === '댄의 비공개 메모')?.createdBy === danA.id,
+    danChainTasks.find((t) => t.title === '스펙')?.assigneeIds.includes(danA.id) && danChainTasks.find((t) => t.title === '댄의 비공개 메모')?.createdBy === danA.id,
     'what he would have claimed on B came along and is his',
   );
   await ann.api('DELETE', `/api/workspaces/${chain.workspaceId}`, { confirm: org.name });
@@ -415,7 +416,7 @@ try {
   const danDetail = await danB.api('GET', `/api/workspaces/${orgB}`);
   check(danDetail.workspace.role === 'admin', 'joined with the reserved role');
   const danTasks = (await allTasks(danB)) as any[];
-  check(danTasks.find((t) => t.title === '스펙')?.assigneeId === danSignup.user.id, 'assignment handed over');
+  check(danTasks.find((t) => t.title === '스펙')?.assigneeIds.includes(danSignup.user.id), 'assignment handed over');
   check(danTasks.find((t) => t.title === '댄의 비공개 메모')?.createdBy === danSignup.user.id, 'private inbox task handed over');
   const danHooks = await danB.api('GET', '/api/webhooks');
   check(danHooks.webhooks.find((h: any) => h.name === '댄의 훅')?.createdBy?.id === danSignup.user.id, 'webhook authorship handed over');
@@ -456,7 +457,7 @@ try {
   check(evePreview.alreadyMember === true && !!evePreview.reservation, 'the link still offers the place to a member');
   await eveB.api('POST', `/api/invites/${eveToken}/accept`);
   eveB.workspace = orgB;
-  check(((await allTasks(eveB)) as any[]).find((t) => t.title === '킥오프')?.assigneeId === eveSignup.user.id, "a member's claim hands over her assignment");
+  check(((await allTasks(eveB)) as any[]).find((t) => t.title === '킥오프')?.assigneeIds.includes(eveSignup.user.id), "a member's claim hands over her assignment");
   const eveLog = (await annB.api('GET', `/api/workspaces/${orgB}/activity?limit=5`)).activity as any[];
   check(eveLog.some((e) => e.action === 'member.joined' && e.data.reservation && e.data.alreadyMember && e.data.role === 'member'), 'logged as taking over the place, with her actual role');
 

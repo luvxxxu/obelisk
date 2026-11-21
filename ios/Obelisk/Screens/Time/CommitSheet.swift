@@ -102,6 +102,8 @@ struct CommitSheet: View {
             req.title = t
             req.estimateMinutes = estimate
             req.projectId = projectId
+            // Whose queues it would join (the page's default, e.g. yourself on 내 작업).
+            req.assigneeIds = prefill?.assigneeIds ?? []
         }
         req.date = picked
         do {

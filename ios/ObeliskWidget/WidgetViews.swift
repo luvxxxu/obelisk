@@ -334,7 +334,7 @@ enum WidgetSample {
             TaskItem(
                 id: "sample-\(n)", workspaceId: "sample", number: n, title: title, notes: "", status: .todo,
                 priority: priority, projectId: nil, startDate: nil, startTime: nil, dueDate: due, dueTime: time,
-                fixed: false, position: Double(n), postponedCount: 0, assigneeId: nil, createdBy: nil,
+                fixed: false, position: Double(n), postponedCount: 0, assigneeIds: [], createdBy: nil,
                 completedAt: nil, createdAt: "", updatedAt: ""
             )
         }

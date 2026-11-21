@@ -418,7 +418,7 @@ export function Avatar({
 }: {
   name?: string | null;
   src?: string | null;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }) {
   const initial = (name ?? '').trim().slice(0, 1).toUpperCase() || '?';
@@ -435,6 +435,38 @@ export function Avatar({
         <img key={photo} src={photo} alt="" draggable={false} decoding="async" onError={() => setBroken(photo)} />
       ) : (
         initial
+      )}
+    </span>
+  );
+}
+
+/**
+ * Several people as overlapping discs (task rows, the assignee picker): the first `max` of them,
+ * then "+N". Each disc sits on the page colour so the overlap stays crisp.
+ */
+export function AvatarStack({
+  people,
+  max = 3,
+  size = 'sm',
+  className,
+}: {
+  people: { id: string; name?: string | null; src?: string | null }[];
+  max?: number;
+  size?: 'xs' | 'sm' | 'md';
+  className?: string;
+}) {
+  if (!people.length) return null;
+  const shown = people.length > max ? people.slice(0, max - 1) : people;
+  const rest = people.length - shown.length;
+  return (
+    <span className={cls(ui.avatarStack, className)} data-size={size === 'md' ? undefined : size} aria-hidden="true">
+      {shown.map((p) => (
+        <Avatar key={p.id} name={p.name} src={p.src} size={size} />
+      ))}
+      {rest > 0 && (
+        <span className={cls(ui.avatar, ui.avatarMore)} data-size={size === 'md' ? undefined : size}>
+          +{rest}
+        </span>
       )}
     </span>
   );

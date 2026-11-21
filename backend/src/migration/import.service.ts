@@ -571,13 +571,13 @@ export class ImportService implements OnModuleDestroy {
         await tx.insert(tasks).values(
           part.map((t) => {
             const id = taskIds.get(t.id)!;
-            claimsOf(t.assignee)?.assigned.push(id);
+            for (const person of t.assignees) claimsOf(person)?.assigned.push(id);
             claimsOf(t.createdBy)?.created.push(id);
             return {
               id,
               workspaceId,
               createdBy: mapUser(t.createdBy),
-              assigneeId: mapUser(t.assignee),
+              assigneeIds: [...new Set(t.assignees.map(mapUser).filter((u): u is string => !!u))],
               number: numberOf.get(t.id)!,
               projectId: t.project ? (projectIds.get(t.project) ?? null) : null,
               title: t.title,

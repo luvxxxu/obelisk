@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { InvitePreview, MemberReservation } from '@obelisk/core';
-import { and, asc, count, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull, not, sql } from 'drizzle-orm';
+import { hasAssignee } from '../planner/assignees';
 import type { AuthContext } from '../auth/auth.service';
 import { randomToken, sha256 } from '../common/crypto';
 import { actionMail, mailAvailable, sendMail } from '../common/mail';
@@ -234,7 +235,10 @@ export class ReservationsService {
 
     const ws = r.workspaceId;
     for (const ids of chunks(c.assigned)) {
-      await tx.update(tasks).set({ assigneeId: user.id }).where(and(eq(tasks.workspaceId, ws), inArray(tasks.id, ids), isNull(tasks.assigneeId)));
+      await tx
+        .update(tasks)
+        .set({ assigneeIds: sql`array_append(${tasks.assigneeIds}, ${user.id}::uuid)` })
+        .where(and(eq(tasks.workspaceId, ws), inArray(tasks.id, ids), not(hasAssignee(user.id)), sql`cardinality(${tasks.assigneeIds}) < 20`));
     }
     for (const ids of chunks(c.created)) {
       await tx.update(tasks).set({ createdBy: user.id }).where(and(eq(tasks.workspaceId, ws), inArray(tasks.id, ids), isNull(tasks.createdBy)));

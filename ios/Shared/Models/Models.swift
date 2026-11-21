@@ -304,7 +304,8 @@ struct TaskItem: Codable, Hashable, Identifiable, Sendable {
     var fixed: Bool
     var position: Double
     var postponedCount: Int
-    var assigneeId: String?
+    /// Who works on it, in the order they were added (empty = unassigned). All count equally.
+    var assigneeIds: [String]
     var createdBy: String?
     var completedAt: String?
     var createdAt: String
@@ -317,6 +318,55 @@ struct TaskItem: Codable, Hashable, Identifiable, Sendable {
     var isActive: Bool { status.isActive }
     /// Tracked minutes (0 when none).
     var actual: Int { actualMinutes ?? 0 }
+    /// Whether `userId` is among the assignees.
+    func isAssigned(to userId: String?) -> Bool {
+        guard let userId, !userId.isEmpty else { return false }
+        return assigneeIds.contains(userId)
+    }
+}
+
+/// Most people one task can have (`ASSIGNEES_MAX` in schemas.ts).
+let ASSIGNEES_MAX = 20
+
+extension TaskItem {
+    private enum CodingKeys: String, CodingKey {
+        case id, workspaceId, number, title, notes, status, priority, projectId, startDate, startTime, dueDate, dueTime
+        case fixed, position, postponedCount, assigneeIds, createdBy, completedAt, createdAt, updatedAt
+        case estimateMinutes, actualMinutes
+    }
+    /// A server (or a cached widget snapshot) from before tasks could have several people.
+    private enum LegacyKeys: String, CodingKey { case assigneeId }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        workspaceId = try c.decode(String.self, forKey: .workspaceId)
+        number = try c.decode(Int.self, forKey: .number)
+        title = try c.decode(String.self, forKey: .title)
+        notes = try c.decode(String.self, forKey: .notes)
+        status = try c.decode(TaskStatus.self, forKey: .status)
+        priority = try c.decode(Priority.self, forKey: .priority)
+        projectId = try c.decodeIfPresent(String.self, forKey: .projectId)
+        startDate = try c.decodeIfPresent(String.self, forKey: .startDate)
+        startTime = try c.decodeIfPresent(String.self, forKey: .startTime)
+        dueDate = try c.decodeIfPresent(String.self, forKey: .dueDate)
+        dueTime = try c.decodeIfPresent(String.self, forKey: .dueTime)
+        fixed = try c.decode(Bool.self, forKey: .fixed)
+        position = try c.decode(Double.self, forKey: .position)
+        postponedCount = try c.decode(Int.self, forKey: .postponedCount)
+        if let ids = try c.decodeIfPresent([String].self, forKey: .assigneeIds) {
+            assigneeIds = ids
+        } else {
+            let legacy = try decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(String.self, forKey: .assigneeId)
+            assigneeIds = legacy.map { [$0] } ?? []
+        }
+        createdBy = try c.decodeIfPresent(String.self, forKey: .createdBy)
+        completedAt = try c.decodeIfPresent(String.self, forKey: .completedAt)
+        createdAt = try c.decode(String.self, forKey: .createdAt)
+        updatedAt = try c.decode(String.self, forKey: .updatedAt)
+        estimateMinutes = try c.decodeIfPresent(Int.self, forKey: .estimateMinutes)
+        actualMinutes = try c.decodeIfPresent(Int.self, forKey: .actualMinutes)
+    }
 }
 
 /// `taskId` cannot start until `dependsOnId` is finished.

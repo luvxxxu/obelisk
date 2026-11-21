@@ -431,7 +431,7 @@ struct WebhooksIncomingHelp: View {
         DisclosureGroup(isExpanded: $open.animation(ObMotion.standard)) {
             VStack(alignment: .leading, spacing: ObSpace.lg) {
                 item("텍스트", "`보고서 초안 내일 !높음 #런칭`처럼 빠른 추가와 같은 문법으로 써요. 둘째 줄부터는 메모가 돼요.\n`#12 완료` · `#12 시작` · `#12 취소` · `#12 다시 열기` · `#12 금요일까지` · `#12 !높음`")
-                item("JSON 만들기", "`title`(필수), `notes`, `dueDate`·`startDate`(`\(due)` 또는 “내일”), `priority`(none·low·medium·high), `project`(이름), `assignee`(이메일·이름·me), `fixed`, `status`")
+                item("JSON 만들기", "`title`(필수), `notes`, `dueDate`·`startDate`(`\(due)` 또는 “내일”), `priority`(none·low·medium·high), `project`(이름), `assignees`(이메일·이름·me, 여러 명은 배열이나 쉼표로), `fixed`, `status`")
                 item("JSON 바꾸기", "`action`(complete·start·cancel·reopen·update) + `task`(`\"#12\"`) + 바꿀 필드")
                 item("응답", "`{ ok, action, task: { ref, title, url, … }, text }` · 실패하면 4xx와 `message`")
                 item("Slack", "슬래시 명령의 Request URL로 쓰면 `/할일 보고서 내일`처럼 채널에서 바로 작업을 만들 수 있어요.")

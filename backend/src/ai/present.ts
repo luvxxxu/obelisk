@@ -63,8 +63,8 @@ export interface TaskOut {
   estimateMinutes?: number;
   /** Minutes tracked on it so far. */
   actualMinutes?: number;
-  /** Assignee's name. */
-  assignee?: string;
+  /** Assignees' names, in the order they were added. */
+  assignees?: string[];
   /** The caller can see but not change this task. */
   readOnly?: true;
   overdue?: true;
@@ -244,7 +244,7 @@ export function taskLine(t: TaskOut, today: ISODate, opts: { project?: boolean }
   const when = whenLabel(t, today);
   if (when) meta.push(when);
   if (t.overdue && t.dueDate) meta.push(`**${lateLabel(t, today)}**`);
-  if (t.assignee) meta.push(`@${esc(t.assignee)}`);
+  if (t.assignees?.length) meta.push(t.assignees.map((n) => `@${esc(n)}`).join(' '));
   if (t.fixed) meta.push('🔒 고정');
   if (t.estimateMinutes) meta.push(`⏱ ${formatDurationKo(t.estimateMinutes)}`);
   if ((t.postponedCount ?? 0) >= 2) meta.push(`↻ ${t.postponedCount}회 미룸`);
@@ -376,7 +376,7 @@ export function mdTaskDetail(t: TaskOut, today: ISODate, heading?: string): stri
   const span = !!t.startDate && !!t.dueDate && (t.startDate !== t.dueDate || !!t.startTime);
   if (when) meta.push(span || !t.dueDate ? when : `${when} 마감`);
   if (t.overdue && t.dueDate) meta.push(`**${lateLabel(t, today)}**`);
-  if (t.assignee) meta.push(`담당 ${esc(t.assignee)}`);
+  if (t.assignees?.length) meta.push(`담당 ${t.assignees.map(esc).join(', ')}`);
   if (t.fixed) meta.push('🔒 고정 일정');
   if (t.estimateMinutes || t.actualMinutes) {
     const parts = [t.estimateMinutes ? `예상 ${formatDurationKo(t.estimateMinutes)}` : '', t.actualMinutes ? `실제 ${formatDurationKo(t.actualMinutes)}` : ''];

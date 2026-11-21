@@ -11,11 +11,11 @@ Helper: `scripts/obelisk.sh METHOD PATH [JSON]`.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/bootstrap` | user, `today`, workspace (+ your role), workspaces, members, teams, projects (with your `access`), open + recent tasks, dependencies |
-| GET | `/api/tasks?view=&projectId=&status=&q=&from=&to=&limit=&assignee=` | `view`: today, upcoming, overdue, inbox, unscheduled, all, done. `projectId=inbox` for no project. `assignee`: `me`, a user id, or `none` |
+| GET | `/api/tasks?view=&projectId=&status=&q=&from=&to=&limit=&assignee=` | `view`: today, upcoming, overdue, inbox, unscheduled, all, done. `projectId=inbox` for no project. `assignee`: `me`, a user id (tasks they are one of the assignees of), or `none` |
 | GET | `/api/tasks/:ref` | ref = `12`, uuid, or unique title fragment (URL-encode `#` as `%23` or omit it) |
-| POST | `/api/tasks` | `{title, notes?, status?, priority?: 0-3, projectId?, startDate?, startTime?, dueDate?, dueTime?, fixed?, estimateMinutes?, assigneeId?, blockedBy?: uuid[]}` — times are `HH:MM` (24h, the user's timezone) and need their date; `estimateMinutes` 1–1440. Tasks carry `actualMinutes` (recorded time) |
+| POST | `/api/tasks` | `{title, notes?, status?, priority?: 0-3, projectId?, startDate?, startTime?, dueDate?, dueTime?, fixed?, estimateMinutes?, assigneeIds?: uuid[] (≤20), blockedBy?: uuid[]}` — times are `HH:MM` (24h, the user's timezone) and need their date; `estimateMinutes` 1–1440. Tasks carry `actualMinutes` (recorded time) |
 | POST | `/api/tasks/bulk` | `{projectId?, tasks: [{key?, title, …, blockedBy?: (key \| "#12" \| uuid)[]}]}` |
-| PATCH | `/api/tasks/:id` | any task field; `null` clears dates/times/project/assignee (clearing a date clears its time; a new date keeps the time). `completedAt` (ISO datetime) is used instead of now when the task ends up `done` (an undo restoring the old time); ignored otherwise, a future time counts as now |
+| PATCH | `/api/tasks/:id` | any task field; `null` clears dates/times/project; `assigneeIds` replaces the whole list (`[]` = nobody) (clearing a date clears its time; a new date keeps the time). `completedAt` (ISO datetime) is used instead of now when the task ends up `done` (an undo restoring the old time); ignored otherwise, a future time counts as now |
 | GET | `/api/tasks/:id/activity` | who changed what on this task |
 | DELETE | `/api/tasks/:id` | moves it to the trash (휴지통), restorable for 30 days |
 | POST | `/api/tasks/delete` | `{ids: uuid[]}` (1–5000) → `{deleted}` — moves them to the trash in one go; one missing or read-only task cancels the whole call |
@@ -56,7 +56,7 @@ Helper: `scripts/obelisk.sh METHOD PATH [JSON]`.
 | GET / POST | `/api/plan/blocks?from=&to=` / `/api/plan/blocks` | list a range / place one `{taskId, date, start, end}` (locked) |
 | PATCH / DELETE | `/api/plan/blocks/:id` | `{date?, start?, end?, locked?}` (moving locks it) |
 | GET | `/api/odds` | `{today, report: {tasks: [{taskId, onTime, conflict, p50, p85, p95}], projects: [{projectId, tasks, p50, p85, p95}], overall}, calibration, external}` for the open space |
-| POST | `/api/odds/commit` | `{taskId? \| title?, estimateMinutes?, projectId?, assigneeId?, blockedBy?, startDate?, date?, confidence?}` → `{report: {safe, earliest, proposed: {date, probability, harmed: [{taskId, kind, before, after}]}, natural, days}, minutes, estimated}` |
+| POST | `/api/odds/commit` | `{taskId? \| title?, estimateMinutes?, projectId?, assigneeIds?, blockedBy?, startDate?, date?, confidence?}` → `{report: {safe, earliest, proposed: {date, probability, harmed: [{taskId, kind, before, after}]}, natural, days}, minutes, estimated}` |
 | GET | `/api/odds/calibration` | what the odds learned from your history |
 
 ### Jev hints (needs the user's own Jev key — TypeSafe or any System One service — set in the web app)

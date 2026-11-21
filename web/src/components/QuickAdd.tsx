@@ -243,7 +243,7 @@ export const QuickAdd = forwardRef<
       priority,
       fixed: fixed || undefined,
       ...(parsed.estimateMinutes ? { estimateMinutes: parsed.estimateMinutes } : {}),
-      ...(defaultAssigneeId ? { assigneeId: defaultAssigneeId } : {}),
+      ...(defaultAssigneeId ? { assigneeIds: [defaultAssigneeId] } : {}),
     });
     setBusy(false);
     if (created) {

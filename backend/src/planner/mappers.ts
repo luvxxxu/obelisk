@@ -20,7 +20,7 @@ export function toTask(r: TaskRow): Task {
     actualMinutes: r.actualMinutes ?? 0,
     position: r.position,
     postponedCount: r.postponedCount,
-    assigneeId: r.assigneeId,
+    assigneeIds: r.assigneeIds ?? [],
     createdBy: r.createdBy,
     completedAt: r.completedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),

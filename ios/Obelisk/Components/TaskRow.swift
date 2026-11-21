@@ -158,7 +158,7 @@ struct TaskRow: View {
         let project = showProject ? store.project(task.projectId) : nil
         let waitingOn = active ? store.blockers(of: task.id).filter(\.isActive).count : 0
         let blocking = active ? store.dependents(of: task.id).filter(\.isActive).count : 0
-        let assignee = store.isOrg && task.assigneeId != nil ? (store.memberName(task.assigneeId) ?? "전 멤버") : nil
+        let assignees = store.isOrg ? store.assigneeNames(task) : []
         let hasTimes = task.dueTime != nil || task.startTime != nil
 
         let content = { (now: Clock) -> AnyView in
@@ -169,7 +169,7 @@ struct TaskRow: View {
             case .none: nil
             }
             let soon = (label != nil && tone != .overdue && now.date == store.today) ? dueSoonLabel(task, now) : nil
-            let hasMeta = label != nil || project != nil || assignee != nil || waitingOn > 0 || blocking > 0 || task.fixed || (task.postponedCount > 1 && active)
+            let hasMeta = label != nil || project != nil || !assignees.isEmpty || waitingOn > 0 || blocking > 0 || task.fixed || (task.postponedCount > 1 && active)
             guard hasMeta else { return AnyView(EmptyView()) }
 
             return AnyView(
@@ -199,13 +199,16 @@ struct TaskRow: View {
                         .font(ObFont.footnote)
                         .foregroundStyle(Ob.text3)
                     }
-                    if let assignee {
+                    if !assignees.isEmpty {
+                        // One person by name; several as overlapping initials (3, then +N) and the first name.
                         HStack(spacing: 4) {
-                            Avatar(name: assignee, size: 16)
-                            Text(assignee).lineLimit(1)
+                            AvatarStack(names: assignees, size: 16, limit: 3)
+                            Text(assignees.count == 1 ? assignees[0] : "\(assignees[0]) 외 \(assignees.count - 1)명").lineLimit(1)
                         }
                         .font(ObFont.footnote)
                         .foregroundStyle(Ob.text3)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("담당자 \(assignees.joined(separator: ", "))")
                     }
                 }
             )

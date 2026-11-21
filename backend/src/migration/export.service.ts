@@ -152,7 +152,7 @@ export class ExportService {
     const extra = {
       teams: new Map<string, string[]>(),
       grants: new Map<string, { person: string; level: 'view' | 'edit' | 'manage' }[]>(),
-      assignee: new Map<string, string>(),
+      assignees: new Map<string, string[]>(),
       taskCreator: new Map<string, string>(),
       projectCreator: new Map<string, string>(),
       hookCreator: new Map<string, string>(),
@@ -168,7 +168,7 @@ export class ExportService {
       const c = r.claims;
       for (const t of c.teams ?? []) extra.teams.set(t, [...(extra.teams.get(t) ?? []), person]);
       for (const g of c.projects ?? []) extra.grants.set(g.projectId, [...(extra.grants.get(g.projectId) ?? []), { person, level: g.level }]);
-      for (const id of c.assigned ?? []) extra.assignee.set(id, person);
+      for (const id of c.assigned ?? []) extra.assignees.set(id, [...(extra.assignees.get(id) ?? []), person]);
       for (const id of c.created ?? []) extra.taskCreator.set(id, person);
       for (const id of c.projectsCreated ?? []) extra.projectCreator.set(id, person);
       for (const id of c.webhooks ?? []) extra.hookCreator.set(id, person);
@@ -180,7 +180,7 @@ export class ExportService {
       const known = new Set([...people.map((p) => p.id), ...formerPeople.map((p) => p.id)]);
       const referenced = new Set<string>();
       const ids0 = [
-        ...taskRows.flatMap((t) => [t.createdBy, t.assigneeId]),
+        ...taskRows.flatMap((t) => [t.createdBy, ...t.assigneeIds]),
         ...projectRows.map((p) => p.createdBy),
         ...hookRows.map((h) => h.createdBy),
         ...incomingRows.map((h) => h.createdBy),
@@ -300,7 +300,8 @@ export class ExportService {
         createdAt: iso(t.createdAt),
         updatedAt: iso(t.updatedAt),
         createdBy: t.createdBy ?? extra.taskCreator.get(t.id) ?? null,
-        assignee: t.assigneeId ?? extra.assignee.get(t.id) ?? null,
+        // Reserved people (no account here yet) are kept on the claim, not the row.
+        assignees: [...new Set([...t.assigneeIds, ...(extra.assignees.get(t.id) ?? [])])].slice(0, 20),
       })),
       dependencies: depRows.map((d) => ({ task: d.taskId, dependsOn: d.dependsOnId })),
       timeEntries: entryRows

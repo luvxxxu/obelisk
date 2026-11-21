@@ -8,7 +8,7 @@
  *  - view: see the project and its tasks. edit: create, change, delete, link
  *    tasks. manage: also rename/archive/delete/move the project and share it.
  *  - In an organization, a task without a project is visible only to the
- *    person who made it and its assignee. In a personal space you see everything.
+ *    person who made it and its assignees. In a personal space you see everything.
  */
 import type { AccessLevel, MemberAccess, WorkspaceKind, WorkspaceRole } from './types';
 
@@ -37,7 +37,7 @@ export function isWorkspaceAdmin(role: WorkspaceRole | null | undefined): boolea
 export interface TaskAccessSubject {
   projectId: string | null;
   createdBy: string | null;
-  assigneeId: string | null;
+  assigneeIds: readonly string[];
 }
 
 export interface AccessView {
@@ -51,7 +51,7 @@ export interface AccessView {
 export function taskAccess(task: TaskAccessSubject, a: AccessView): AccessLevel | null {
   if (task.projectId) return a.projectLevel(task.projectId);
   if (a.kind === 'personal') return 'manage';
-  if (task.createdBy === a.userId || task.assigneeId === a.userId) return 'edit';
+  if (task.createdBy === a.userId || task.assigneeIds.includes(a.userId)) return 'edit';
   return null;
 }
 

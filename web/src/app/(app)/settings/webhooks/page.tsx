@@ -60,7 +60,7 @@ function incomingExamples(url: string, allowUpdates: boolean, due: string): { ti
     },
     {
       title: 'JSON으로 만들기',
-      code: `curl -X POST "${url}" \\\n  -H "content-type: application/json" \\\n  -d '{"title":"배포 확인","dueDate":"${due}","priority":"high","assignee":"me"}'`,
+      code: `curl -X POST "${url}" \\\n  -H "content-type: application/json" \\\n  -d '{"title":"배포 확인","dueDate":"${due}","priority":"high","assignees":["me"]}'`,
     },
   ];
   if (allowUpdates) {
@@ -474,7 +474,7 @@ function IncomingHelp({ due }: { due: string }) {
             <dt>JSON 만들기</dt>
             <dd>
               <code>title</code>(필수), <code>notes</code>, <code>dueDate</code>·<code>startDate</code>(<code>{due}</code> 또는 “내일”),{' '}
-              <code>priority</code>(none·low·medium·high), <code>project</code>(이름), <code>assignee</code>(이메일·이름·me), <code>fixed</code>,{' '}
+              <code>priority</code>(none·low·medium·high), <code>project</code>(이름), <code>assignees</code>(이메일·이름·me 목록), <code>fixed</code>,{' '}
               <code>status</code>
             </dd>
           </div>

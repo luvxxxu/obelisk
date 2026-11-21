@@ -115,7 +115,7 @@ const INSTRUCTIONS = `Obelisk is the user's to-do and schedule planner — for t
 Workspaces and permissions
 - The user has a personal space and may belong to organizations (list_workspaces). Every tool takes an optional "workspace" (name or id); without it, the user's default workspace is used. Task refs like "#12" are numbered per workspace, so keep using the same workspace for a ref you got from it.
 - This connection acts as the user and has exactly their permissions. In an organization they may see only some projects, and some of those read-only (view < edit < manage). Tasks marked readOnly can't be changed; a write that isn't allowed fails with a permission error — tell the user who could grant access (a project manager or an org admin) instead of retrying another way. Sharing and membership are managed in the web app, not here. Moving a space to another Obelisk server is also done in the web app (설정 → 데이터 이전).
-- Tasks can have an assignee (a workspace member; "me" for the user). list_members shows who can be assigned; list_tasks assignee="me" lists the user's own work. get_activity shows who changed what.
+- Tasks can have several assignees (workspace members; "me" for the user), all equally responsible. list_members shows who can be assigned; list_tasks assignee="me" lists the user's own work (tasks they are one of the assignees of). update_task assignees replaces the whole list; addAssignees/removeAssignees change it. get_activity shows who changed what.
 
 Concepts
 - Tasks have a short ref like "#12" (preferred when talking to the user), a status (todo, doing, done, canceled), a priority (none/low/medium/high), an optional project, and optional startDate/dueDate (YYYY-MM-DD, in the user's timezone; "today" is returned by get_overview). Either date can carry a time, startTime/dueTime (HH:MM, 24h, same timezone): set them for meetings, appointments and "by 3pm" deadlines, and leave them out for all-day work. A time needs its date; clearing a date clears its time; moving a date (postpone, cascade) keeps the time. Delay prediction counts whole days.
@@ -168,6 +168,7 @@ const PRIORITY_VALUE: Record<z.infer<typeof priorityIn>, Priority> = { none: 0, 
 const ref = z.string().min(1).describe('Task ref: "#12", "12", a task id, or a unique part of the title');
 const projectRef = z.string().min(1).describe('Project name or id');
 const assigneeRef = z.string().min(1).describe('Assignee: "me", or a workspace member\'s name or email');
+const assigneesIn = z.array(assigneeRef).max(20).describe('Assignees: "me", member names or emails (all equally responsible)');
 const workspaceArg = z
   .string()
   .min(1)
@@ -258,6 +259,17 @@ class Ctx {
     return hit.id;
   }
 
+  /** Each ref → a user id, duplicates dropped; undefined stays undefined. */
+  async resolveAssignees(refs: readonly string[] | null | undefined): Promise<string[] | undefined> {
+    if (refs === undefined) return undefined;
+    const ids: string[] = [];
+    for (const r of refs ?? []) {
+      const id = await this.resolveAssignee(r);
+      if (id && !ids.includes(id)) ids.push(id);
+    }
+    return ids;
+  }
+
   remember(tasks: Task[]) {
     for (const t of tasks) this.taskById.set(t.id, t);
   }
@@ -321,7 +333,7 @@ class Ctx {
       ...(t.estimateMinutes ? { estimateMinutes: t.estimateMinutes } : {}),
       ...(t.actualMinutes ? { actualMinutes: t.actualMinutes } : {}),
     };
-    if (t.assigneeId) out.assignee = (await this.memberName(t.assigneeId)) ?? '(전 멤버)';
+    if (t.assigneeIds.length) out.assignees = await Promise.all(t.assigneeIds.map(async (id) => (await this.memberName(id)) ?? '(전 멤버)'));
     if (!canEditTask(t, this.a)) out.readOnly = true;
     if (isOverdue(t, this.today, this.now)) out.overdue = true;
     if (t.postponedCount > 0) out.postponedCount = t.postponedCount;
@@ -610,7 +622,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
           overdue: overdue.length,
           today: today.length,
           inbox: active.filter((t) => !t.projectId).length,
-          ...(c.a.kind === 'org' ? { assignedToMe: active.filter((t) => t.assigneeId === c.userId).length } : {}),
+          ...(c.a.kind === 'org' ? { assignedToMe: active.filter((t) => t.assigneeIds.includes(c.userId)).length } : {}),
           completedToday: done.filter((t) => t.completedAt && todayIn(c.a.user.timezone, new Date(t.completedAt)) === c.today).length,
         },
         overdue: await c.tasksOut(overdue),
@@ -708,7 +720,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       dueTime: timeIn.optional(),
       fixed: z.boolean().optional(),
       estimate: estimateIn.optional(),
-      assignee: assigneeRef.optional(),
+      assignees: assigneesIn.optional(),
       blockedBy: z.array(ref).max(50).optional(),
     },
     async (a, c) => {
@@ -719,7 +731,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
         title: a.title,
         notes: a.notes,
         projectId,
-        assigneeId: await c.resolveAssignee(a.assignee),
+        assigneeIds: await c.resolveAssignees(a.assignees),
         priority: a.priority ? PRIORITY_VALUE[a.priority] : undefined,
         startDate: a.startDate,
         startTime: a.startTime,
@@ -757,7 +769,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
             dueTime: timeIn.optional(),
             fixed: z.boolean().optional(),
             estimate: estimateIn.optional(),
-            assignee: assigneeRef.optional(),
+            assignees: assigneesIn.optional(),
             blockedBy: z.array(z.string().min(1)).optional().describe('Keys from this batch or existing task refs'),
           }),
         )
@@ -767,11 +779,11 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
     async (a, c) => {
       const projectId = await c.resolveProject(a.project);
       const tasks = await Promise.all(
-        a.tasks.map(async ({ assignee, estimate, ...t }) => ({
+        a.tasks.map(async ({ assignees, estimate, ...t }) => ({
           ...t,
           estimateMinutes: toEstimate(estimate),
           priority: t.priority ? PRIORITY_VALUE[t.priority] : undefined,
-          assigneeId: await c.resolveAssignee(assignee),
+          assigneeIds: await c.resolveAssignees(assignees),
         })),
       );
       const res = await deps.tasks.createMany(c.a, { projectId, tasks });
@@ -792,7 +804,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
     {
       title: 'Update task',
       description:
-        'Change any field of a task. Pass null to clear project/startDate/startTime/dueDate/dueTime/assignee (clearing a date clears its time; changing only a date keeps its time). Moving a due date later does NOT move dependents — the response lists who is affected; prefer postpone_task for postponements.',
+        'Change any field of a task. Pass null to clear project/startDate/startTime/dueDate/dueTime (clearing a date clears its time; changing only a date keeps its time). Moving a due date later does NOT move dependents — the response lists who is affected; prefer postpone_task for postponements.',
       annotations: { ...WRITE, idempotentHint: true },
       ui: { view: 'task', invoking: '작업을 고치는 중…', invoked: '작업을 수정했어요' },
     },
@@ -809,7 +821,9 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       dueTime: timeIn.nullable().optional(),
       fixed: z.boolean().optional(),
       estimate: estimateIn.nullable().optional().describe('How long it should take (null clears it)'),
-      assignee: assigneeRef.nullable().optional(),
+      assignees: assigneesIn.optional().describe('The whole new list of assignees ([] = nobody)'),
+      addAssignees: z.array(assigneeRef).max(20).optional().describe('People to add, keeping the current assignees'),
+      removeAssignees: z.array(assigneeRef).max(20).optional().describe('People to take off'),
     },
     async (a, c) => {
       const cur = await deps.tasks.resolve(c.a, a.ref);
@@ -834,7 +848,13 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
         dueTime: a.dueTime,
         fixed: a.fixed,
         estimateMinutes: toEstimate(a.estimate),
-        assigneeId: await c.resolveAssignee(a.assignee),
+        assigneeIds: await (async () => {
+          if (a.assignees === undefined && !a.addAssignees && !a.removeAssignees) return undefined;
+          const base = (await c.resolveAssignees(a.assignees)) ?? cur.assigneeIds;
+          const add = (await c.resolveAssignees(a.addAssignees)) ?? [];
+          const remove = new Set((await c.resolveAssignees(a.removeAssignees)) ?? []);
+          return [...new Set([...base, ...add])].filter((id) => !remove.has(id));
+        })(),
       });
       return {
         today: c.today,
@@ -1651,7 +1671,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       estimate: estimateIn.optional(),
       project: projectRef.optional(),
       blockedBy: z.array(ref).max(50).optional(),
-      assignee: assigneeRef.optional(),
+      assignees: assigneesIn.optional().describe('Who will do it (default: me)'),
       date: isoDate.optional().describe('A date to check'),
       confidence: z.number().min(0.5).max(0.99).default(0.85),
     },
@@ -1663,7 +1683,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
         title: a.title,
         estimateMinutes: a.estimate !== undefined ? toEstimate(a.estimate) : undefined,
         projectId: (await c.resolveProject(a.project)) ?? undefined,
-        assigneeId: (await c.resolveAssignee(a.assignee)) ?? undefined,
+        assigneeIds: await c.resolveAssignees(a.assignees),
         blockedBy,
         date: a.date,
         confidence: a.confidence,

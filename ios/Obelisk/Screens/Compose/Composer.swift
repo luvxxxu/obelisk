@@ -331,7 +331,7 @@ struct Composer: View {
         if take(.project, m), let jp = m.jevProject { t.projectId = jp.id }
         // The page's default date; dates in the text still win in the form.
         t.dueDate = m.ctx.defaultDueDate
-        t.assigneeId = m.ctx.defaultAssigneeId
+        t.assigneeIds = m.ctx.defaultAssigneeId.map { [$0] } ?? []
         if take(.priority, m), let live = m.live { t.priority = live.priority.value }
         if take(.fixed, m) { t.fixed = true }
         t.estimateMinutes = m.parsed.estimateMinutes
@@ -353,7 +353,7 @@ struct Composer: View {
         t.estimateMinutes = m.parsed.estimateMinutes
         t.projectId = m.matched?.id ?? m.ctx.projectId.flatMap { $0 }
         t.dueDate = m.parsed.dueDate
-        t.assigneeId = m.ctx.defaultAssigneeId
+        t.assigneeIds = m.ctx.defaultAssigneeId.map { [$0] } ?? []
         focused = false
         router.present(.init(id: "commit-new", detents: [.large]) {
             CommitSheet(prefill: t)
@@ -399,7 +399,7 @@ struct Composer: View {
         input.dueTime = m.parsed.dueDate != nil ? m.parsed.dueTime : nil
         input.priority = m.parsed.priority ?? (take(.priority, m) ? m.live?.priority.value ?? 0 : 0)
         input.fixed = m.parsed.fixed || take(.fixed, m)
-        input.assigneeId = m.ctx.defaultAssigneeId
+        input.assigneeIds = m.ctx.defaultAssigneeId.map { [$0] } ?? []
         input.estimateMinutes = m.parsed.estimateMinutes
         guard let created = await store.createTask(input) else { return }
         Haptics.tap()

@@ -27,20 +27,21 @@ describe('task access', () => {
   const a = view({ p1: 'view', p2: 'edit' });
 
   test('project tasks follow the project level', () => {
-    expect(taskAccess({ projectId: 'p1', createdBy: 'me', assigneeId: 'me' }, a)).toBe('view');
-    expect(canEditTask({ projectId: 'p1', createdBy: 'me', assigneeId: 'me' }, a)).toBe(false);
-    expect(canEditTask({ projectId: 'p2', createdBy: 'x', assigneeId: null }, a)).toBe(true);
-    expect(canViewTask({ projectId: 'p3', createdBy: 'me', assigneeId: 'me' }, a)).toBe(false);
+    expect(taskAccess({ projectId: 'p1', createdBy: 'me', assigneeIds: ['me'] }, a)).toBe('view');
+    expect(canEditTask({ projectId: 'p1', createdBy: 'me', assigneeIds: ['me'] }, a)).toBe(false);
+    expect(canEditTask({ projectId: 'p2', createdBy: 'x', assigneeIds: [] }, a)).toBe(true);
+    expect(canViewTask({ projectId: 'p3', createdBy: 'me', assigneeIds: ['me'] }, a)).toBe(false);
   });
 
-  test('org inbox tasks are private to their creator and assignee', () => {
-    expect(canEditTask({ projectId: null, createdBy: 'me', assigneeId: null }, a)).toBe(true);
-    expect(canEditTask({ projectId: null, createdBy: 'x', assigneeId: 'me' }, a)).toBe(true);
-    expect(canViewTask({ projectId: null, createdBy: 'x', assigneeId: 'y' }, a)).toBe(false);
+  test('org inbox tasks are private to their creator and assignees', () => {
+    expect(canEditTask({ projectId: null, createdBy: 'me', assigneeIds: [] }, a)).toBe(true);
+    expect(canEditTask({ projectId: null, createdBy: 'x', assigneeIds: ['me'] }, a)).toBe(true);
+    expect(canViewTask({ projectId: null, createdBy: 'x', assigneeIds: ['y'] }, a)).toBe(false);
+    expect(canEditTask({ projectId: null, createdBy: 'x', assigneeIds: ['y', 'me'] }, a)).toBe(true);
   });
 
   test('everything in a personal space is yours', () => {
-    expect(taskAccess({ projectId: null, createdBy: 'x', assigneeId: null }, view({}, 'personal'))).toBe('manage');
+    expect(taskAccess({ projectId: null, createdBy: 'x', assigneeIds: [] }, view({}, 'personal'))).toBe('manage');
   });
 });
 

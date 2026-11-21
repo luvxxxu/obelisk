@@ -219,7 +219,7 @@ export class IncomingService {
 
     if (cmd.kind === 'create') {
       const projectId = cmd.project ? await this.findProject(a, cmd.project) : hook.projectId;
-      const assigneeId = cmd.assignee ? await this.findMember(a, cmd.assignee) : undefined;
+      const assigneeIds = cmd.assignees ? await Promise.all(cmd.assignees.map((ref) => this.findMember(a, ref))) : undefined;
       const input = parse(createTaskInput, {
         title: cmd.title,
         notes: cmd.notes,
@@ -231,7 +231,7 @@ export class IncomingService {
         dueTime: cmd.dueTime,
         fixed: cmd.fixed,
         projectId,
-        assigneeId,
+        assigneeIds,
       });
       const task = await this.tasks.create(a, input);
       const due = task.dueDate ? ` · 마감 ${formatShortKo(task.dueDate)}${task.dueTime ? ` ${formatTimeKo(task.dueTime)}` : ''}` : '';

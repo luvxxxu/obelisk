@@ -11,7 +11,7 @@ import Foundation
 //  - view: see the project and its tasks. edit: create, change, delete, link tasks. manage: also
 //    rename/archive/delete/move the project and share it.
 //  - In an organization, a task without a project is visible only to the person who made it and its
-//    assignee. In a personal space you see everything.
+//    assignees. In a personal space you see everything.
 
 let LEVEL_RANK: [String: Int] = ["none": 0, "view": 1, "edit": 2, "manage": 3]
 
@@ -61,7 +61,7 @@ func isWorkspaceAdmin(_ role: WorkspaceRole?) -> Bool {
 protocol TaskAccessSubject {
     var projectId: String? { get }
     var createdBy: String? { get }
-    var assigneeId: String? { get }
+    var assigneeIds: [String] { get }
 }
 
 extension TaskItem: TaskAccessSubject {}
@@ -90,7 +90,7 @@ struct AccessView {
 func taskAccess<T: TaskAccessSubject>(_ task: T, _ a: AccessView) -> AccessLevel? {
     if let p = task.projectId, !p.isEmpty { return a.projectLevel(p) }
     if a.kind == .personal { return .manage }
-    if task.createdBy == a.userId || task.assigneeId == a.userId { return .edit }
+    if task.createdBy == a.userId || task.assigneeIds.contains(a.userId) { return .edit }
     return nil
 }
 

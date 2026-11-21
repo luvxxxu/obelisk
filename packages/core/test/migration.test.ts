@@ -94,6 +94,16 @@ describe('migrationBundle', () => {
     expect(b.people[0]!.email).toBe('ann@example.com');
     expect(b.tasks[0]!.startTime).toBe('09:00');
     expect(b.secrets).toBeUndefined();
+    // A version 1 file names one assignee.
+    expect(b.tasks[0]!.assignees).toEqual([ID(2)]);
+  });
+
+  test('version 2 tasks carry several assignees', () => {
+    const v1 = bundle().tasks[0]!;
+    const { assignee: _, ...task } = v1;
+    const b = migrationBundle.parse(bundle({ version: 2, tasks: [{ ...task, assignees: [ID(2), ID(1), ID(2)] }] }));
+    expect(b.tasks[0]!.assignees).toEqual([ID(2), ID(1)]);
+    expect(migrationBundle.parse(bundle({ version: 2, tasks: [{ ...task }] })).tasks[0]!.assignees).toEqual([]);
   });
 
   test('accepts locked and plain secrets', () => {
@@ -206,7 +216,7 @@ describe('migrationBundle', () => {
     expect(migrationHeaderIssue(bundle())).toBeNull();
     expect(migrationHeaderIssue({ hello: 1 })).toBe('Obelisk 내보내기 파일이 아니에요');
     expect(migrationHeaderIssue(null)).toBe('Obelisk 내보내기 파일이 아니에요');
-    expect(migrationHeaderIssue({ format: 'obelisk-export', version: 2 })).toContain('더 새 버전');
+    expect(migrationHeaderIssue({ format: 'obelisk-export', version: 3 })).toContain('더 새 버전');
   });
 });
 
@@ -246,6 +256,8 @@ describe('remapActivityData', () => {
   test('assignee changes', () => {
     const d = remapActivityData('task.updated', { changes: { assignee: { from: 'A', to: 'B', fromId: 'u1', toId: 'gone' } } }, map);
     expect(d).toEqual({ changes: { assignee: { from: 'A', to: 'B', fromId: 'user:u1', toId: null } } });
+    const m = remapActivityData('task.updated', { changes: { assignees: { from: ['A'], to: ['A', 'B'], fromIds: ['u1'], toIds: ['u1', 'gone'] } } }, map);
+    expect(m).toEqual({ changes: { assignees: { from: ['A'], to: ['A', 'B'], fromIds: ['user:u1'], toIds: ['user:u1', null] } } });
   });
 
   test('members and teams', () => {

@@ -34,6 +34,7 @@ import { InjectDb, type Db } from '../db/db.module';
 import { projects, taskDependencies, tasks, taskTrash, users, workspaces, type TaskRow, type TaskTrashRow } from '../db/schema';
 import { AccessService, type Access, type Conn } from '../workspace/access.service';
 import { ActivityService } from '../workspace/activity.service';
+import { hasAssignee, sameAssignees, unassigned } from './assignees';
 import { toTask } from './mappers';
 import { TimeService } from './time.service';
 
@@ -52,7 +53,7 @@ export interface TaskFilter {
   from?: ISODate;
   to?: ISODate;
   limit?: number;
-  /** A user id, or null for unassigned tasks. */
+  /** Tasks this person is among the assignees of, or null for unassigned tasks. */
   assigneeId?: string | null;
 }
 
@@ -76,7 +77,7 @@ function isDeadlock(e: unknown): boolean {
 const linkKey = (d: Dependency) => `${d.taskId}>${d.dependsOnId}`;
 
 /** The columns of a trash row that decide who may see and restore it. */
-type TrashSubject = Pick<TaskTrashRow, 'projectId' | 'createdBy' | 'assigneeId' | 'deletedBy'>;
+type TrashSubject = Pick<TaskTrashRow, 'projectId' | 'createdBy' | 'assigneeIds' | 'deletedBy'>;
 
 /** Times need their date, and start may not come after due (by date, then by time on the same day). */
 function assertSpan(
@@ -173,7 +174,7 @@ export class TasksService {
       conds.push(f.projectId === null ? isNull(tasks.projectId) : eq(tasks.projectId, f.projectId));
     }
     if (f.assigneeId !== undefined) {
-      conds.push(f.assigneeId === null ? isNull(tasks.assigneeId) : eq(tasks.assigneeId, f.assigneeId));
+      conds.push(f.assigneeId === null ? unassigned() : hasAssignee(f.assigneeId));
     }
     if (f.status) conds.push(eq(tasks.status, f.status));
     if (f.query) {
@@ -214,7 +215,7 @@ export class TasksService {
       // Earliest date within the horizon (start <= due), or in progress whatever its dates.
       or(eq(tasks.status, 'doing'), sql`coalesce(${tasks.startDate}, ${tasks.dueDate}) <= ${until}`)!,
     ];
-    if (a.kind === 'org') conds.push(eq(tasks.assigneeId, a.userId));
+    if (a.kind === 'org') conds.push(hasAssignee(a.userId));
     const rows = await this.db
       .select()
       .from(tasks)
@@ -259,17 +260,19 @@ export class TasksService {
   }
 
   /**
-   * An assignee must belong to the workspace and be able to see the task: in a project,
+   * Every assignee must belong to the workspace and be able to see the task: in a project,
    * at least "view" there. In a personal space you can only assign yourself.
    */
-  private async assertAssignee(conn: Conn, a: Access, assigneeId: string | null | undefined, projectId: string | null) {
-    if (!assigneeId || assigneeId === a.userId) return;
-    if (a.kind === 'personal') throw new BadRequestException('개인 공간에서는 담당자를 자기 자신으로만 지정할 수 있습니다');
-    const member = await this.access.membership(a.workspaceId, assigneeId, conn);
-    const user = member ? await conn.query.users.findFirst({ where: eq(users.id, assigneeId) }) : undefined;
-    if (!member || !user) throw new BadRequestException('담당자는 이 조직의 멤버여야 합니다');
-    if (projectId && !atLeast(await this.access.userLevel(a.workspaceId, assigneeId, projectId, conn), 'view')) {
-      throw new BadRequestException(`${user.name}님은 이 프로젝트를 볼 수 없어 담당자로 지정할 수 없습니다. 먼저 프로젝트를 공유하세요.`);
+  private async assertAssignees(conn: Conn, a: Access, assigneeIds: readonly string[] | undefined, projectId: string | null) {
+    for (const id of assigneeIds ?? []) {
+      if (id === a.userId) continue;
+      if (a.kind === 'personal') throw new BadRequestException('개인 공간에서는 담당자를 자기 자신으로만 지정할 수 있습니다');
+      const member = await this.access.membership(a.workspaceId, id, conn);
+      const user = member ? await conn.query.users.findFirst({ where: eq(users.id, id) }) : undefined;
+      if (!member || !user) throw new BadRequestException('담당자는 이 조직의 멤버여야 합니다');
+      if (projectId && !atLeast(await this.access.userLevel(a.workspaceId, id, projectId, conn), 'view')) {
+        throw new BadRequestException(`${user.name}님은 이 프로젝트를 볼 수 없어 담당자로 지정할 수 없습니다. 먼저 프로젝트를 공유하세요.`);
+      }
     }
   }
 
@@ -300,11 +303,13 @@ export class TasksService {
       if (JSON.stringify(cur[f]) !== JSON.stringify(next[f])) out[f] = { from: cur[f], to: next[f] };
     }
     if (cur.notes !== next.notes) out.notes = true;
-    if (cur.projectId !== next.projectId || cur.assigneeId !== next.assigneeId) {
-      const name = await this.names(conn, { projects: [cur.projectId, next.projectId], users: [cur.assigneeId, next.assigneeId] });
+    const peopleChanged = !sameAssignees(cur.assigneeIds, next.assigneeIds);
+    if (cur.projectId !== next.projectId || peopleChanged) {
+      const name = await this.names(conn, { projects: [cur.projectId, next.projectId], users: [...cur.assigneeIds, ...next.assigneeIds] });
       if (cur.projectId !== next.projectId) out.project = { from: name(cur.projectId), to: name(next.projectId) };
-      if (cur.assigneeId !== next.assigneeId) {
-        out.assignee = { from: name(cur.assigneeId), to: name(next.assigneeId), fromId: cur.assigneeId, toId: next.assigneeId };
+      if (peopleChanged) {
+        const names = (ids: string[]) => ids.map((id) => name(id) ?? '(전 멤버)');
+        out.assignees = { from: names(cur.assigneeIds), to: names(next.assigneeIds), fromIds: cur.assigneeIds, toIds: next.assigneeIds };
       }
     }
     return out;
@@ -316,7 +321,7 @@ export class TasksService {
     const projectId = input.projectId ?? null;
     if (projectId) await this.projectInWorkspace(tx, a, projectId);
     this.assertProjectWritable(a, projectId);
-    await this.assertAssignee(tx, a, input.assigneeId, projectId);
+    await this.assertAssignees(tx, a, input.assigneeIds, projectId);
     const number = await this.nextNumber(tx, a.workspaceId);
     const status = input.status ?? 'todo';
     const [row] = await tx
@@ -324,7 +329,7 @@ export class TasksService {
       .values({
         workspaceId: a.workspaceId,
         createdBy: a.userId,
-        assigneeId: input.assigneeId ?? null,
+        assigneeIds: input.assigneeIds ?? [],
         number,
         title: input.title,
         notes: input.notes ?? '',
@@ -348,11 +353,17 @@ export class TasksService {
       taskId: row!.id,
       projectId,
       subject: taskSubject(row!),
-      ...(row!.assigneeId && row!.assigneeId !== a.userId
-        ? { data: { assignee: (await this.names(tx, { users: [row!.assigneeId] }))(row!.assigneeId) } }
-        : {}),
+      ...(await this.assignedNames(tx, a, row!)),
     });
     return row!;
+  }
+
+  /** For task.created: the people it was handed to, besides its maker. */
+  private async assignedNames(conn: Conn, a: Access, row: TaskRow): Promise<{ data?: { assignees: string[] } }> {
+    const others = row.assigneeIds.filter((id) => id !== a.userId);
+    if (!others.length) return {};
+    const name = await this.names(conn, { users: others });
+    return { data: { assignees: others.map((id) => name(id) ?? '(전 멤버)') } };
   }
 
   private async projectInWorkspace(conn: Conn, a: Access, projectId: string) {
@@ -438,9 +449,10 @@ export class TasksService {
       if (patch.projectId) await this.projectInWorkspace(conn, a, patch.projectId);
       this.assertProjectWritable(a, patch.projectId);
     }
-    const assigneeId = patch.assigneeId !== undefined ? patch.assigneeId : cur.assigneeId;
-    if (assigneeId !== cur.assigneeId || projectId !== cur.projectId) {
-      await this.assertAssignee(conn, a, assigneeId, projectId);
+    if (patch.assigneeIds !== undefined || projectId !== cur.projectId) {
+      const next = patch.assigneeIds ?? cur.assigneeIds;
+      // A new project checks everyone; otherwise only the people being added.
+      await this.assertAssignees(conn, a, projectId !== cur.projectId ? next : next.filter((id) => !cur.assigneeIds.includes(id)), projectId);
     }
 
     const set: Partial<TaskRow> = { ...fields, updatedAt: new Date() } as Partial<TaskRow>;
@@ -615,7 +627,7 @@ export class TasksService {
     if (a.kind === 'personal') return ws;
     const here = this.db.select({ id: projects.id }).from(projects).where(eq(projects.workspaceId, a.workspaceId));
     const gone = or(isNull(taskTrash.projectId), notInArray(taskTrash.projectId, here))!;
-    const mine = or(eq(taskTrash.createdBy, a.userId), eq(taskTrash.assigneeId, a.userId), eq(taskTrash.deletedBy, a.userId))!;
+    const mine = or(eq(taskTrash.createdBy, a.userId), hasAssignee(a.userId, taskTrash.assigneeIds), eq(taskTrash.deletedBy, a.userId))!;
     const orphan = and(gone, mine)!;
     const visible = a.visibleProjectIds();
     return and(ws, visible.length ? or(inArray(taskTrash.projectId, visible), orphan) : orphan)!;
@@ -630,7 +642,7 @@ export class TasksService {
   private canRestore(a: Access, r: TrashSubject): boolean {
     const projectId = this.landing(a, r);
     if (!projectId && a.kind === 'org' && r.deletedBy === a.userId) return true;
-    return canEditTask({ projectId, createdBy: r.createdBy, assigneeId: r.assigneeId }, a);
+    return canEditTask({ projectId, createdBy: r.createdBy, assigneeIds: r.assigneeIds }, a);
   }
 
   /**
@@ -667,7 +679,7 @@ export class TasksService {
           workspaceId: a.workspaceId,
           projectId: r.projectId,
           createdBy: r.createdBy,
-          assigneeId: r.assigneeId,
+          assigneeIds: r.assigneeIds,
           deletedBy: a.userId,
           task: toTask(r),
           dependencies: touching.get(r.id) ?? [],
@@ -744,7 +756,7 @@ export class TasksService {
     const seen = (id: string) => listed.has(id) || live.has(id);
     return rows.map(({ row, deletedByName }) => ({
       // Project and people as a restore would put them: a deleted project means the inbox.
-      task: { ...row.task, projectId: this.landing(a, row), createdBy: row.createdBy, assigneeId: row.assigneeId },
+      task: { ...row.task, projectId: this.landing(a, row), createdBy: row.createdBy, assigneeIds: row.assigneeIds },
       dependencies: row.dependencies.filter((d) => seen(d.taskId) && seen(d.dependsOnId)),
       deletedAt: row.deletedAt.toISOString(),
       deletedBy: row.deletedBy,
@@ -774,7 +786,7 @@ export class TasksService {
     return hit;
   }
 
-  /** An assignee stays only while still a member who can see where the task lands (as assertAssignee). */
+  /** An assignee stays only while still a member who can see where the task lands (as assertAssignees). */
   private async keptAssignee(conn: Conn, a: Access, assigneeId: string | null, projectId: string | null) {
     if (!assigneeId || assigneeId === a.userId) return assigneeId;
     if (a.kind === 'personal' || !(await this.access.membership(a.workspaceId, assigneeId, conn))) return null;
@@ -807,7 +819,7 @@ export class TasksService {
     const unique = [...new Set(ids)];
     return this.db.transaction(async (tx) => {
       const trashed: TaskTrashRow[] = [];
-      const liveRows: Pick<TaskRow, 'id' | 'workspaceId' | 'projectId' | 'createdBy' | 'assigneeId'>[] = [];
+      const liveRows: Pick<TaskRow, 'id' | 'workspaceId' | 'projectId' | 'createdBy' | 'assigneeIds'>[] = [];
       for (const part of chunks(unique)) {
         // Locked, so a second restore of the same task waits and then finds it live instead.
         trashed.push(
@@ -819,7 +831,7 @@ export class TasksService {
         );
         liveRows.push(
           ...(await tx
-            .select({ id: tasks.id, workspaceId: tasks.workspaceId, projectId: tasks.projectId, createdBy: tasks.createdBy, assigneeId: tasks.assigneeId })
+            .select({ id: tasks.id, workspaceId: tasks.workspaceId, projectId: tasks.projectId, createdBy: tasks.createdBy, assigneeIds: tasks.assigneeIds })
             .from(tasks)
             .where(inArray(tasks.id, part))),
         );
@@ -856,20 +868,24 @@ export class TasksService {
         const projectId = this.landing(a, r);
         const number = taken.has(t.number) ? await this.nextNumber(tx, a.workspaceId) : t.number;
         taken.add(number);
-        let assigneeId = await kept(r.assigneeId, projectId);
-        // An org inbox task is seen only by its maker and its assignee. Restored by someone else (its
-        // deleter, after its project went), it goes back to their inbox, as when a project is deleted
-        // without its tasks; but if neither is in the org any more nobody could ever see it again, so
-        // then the restorer becomes its assignee and keeps it.
-        if (!a.taskLevel({ projectId, createdBy: r.createdBy, assigneeId })) {
+        const assigneeIds: string[] = [];
+        for (const id of r.assigneeIds) {
+          const k = await kept(id, projectId);
+          if (k) assigneeIds.push(k);
+        }
+        // An org inbox task is seen only by its maker and its assignees. Restored by someone else (its
+        // deleter, after its project went), it goes back to their inboxes, as when a project is deleted
+        // without its tasks; but if none of them is in the org any more nobody could ever see it again,
+        // so then the restorer becomes its assignee and keeps it.
+        if (!a.taskLevel({ projectId, createdBy: r.createdBy, assigneeIds })) {
           const maker = projectId === null && r.createdBy ? await kept(r.createdBy, null) : null;
-          if (!assigneeId && !maker) assigneeId = a.userId;
+          if (!assigneeIds.length && !maker) assigneeIds.push(a.userId);
         }
         values.push({
           id: t.id,
           workspaceId: a.workspaceId,
           createdBy: r.createdBy,
-          assigneeId,
+          assigneeIds,
           number,
           projectId,
           title: t.title,
@@ -975,7 +991,7 @@ export class TasksService {
   /** Deletes trashed tasks for good. Each needs the same right as restoring it; unknown ids are skipped. */
   async purge(a: Access, ids: string[]): Promise<{ purged: number }> {
     return this.db.transaction(async (tx) => {
-      const rows: Pick<TaskTrashRow, 'id' | 'projectId' | 'createdBy' | 'assigneeId' | 'deletedBy' | 'task'>[] = [];
+      const rows: Pick<TaskTrashRow, 'id' | 'projectId' | 'createdBy' | 'assigneeIds' | 'deletedBy' | 'task'>[] = [];
       for (const part of chunks([...new Set(ids)])) {
         rows.push(
           ...(await tx
@@ -983,7 +999,7 @@ export class TasksService {
               id: taskTrash.id,
               projectId: taskTrash.projectId,
               createdBy: taskTrash.createdBy,
-              assigneeId: taskTrash.assigneeId,
+              assigneeIds: taskTrash.assigneeIds,
               deletedBy: taskTrash.deletedBy,
               task: taskTrash.task,
             })
@@ -1008,7 +1024,7 @@ export class TasksService {
         id: taskTrash.id,
         projectId: taskTrash.projectId,
         createdBy: taskTrash.createdBy,
-        assigneeId: taskTrash.assigneeId,
+        assigneeIds: taskTrash.assigneeIds,
         deletedBy: taskTrash.deletedBy,
       })
       .from(taskTrash)

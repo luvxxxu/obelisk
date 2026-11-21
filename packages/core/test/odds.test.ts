@@ -31,7 +31,7 @@ const T = (p: Partial<OddsTask> = {}): OddsTask => ({
   dueTime: null,
   estimateMinutes: 60,
   actualMinutes: 0,
-  queue: 'me',
+  queues: ['me'],
   ...p,
 });
 
@@ -148,6 +148,21 @@ describe('forecast odds', () => {
   });
 });
 
+describe('several assignees', () => {
+  test('shared work is done when the busiest of them gets to it', () => {
+    const two = new Map([
+      ['me', { hours: H, calibration: { ...NO_HISTORY, focus: 0.75 } }],
+      ['you', { hours: H, calibration: { ...NO_HISTORY, focus: 0.75 } }],
+    ]);
+    // "you" has three days of work ahead; the shared task waits for them even though "me" is free.
+    const busy = [1, 2, 3].map((d) => T({ id: `you${d}`, queues: ['you'], dueDate: addDays(TODAY, d), estimateMinutes: 360 }));
+    const shared = T({ id: 'shared', queues: ['me', 'you'], dueDate: addDays(TODAY, 10), estimateMinutes: 120 });
+    const solo = T({ id: 'solo', queues: ['me'], dueDate: addDays(TODAY, 10), estimateMinutes: 120 });
+    const r = forecastOdds(input([...busy, shared, solo], { people: two }));
+    expect(odds(r, 'shared').p50! > odds(r, 'solo').p50!).toBe(true);
+  });
+});
+
 describe('commitments', () => {
   test('the safe date never comes before the earliest; crowding shows who gets hurt', () => {
     const tasks = [
@@ -158,7 +173,7 @@ describe('commitments', () => {
       title: '새 견적서',
       estimateMinutes: 360,
       projectId: 'p',
-      queue: 'me',
+      queues: ['me'],
       priority: 2,
       blockedBy: [],
     }, { date: TODAY });
@@ -175,13 +190,13 @@ describe('commitments', () => {
 
   test('blockers hold the new work back', () => {
     const tasks = [T({ id: 'blocker', dueDate: addDays(TODAY, 4), estimateMinutes: 60, startDate: addDays(TODAY, 4) })];
-    const r = commitOdds(input(tasks, { runs: 120 }), { title: 'x', estimateMinutes: 30, projectId: 'p', queue: 'me', priority: 0, blockedBy: ['blocker'] });
+    const r = commitOdds(input(tasks, { runs: 120 }), { title: 'x', estimateMinutes: 30, projectId: 'p', queues: ['me'], priority: 0, blockedBy: ['blocker'] });
     expect(r.earliest!.date >= addDays(TODAY, 4)).toBe(true);
   });
 
   test('an existing task is dated without counting itself twice', () => {
     const tasks = [T({ id: 'mine', estimateMinutes: 120 })];
-    const r = commitOdds(input(tasks, { runs: 120 }), { taskId: 'mine', title: 'mine', estimateMinutes: 120, projectId: 'p', queue: 'me', priority: 0, blockedBy: [] });
+    const r = commitOdds(input(tasks, { runs: 120 }), { taskId: 'mine', title: 'mine', estimateMinutes: 120, projectId: 'p', queues: ['me'], priority: 0, blockedBy: [] });
     expect(r.earliest!.date <= addDays(TODAY, 1)).toBe(true);
     expect(r.earliest!.harmed).toEqual([]);
   });

@@ -1,3 +1,4 @@
+import { hasAssignee } from '../planner/assignees';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   atLeast,
@@ -86,7 +87,7 @@ export class Access implements AccessView {
   taskScope(): SQL {
     const ws = eq(tasks.workspaceId, this.workspaceId);
     if (this.kind === 'personal') return ws;
-    const inbox = and(isNull(tasks.projectId), or(eq(tasks.createdBy, this.userId), eq(tasks.assigneeId, this.userId)))!;
+    const inbox = and(isNull(tasks.projectId), or(eq(tasks.createdBy, this.userId), hasAssignee(this.userId)))!;
     const visible = this.visibleProjectIds();
     return and(ws, visible.length ? or(inArray(tasks.projectId, visible), inbox) : inbox)!;
   }

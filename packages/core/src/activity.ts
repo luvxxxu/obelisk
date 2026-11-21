@@ -27,6 +27,7 @@ const FIELD_KO: Record<string, string> = {
   estimateMinutes: '예상 시간',
   project: '프로젝트',
   assignee: '담당자',
+  assignees: '담당자',
   name: '이름',
   color: '색',
   membersCanCreateProjects: '멤버 프로젝트 생성',
@@ -94,7 +95,15 @@ export function changePhrases(changes: Record<string, unknown> | undefined): str
       continue;
     }
     if (field === 'assignee') {
+      // Entries from before tasks could have several people.
       out.push(c.to ? `담당자 → ${String(c.to)}` : '담당자 해제');
+      continue;
+    }
+    if (field === 'assignees') {
+      const names = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
+      const to = names(c.to);
+      const from = names(c.from);
+      out.push(to.length ? `담당자 ${from.length ? from.join(', ') : '없음'} → ${to.join(', ')}` : '담당자 해제');
       continue;
     }
     if (field === 'archived') continue;
@@ -116,8 +125,10 @@ export function describeActivity(e: Pick<ActivityEntry, 'action' | 'data' | 'sub
   const d = e.data ?? {};
   const changes = d.changes as Record<string, unknown> | undefined;
   switch (e.action) {
-    case 'task.created':
-      return d.assignee ? `작업을 만들고 ${String(d.assignee)}님을 담당자로 지정했습니다` : '작업을 만들었습니다';
+    case 'task.created': {
+      const names = Array.isArray(d.assignees) ? d.assignees.map(String) : d.assignee ? [String(d.assignee)] : [];
+      return names.length ? `작업을 만들고 ${names.join(', ')}님을 담당자로 지정했습니다` : '작업을 만들었습니다';
+    }
     case 'task.updated': {
       const parts = changePhrases(changes);
       const cause = d.cause ? ` · ${String(d.cause)} 지연으로 함께 밀림` : '';

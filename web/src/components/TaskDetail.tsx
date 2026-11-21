@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ASSIGNEES_MAX,
   addDays,
   describeActivity,
   diffDays,
@@ -48,7 +49,7 @@ import { isApple } from '@/lib/ui-helpers';
 import { DatePickerPanel, TimePickerPanel } from './DatePicker';
 import { Icon, type IconName } from './Icon';
 import { ImpactView } from './ImpactView';
-import { AutoTextarea, Avatar, Badge, buttonClass, isEnter, Popover, Separator, Switch, tip, ui, useDisclosure } from './primitives';
+import { AutoTextarea, Avatar, AvatarStack, Badge, buttonClass, isEnter, Popover, Separator, Switch, tip, ui, useDisclosure } from './primitives';
 import { Checkbox, shiftSpan } from './TaskRow';
 import { JevMark } from './JevDialogs';
 import { EstimateField, OddsBadge, TimeSection } from './TimeTracking';
@@ -400,7 +401,7 @@ function TaskDetailInner({ task }: { task: Task }) {
 
           {org && (
             <Prop icon="user" label="담당자">
-              <AssigneePicker task={task} onChange={(id) => void updateTask(task.id, { assigneeId: id })} />
+              <AssigneePicker task={task} onChange={(ids) => void updateTask(task.id, { assigneeIds: ids })} />
             </Prop>
           )}
 
@@ -1074,7 +1075,7 @@ function DelaySimulator({ task, dependents }: { task: Task; dependents: Task[] }
 
 /* ───────── assignee (organizations) */
 
-function AssigneePicker({ task, onChange }: { task: Task; onChange: (id: string | null) => void }) {
+function AssigneePicker({ task, onChange }: { task: Task; onChange: (ids: string[]) => void }) {
   const app = useApp();
   const ref = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1095,12 +1096,21 @@ function AssigneePicker({ task, onChange }: { task: Task; onChange: (id: string 
     };
   }, [d.open, task.projectId]);
 
-  const current = task.assigneeId ? app.members.find((m) => m.id === task.assigneeId) : null;
+  const ids = task.assigneeIds;
+  const people = ids.map((id) => {
+    const m = app.members.find((x) => x.id === id);
+    return { id, name: m?.name ?? '전 멤버', src: m?.avatarUrl ?? null };
+  });
+  const full = ids.length >= ASSIGNEES_MAX;
   const ql = q.trim().toLowerCase();
   const list = app.members
     .filter((m) => !ql || m.name.toLowerCase().includes(ql) || m.email.toLowerCase().includes(ql))
     .sort((a, b) => Number(b.id === app.user?.id) - Number(a.id === app.user?.id));
   const canSee = (id: string) => !task.projectId || !access || access.effective.some((e) => e.userId === id && e.level);
+  // Taking someone off is always allowed; adding needs room and their access to the project.
+  const canToggle = (id: string) => ids.includes(id) || (!full && canSee(id));
+  const toggle = (id: string) => onChange(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
+  const label = people.length === 0 ? '없음' : people.map((p) => p.name).join(', ');
 
   return (
     <>
@@ -1108,17 +1118,25 @@ function AssigneePicker({ task, onChange }: { task: Task; onChange: (id: string 
         ref={ref}
         type="button"
         className={s.trigger}
-        data-empty={!task.assigneeId}
+        data-empty={!ids.length}
         data-open={d.open}
         aria-haspopup="dialog"
         aria-expanded={d.open}
-        aria-label={`담당자: ${current?.name ?? '없음'}`}
+        aria-label={`담당자: ${label}`}
         onClick={d.toggle}
+        {...tip(people.length > 1 && label, { side: 'bottom' })}
       >
-        {task.assigneeId ? (
+        {people.length === 1 ? (
           <>
-            <Avatar name={current?.name ?? '?'} src={current?.avatarUrl} size="sm" className={s.assigneeAvatar} />
-            <span className={s.triggerText}>{current?.name ?? '전 멤버'}</span>
+            <Avatar name={people[0]!.name} src={people[0]!.src} size="sm" className={s.assigneeAvatar} />
+            <span className={s.triggerText}>{people[0]!.name}</span>
+          </>
+        ) : people.length > 1 ? (
+          <>
+            <AvatarStack people={people} size="xs" max={4} />
+            <span className={s.triggerText}>
+              {people.length === 2 ? label : `${people[0]!.name} 외 ${people.length - 1}명`}
+            </span>
           </>
         ) : (
           <span className={s.triggerText}>담당자 지정</span>
@@ -1135,36 +1153,40 @@ function AssigneePicker({ task, onChange }: { task: Task; onChange: (id: string 
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
-              const hit = list.find((m) => canSee(m.id));
+              // Enter toggles the first match and clears the search, ready for the next name.
+              const hit = list.find((m) => canToggle(m.id));
               if (isEnter(e) && hit) {
-                onChange(hit.id);
-                d.close();
+                toggle(hit.id);
                 setQ('');
               }
             }}
           />
         </div>
-        <div className={s.cmdList}>
-          {task.assigneeId && !ql && (
+        <div className={s.cmdList} role="listbox" aria-multiselectable="true" aria-label="담당자">
+          {ids.length > 0 && !ql && (
             <>
-              <button className={ui.menuItem} onClick={() => (onChange(null), d.close())}>
+              <button className={ui.menuItem} onClick={() => (onChange([]), d.close())}>
                 <Icon name="x" size={15} />
-                <span className={ui.truncate}>담당자 해제</span>
+                <span className={ui.truncate}>{ids.length > 1 ? `담당자 ${ids.length}명 모두 해제` : '담당자 해제'}</span>
               </button>
               <div className={ui.menuSep} />
             </>
           )}
           {list.map((m, i) => {
-            const ok = canSee(m.id);
+            const on = ids.includes(m.id);
+            const ok = canToggle(m.id);
+            const why = !ok && (full ? `담당자는 ${ASSIGNEES_MAX}명까지 지정할 수 있어요` : '이 프로젝트를 볼 수 없는 멤버예요. 먼저 공유하세요.');
             return (
               <button
                 key={m.id}
+                role="option"
+                aria-selected={on}
                 className={ui.menuItem}
-                data-selected={m.id === task.assigneeId}
-                data-active={!!ql && ok && i === list.findIndex((x) => canSee(x.id))}
+                data-selected={on}
+                data-active={!!ql && ok && i === list.findIndex((x) => canToggle(x.id))}
                 disabled={!ok}
-                onClick={() => (onChange(m.id), d.close(), setQ(''))}
-                {...tip(!ok && '이 프로젝트를 볼 수 없는 멤버예요. 먼저 공유하세요.', { side: 'left' })}
+                onClick={() => toggle(m.id)}
+                {...tip(why, { side: 'left' })}
               >
                 <Avatar name={m.name} src={m.avatarUrl} size="sm" className={s.assigneeAvatar} />
                 <span className={s.memberText}>
@@ -1172,14 +1194,17 @@ function AssigneePicker({ task, onChange }: { task: Task; onChange: (id: string 
                     {m.name}
                     {m.id === app.user?.id && <span className={s.memberMe}> (나)</span>}
                   </span>
-                  <span className={s.memberMeta}>{ok ? m.email : '프로젝트 권한 없음'}</span>
+                  <span className={s.memberMeta}>{ok || full ? m.email : '프로젝트 권한 없음'}</span>
                 </span>
-                {m.id === task.assigneeId && <Icon name="check" size={14} className={s.menuCheck} />}
+                <span className={s.menuCheckBox} data-on={on} aria-hidden="true">
+                  {on && <Icon name="check" size={12} />}
+                </span>
               </button>
             );
           })}
           {list.length === 0 && <div className={s.cmdEmpty}>일치하는 멤버가 없어요</div>}
         </div>
+        <div className={s.cmdHint}>여러 명을 고를 수 있어요 · 모두 같은 담당자예요</div>
       </Popover>
     </>
   );

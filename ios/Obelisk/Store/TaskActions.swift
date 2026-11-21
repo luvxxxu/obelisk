@@ -7,6 +7,7 @@ struct PasteContext: Sendable {
     var projectId: String?
     /// Lines without a date get this due date.
     var defaultDueDate: ISODate?
+    /// New tasks go to this person (yourself on 내 작업).
     var assigneeId: String?
 }
 
@@ -257,7 +258,7 @@ extension AppStore {
             t.dueTime = q.dueDate != nil ? q.dueTime : nil
             t.priority = q.priority ?? 0
             t.fixed = q.fixed
-            t.assigneeId = ctx.assigneeId
+            t.assigneeIds = ctx.assigneeId.map { [$0] } ?? []
             return t
         }
         guard !inputs.isEmpty else {

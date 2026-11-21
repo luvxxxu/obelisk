@@ -62,10 +62,9 @@ export function toDelivery(r: WebhookDeliveryRow): WebhookDelivery {
   };
 }
 
-/** Task → payload shape, given names for its project and assignee. */
+/** Task → payload shape, given names for its project and assignees. */
 export function taskRef(t: TaskRow, names: (id: string | null) => string | null): WebhookTaskRef {
   const projectName = names(t.projectId);
-  const assigneeName = names(t.assigneeId);
   return {
     id: t.id,
     ref: `#${t.number}`,
@@ -79,7 +78,10 @@ export function taskRef(t: TaskRow, names: (id: string | null) => string | null)
     dueTime: t.dueDate ? t.dueTime : null,
     fixed: t.fixed,
     project: t.projectId && projectName ? { id: t.projectId, name: projectName } : null,
-    assignee: t.assigneeId && assigneeName ? { id: t.assigneeId, name: assigneeName } : null,
+    assignees: t.assigneeIds.flatMap((id) => {
+      const name = names(id);
+      return name ? [{ id, name }] : [];
+    }),
     url: taskUrl(t.id),
   };
 }
@@ -146,7 +148,7 @@ export class WebhooksService implements OnModuleInit {
       await conn.transaction(async (sp) => {
         const ws = await sp.query.workspaces.findFirst({ where: eq(workspaces.id, row.workspaceId) });
         if (!ws) return;
-        // Tasks outside any project are private in an organization (creator and assignee only).
+        // Tasks outside any project are private in an organization (creator and assignees only).
         if (ws.kind === 'org' && row.taskId && !row.projectId) return;
         const payload = await this.activityPayload(sp, ws, row, mapped.event);
         await sp.insert(webhookDeliveries).values(hooks.map((h) => ({ webhookId: h.id, event: mapped.event, payload })));
@@ -164,7 +166,7 @@ export class WebhooksService implements OnModuleInit {
     if (row.taskId) {
       const t = await conn.query.tasks.findFirst({ where: eq(tasks.id, row.taskId) });
       if (t) {
-        task = taskRef(t, await nameLookup(conn, { projects: [t.projectId], users: [t.assigneeId] }));
+        task = taskRef(t, await nameLookup(conn, { projects: [t.projectId], users: t.assigneeIds }));
         url = task.url;
       } else task = null;
     } else if (row.projectId) {

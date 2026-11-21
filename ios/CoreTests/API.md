@@ -21,8 +21,8 @@ After changing the TS, regenerate the fixture: `bun ios/CoreTests/gen-parity.ts 
 | `DateSpanLike` | `startDate`, `dueDate` | TaskItem, PlanItem, DateSpan, TimedSpan, OverviewTask |
 | `TimedSpanLike: DateSpanLike` | + `startTime`, `dueTime` | TaskItem, PlanItem, DateSpan (times nil), OverviewTask |
 | `ViewTask: TimedSpanLike` | + `id, status, projectId, priority, number, completedAt, position` | TaskItem, OverviewTask |
-| `OverviewSubject: ViewTask` | + `fixed`, `assigneeId` | TaskItem, OverviewTask |
-| `TaskAccessSubject` | `projectId, createdBy, assigneeId` | TaskItem, OverviewTask |
+| `OverviewSubject: ViewTask` | + `fixed`, `assigneeIds` | TaskItem, OverviewTask |
+| `TaskAccessSubject` | `projectId, createdBy, assigneeIds` | TaskItem, OverviewTask |
 | `UrgencySubject: DateSpanLike` | + `fixed`, `status` | TaskItem, PlanItem, OverviewTask |
 | `HasName` | `name` | Project, Team, Member, OverviewProject |
 | `AnyAccessLevel` | `levelRank`, `asAccessLevel` | AccessLevel, MemberAccess |
@@ -307,7 +307,7 @@ func detectWebhookFormat(_ url: String) -> WebhookFormat     // Slack/Discord by
 func maskWebhookUrl(_ url: String) -> String                  // "hooks.slack.com/services/…3456"
 // payload
 struct WebhookNamedRef { id, name } ; struct WebhookWorkspaceRef { id, name, kind } ; struct WebhookActor { id?, name, via, client? }
-struct WebhookTaskRef { id, ref, number, title, status, priority, startDate?, startTime?, dueDate?, dueTime?, fixed, project?, assignee?, url }
+struct WebhookTaskRef { id, ref, number, title, status, priority, startDate?, startTime?, dueDate?, dueTime?, fixed, project?, assignees: [WebhookNamedRef], url }
 struct WebhookProjectRef { id, name, url? } ; struct WebhookAlertCause { id, ref, title }
 struct WebhookAlert { date, daysOverdue?, overrunDays?, cause?, at?, minutesLeft? }
 struct WebhookPayload { id, event, createdAt, workspace, actor?, subject, summary, text, url?, task?, project?, changes?, data?, alert? }
@@ -322,7 +322,7 @@ func reminderAlerts(_ items: [PlanItem], _ now: Clock, _ lead: Int, _ keys: [Web
 func reminderSummary(_ r: Reminder, _ today: ISODate) -> String
 // incoming (server-side parser, ported for parity)
 struct IncomingPatch { title?, notes?, status?, priority?, startDate??, startTime??, dueDate??, dueTime??, fixed?; isEmpty; json }
-struct IncomingCreate { title, patch: IncomingPatch, project?, assignee? }
+struct IncomingCreate { title, patch: IncomingPatch, project?, assignees? }
 enum IncomingCommand { case create(IncomingCreate), update(task: String, patch: IncomingPatch); var json: JSONValue }
 enum IncomingParse { case ok(IncomingCommand), error(String); command, errorMessage, isOk }
 func parseIncoming(_ body: JSONValue, _ today: ISODate, timeZone: String? = nil, nowMinutes: Int? = nil) -> IncomingParse

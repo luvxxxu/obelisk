@@ -170,14 +170,24 @@ check(!(await cat.api('GET', '/api/bootstrap')).projects.some((p: any) => p.id =
 console.log('private inbox and assignees');
 const { task: inbox } = await bob.api('POST', '/api/tasks', { title: 'Bob 개인 메모' });
 check(!(await ann.api('GET', '/api/bootstrap')).tasks.some((t: any) => t.id === inbox.id), "an org inbox task is hidden even from the owner");
-check((await bob.status('PATCH', `/api/tasks/${inbox.id}`, { assigneeId: catUser.id })) === 200, 'assign it to a teammate');
+check((await bob.status('PATCH', `/api/tasks/${inbox.id}`, { assigneeIds: [bobUser.id, catUser.id] })) === 200, 'assign it to a teammate, keeping himself');
 check((await cat.api('GET', '/api/bootstrap')).tasks.some((t: any) => t.id === inbox.id), 'the assignee now sees it');
 check((await cat.status('PATCH', `/api/tasks/${inbox.id}`, { status: 'done' })) === 200, 'and can complete it');
 check(
-  (await ann.status('PATCH', `/api/tasks/${t1.id}`, { assigneeId: catUser.id })) === 400,
+  (await ann.status('PATCH', `/api/tasks/${t1.id}`, { assigneeIds: Array.from({ length: 21 }, () => crypto.randomUUID()) })) === 400,
+  'at most 20 assignees',
+);
+check(
+  (await ann.status('PATCH', `/api/tasks/${t1.id}`, { assigneeIds: [bobUser.id, catUser.id] })) === 400,
   'cannot assign someone who cannot see the project',
 );
-check((await ann.status('PATCH', `/api/tasks/${t1.id}`, { assigneeId: bobUser.id })) === 200, 'can assign someone who can');
+check((await ann.status('PATCH', `/api/tasks/${t1.id}`, { assigneeIds: [bobUser.id, annUser.id, bobUser.id] })) === 200, 'can assign people who can');
+check(
+  JSON.stringify((await ann.api('GET', `/api/tasks/${t1.id}`)).task.assigneeIds) === JSON.stringify([bobUser.id, annUser.id]),
+  'several assignees, in order, duplicates dropped',
+);
+check((await ann.api('GET', '/api/tasks?assignee=me')).tasks.some((t: any) => t.id === t1.id), 'a shared task is in each assignee\'s list');
+await ann.api('PATCH', `/api/tasks/${t1.id}`, { assigneeIds: [bobUser.id] });
 const mine = (await bob.api('GET', '/api/tasks?assignee=me')).tasks;
 check(mine.length === 1 && mine[0].id === t1.id, 'assignee=me lists my tasks');
 
@@ -195,7 +205,7 @@ check(t3After.dueDate === day(5), 'the read-only task did not move');
 // ───────────────────────────── 모아보기 (every space at once)
 
 console.log('overview across spaces');
-const { task: t4 } = await ann.api('POST', '/api/tasks', { title: '출시 체크', projectId: p3.id, dueDate: day(1), assigneeId: bobUser.id });
+const { task: t4 } = await ann.api('POST', '/api/tasks', { title: '출시 체크', projectId: p3.id, dueDate: day(1), assigneeIds: [bobUser.id] });
 const bobHome = new Browser('bob-personal');
 bobHome.cookie = bob.cookie; // same session, personal space open (his default is the org he was invited to)
 bobHome.workspace = 'personal';
@@ -251,8 +261,8 @@ check(refs.includes(t1.id) && refs.includes(t3.id), 'list_tasks sees granted pro
 check(listed.structuredContent.tasks.find((t: any) => t.id === t3.id)?.readOnly === true, 'view-only tasks are marked readOnly');
 const denied = await call('update_task', { ref: `#${t3.number}`, title: '해킹' });
 check(denied.isError && /권한/.test(denied.content[0].text), 'MCP writes to a view-only task are refused');
-const allowed = await call('update_task', { ref: `#${t1.number}`, priority: 'high', assignee: 'me' });
-check(!allowed.isError && allowed.structuredContent.updated.assignee === 'Bob', 'MCP writes where the account may');
+const allowed = await call('update_task', { ref: `#${t1.number}`, priority: 'high', addAssignees: ['me'] });
+check(!allowed.isError && JSON.stringify(allowed.structuredContent.updated.assignees) === '["Bob"]', 'MCP writes where the account may');
 const hiddenAnn = await ann.api('POST', '/api/tasks', { title: '비밀', projectId: (await ann.api('POST', '/api/projects', { name: '비밀 프로젝트' })).project.id });
 const peek = await call('get_task', { ref: `#${hiddenAnn.task.number}` });
 check(peek.isError, 'MCP cannot read tasks in projects the account cannot see');
@@ -312,7 +322,7 @@ console.log('trash');
     "the deleter's restore puts it back in its maker's private inbox (not missing, just not theirs to see)",
   );
   const bobsAgain = (await bob.api('GET', `/api/tasks/${bobMade2.id}`)).task;
-  check(bobsAgain.projectId === null && bobsAgain.assigneeId === null, 'its maker sees it, unassigned, in their inbox');
+  check(bobsAgain.projectId === null && bobsAgain.assigneeIds.length === 0, 'its maker sees it, unassigned, in their inbox');
 
   const restored = await ann.api('POST', '/api/trash/restore', { ids: [t3.id, secret.id] });
   check(restored.tasks.length === 2 && restored.dependencies.some((d: any) => d.taskId === t3.id && d.dependsOnId === t2.id), 'the owner restores with links');
@@ -348,7 +358,7 @@ await ann.api('DELETE', `/api/workspaces/${org.id}/members/${catUser.id}`);
 check((await cat.status('GET', '/api/bootstrap')) === 404, 'a removed member loses the org');
 const orphaned = await ann.api('POST', '/api/trash/restore', { ids: [catMade.id] });
 check(
-  orphaned.tasks[0]?.id === catMade.id && orphaned.tasks[0].assigneeId === annUser.id && orphaned.tasks[0].projectId === null,
+  orphaned.tasks[0]?.id === catMade.id && JSON.stringify(orphaned.tasks[0].assigneeIds) === JSON.stringify([annUser.id]) && orphaned.tasks[0].projectId === null,
   'a task whose maker has left comes back assigned to whoever restores it, so it does not vanish',
 );
 check((await new Browser('x').api('GET', `/api/invites/${token}`)).invite.valid === false, 'old link stays used up');

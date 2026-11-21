@@ -179,7 +179,7 @@ func maskWebhookUrl(_ url: String) -> String {
 
 // MARK: - payload
 
-/// `{ id, name }` (a task's project or assignee, a webhook's creator).
+/// `{ id, name }` (a task's project or one of its assignees, a webhook's creator).
 struct WebhookNamedRef: Codable, Hashable, Sendable {
     var id: String
     var name: String
@@ -200,7 +200,8 @@ struct WebhookTaskRef: Codable, Hashable, Sendable {
     var dueTime: ISOTime?
     var fixed: Bool
     var project: WebhookNamedRef?
-    var assignee: WebhookNamedRef?
+    /// Everyone working on it, in the order they were added (empty = unassigned).
+    var assignees: [WebhookNamedRef]
     var url: String
 }
 
@@ -530,14 +531,14 @@ struct IncomingCreate: Hashable, Sendable {
     var patch: IncomingPatch
     /// A project name or id.
     var project: String?
-    /// An email, a member name, a user id or "me".
-    var assignee: String?
+    /// Each an email, a member name, a user id or "me". nil = none given.
+    var assignees: [String]?
 
-    init(title: String, patch: IncomingPatch = IncomingPatch(), project: String? = nil, assignee: String? = nil) {
+    init(title: String, patch: IncomingPatch = IncomingPatch(), project: String? = nil, assignees: [String]? = nil) {
         self.title = title
         self.patch = patch
         self.project = project
-        self.assignee = assignee
+        self.assignees = assignees
     }
 }
 
@@ -553,7 +554,7 @@ enum IncomingCommand: Hashable, Sendable {
             o["title"] = .string(c.title)
             o["kind"] = "create"
             if let p = c.project { o["project"] = .string(p) }
-            if let a = c.assignee { o["assignee"] = .string(a) }
+            if let a = c.assignees { o["assignees"] = .array(a.map(JSONValue.string)) }
             return .object(o)
         case let .update(task, patch):
             return ["kind": "update", "task": .string(task), "patch": patch.json]
@@ -624,6 +625,23 @@ private func str(_ v: JSONValue?, _ field: String, _ max: Int) throws -> String?
     let s = JS.trim(JS.string(v))
     if JS.length(s) > max { throw fail("\(field): \(max)자를 넘을 수 없습니다") }
     return s
+}
+
+/// `assignees`: an array, one string, or names split by commas — at most 20, duplicates dropped.
+private func people(_ v: JSONValue?) throws -> [String] {
+    guard let v, v != .null else { return [] }
+    let list: [JSONValue]
+    switch v {
+    case let .array(a): list = a
+    case let .string(s): list = JS.split(s, ",").map(JSONValue.string)
+    default: list = [v]
+    }
+    var out: [String] = []
+    for item in list {
+        if let s = try str(item, "assignees", 320), !s.isEmpty, !out.contains(s) { out.append(s) }
+    }
+    if out.count > 20 { throw fail("assignees: 담당자는 20명까지 지정할 수 있습니다") }
+    return out
 }
 
 private struct ParseCtx {
@@ -866,11 +884,11 @@ private func fromObject(_ o: [String: JSONValue], _ ctx: ParseCtx) throws -> Inc
         rest.removeValue(forKey: "title")
         let patch = try patchFrom(rest, ctx)
         let project = try str(JS.coalesce(o["project"], o["projectId"]), "project", 200)
-        let assignee = try str(JS.coalesce(o["assignee"], o["assigneeId"]), "assignee", 320)
+        let assignees = try people(JS.coalesce(JS.coalesce(JS.coalesce(o["assignees"], o["assigneeIds"]), o["assignee"]), o["assigneeId"]))
         return .create(IncomingCreate(
             title: title, patch: patch,
             project: project.jsTruthy ? project : nil,
-            assignee: assignee.jsTruthy ? assignee : nil
+            assignees: assignees.isEmpty ? nil : assignees
         ))
     }
 
@@ -889,7 +907,7 @@ private func fromObject(_ o: [String: JSONValue], _ ctx: ParseCtx) throws -> Inc
 }
 
 /// Turn a request body into one command. Accepts plain text (`.string`), `{ text }`, a create body
-/// (`{ title, dueDate, priority, project, assignee, … }`) or an update
+/// (`{ title, dueDate, priority, project, assignees, … }`) or an update
 /// (`{ action: "complete" | "start" | "cancel" | "reopen" | "update", task: "#12", … }`).
 func parseIncoming(_ body: JSONValue, _ today: ISODate, timeZone: String? = nil, nowMinutes: Int? = nil) -> IncomingParse {
     let ctx = ParseCtx(today: today, timeZone: timeZone, nowMinutes: nowMinutes)

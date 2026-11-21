@@ -153,7 +153,7 @@ extension AppStore {
         var title: String?
         var estimateMinutes: Int?
         var projectId: String?
-        var assigneeId: String?
+        var assigneeIds: [String] = []
         var blockedBy: [String] = []
         var date: ISODate?
         var confidence: Double?
@@ -164,7 +164,7 @@ extension AppStore {
             if let title, !title.isEmpty { o["title"] = .string(title) }
             if let estimateMinutes { o["estimateMinutes"] = .number(Double(estimateMinutes)) }
             if let projectId { o["projectId"] = .string(projectId) }
-            if let assigneeId { o["assigneeId"] = .string(assigneeId) }
+            if !assigneeIds.isEmpty { o["assigneeIds"] = .array(assigneeIds.map(JSONValue.string)) }
             if !blockedBy.isEmpty { o["blockedBy"] = .array(blockedBy.map(JSONValue.string)) }
             if let date { o["date"] = .string(date) }
             if let confidence { o["confidence"] = .number(confidence) }

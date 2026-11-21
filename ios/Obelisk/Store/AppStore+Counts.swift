@@ -30,7 +30,7 @@ extension AppStore {
         let now = nowIn(timezone)
         for t in active {
             if let p = t.projectId { c.byProject[p, default: 0] += 1 } else { c.inbox += 1 }
-            if let uid = user?.id, t.assigneeId == uid { c.mine += 1 }
+            if t.isAssigned(to: user?.id) { c.mine += 1 }
         }
         c.today = list.filter { isToday($0, today) }.count
         c.overdue = list.filter { isOverdue($0, today, now) }.count

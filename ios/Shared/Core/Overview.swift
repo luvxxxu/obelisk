@@ -52,7 +52,7 @@ struct OverviewTask: Codable, Hashable, Sendable, Identifiable {
     var completedAt: String? { task.completedAt }
     var position: Double { task.position }
     var fixed: Bool { task.fixed }
-    var assigneeId: String? { task.assigneeId }
+    var assigneeIds: [String] { task.assigneeIds }
     var createdBy: String? { task.createdBy }
 }
 
@@ -91,7 +91,7 @@ private func active(_ s: TaskStatus) -> Bool { s == .todo || s == .doing }
 
 /// Personal space: all of it. Organization: what is assigned to the user.
 func isMine<T: OverviewSubject>(_ t: T, _ kind: WorkspaceKind, _ userId: String) -> Bool {
-    kind == .personal || (!userId.isEmpty && t.assigneeId == userId)
+    kind == .personal || (!userId.isEmpty && t.assigneeIds.contains(userId))
 }
 
 /// The day a task sits on in the week list: its due date, else its start (as on the Upcoming page).

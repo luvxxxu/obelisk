@@ -130,7 +130,7 @@ export class AlertsService implements OnModuleInit, OnModuleDestroy {
     const items = visible.map(toPlanItem);
     const names = await nameLookup(this.db, {
       projects: visible.map((t) => t.projectId),
-      users: visible.map((t) => t.assigneeId),
+      users: visible.flatMap((t) => t.assigneeIds),
     });
 
     let queued = 0;
@@ -226,7 +226,7 @@ export class AlertsService implements OnModuleInit, OnModuleDestroy {
       if (!due.length) continue;
       names ??= await nameLookup(this.db, {
         projects: visible.map((t) => t.projectId),
-        users: visible.map((t) => t.assigneeId),
+        users: visible.flatMap((t) => t.assigneeIds),
       });
       const values = due.map((r) => {
         const t = byId.get(r.taskId)!;

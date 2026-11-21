@@ -200,7 +200,8 @@ export interface Task {
   actualMinutes: number;
   position: number;
   postponedCount: number;
-  assigneeId: string | null;
+  /** Who works on it, in the order they were added (none = unassigned). All count equally. */
+  assigneeIds: string[];
   createdBy: string | null;
   completedAt: string | null;
   createdAt: string;

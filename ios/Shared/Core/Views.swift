@@ -32,7 +32,7 @@ protocol ViewTask: TimedSpanLike {
 /// A ViewTask that also knows whether it is fixed and who it is assigned to (`OverviewSubject`).
 protocol OverviewSubject: ViewTask {
     var fixed: Bool { get }
-    var assigneeId: String? { get }
+    var assigneeIds: [String] { get }
 }
 
 extension TaskItem: ViewTask, OverviewSubject, TimedSpanLike, DateSpanLike {}
