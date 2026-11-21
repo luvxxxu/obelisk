@@ -223,7 +223,7 @@ struct ForecastScreen: View {
         let changes = changesFromReport(fc, true)
         if await store.reschedule(changes) {
             Haptics.success()
-            store.toasts.show("\(changes.count)개 작업을 오늘 기준으로 다시 맞췄어요")
+            store.history.notify("\(changes.count)개 작업을 오늘 기준으로 다시 맞췄어요", store.history.latest)
         }
     }
 
@@ -380,7 +380,7 @@ struct ForecastScreen: View {
         let changes = changesFromReport(r.report, true)
         if await store.reschedule(changes, rootId: r.task.id) {
             Haptics.success()
-            store.toasts.show(changes.count > 1 ? "오늘로 옮기고 \(changes.count - 1)개 작업을 함께 조정했어요" : "오늘로 옮겼어요")
+            store.history.notify(changes.count > 1 ? "오늘로 옮기고 \(changes.count - 1)개 작업을 함께 조정했어요" : "오늘로 옮겼어요", store.history.latest)
         }
     }
 

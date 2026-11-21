@@ -64,4 +64,9 @@ describe('activity phrases', () => {
     });
     expect(text).toBe('공유 설정 · 조직 전체 권한 없음 → 보기 · 김민지 권한 없음 → 쓰기');
   });
+
+  test('a task back from the trash says so', () => {
+    expect(describeActivity({ action: 'task.deleted', subject: '#3 개발', data: {} })).toBe('작업을 삭제했습니다');
+    expect(describeActivity({ action: 'task.restored', subject: '#3 개발', data: {} })).toBe('작업을 휴지통에서 되살렸습니다');
+  });
 });

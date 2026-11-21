@@ -46,9 +46,10 @@ struct MainShell: View {
                     .offset(x: x)
                     .accessibilityHidden(router.sidebarOpen)
             }
-            // Swipe from the left edge to open, at a page's root (deeper, the edge swipe goes back).
+            // Swipe from the left edge to open, at a page's root (deeper, the edge swipe goes back). Off in
+            // 선택 모드: the list's circles sit at that edge and its two-finger pan must not wait for it.
             .gesture(EdgePanGesture(
-                isEnabled: router.path.isEmpty && !router.sidebarOpen && router.sheet == nil,
+                isEnabled: router.path.isEmpty && !router.sidebarOpen && router.sheet == nil && !router.selection.isActive,
                 onChanged: { t in
                     if drag == 0, t > 0 { UIApplication.endEditing() }
                     drag = min(t, width)
@@ -60,6 +61,7 @@ struct MainShell: View {
 
     private var content: some View {
         @Bindable var router = router
+        let selection = router.selection
         return NavigationStack(path: $router.path) {
             PageView(page: router.page)
                 .id(router.page)
@@ -69,10 +71,26 @@ struct MainShell: View {
                 .toolbar { ShellToolbar() }
                 .navigationBarTitleDisplayMode(.inline)
         }
-        .overlay(alignment: .bottom) { ToastOverlay(raised: router.path.isEmpty && router.page.showsComposer) }
+        .overlay(alignment: .bottom) {
+            ToastOverlay(raised: router.path.isEmpty && (router.page.showsComposer || selection.isActive))
+        }
         // The completion toast's 고치기 opens the "실제 시간 고치기" sheet.
         .onAppear {
             store.editActual = { [router, store] id in router.presentActualEditor(store, taskId: id) }
+        }
+        // ⌘Z / ⌘⇧Z and shake walk the same undo history as the toasts' 실행 취소.
+        .undoControls()
+        .shellKeys()
+        // A batch of 10 or more asks before going to the trash (fewer go at once, with 실행 취소).
+        .confirmationDialog(
+            "작업 \(selection.pendingTrash.count)개를 휴지통으로 옮길까요?",
+            isPresented: Binding(get: { !selection.pendingTrash.isEmpty }, set: { if !$0 { selection.pendingTrash = [] } }),
+            titleVisibility: .visible
+        ) {
+            Button("휴지통으로 옮기기", role: .destructive) { selection.confirmTrash(store) }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("\(TRASH_DAYS)일 동안 휴지통에 보관돼요. 그 안에는 언제든 되살릴 수 있어요.")
         }
         .modifier(PendingChangePresenter(active: router.sheet == nil))
         // Jev auto-pilot (web AppShell JevAutoPilot): applies confident priorities when the user opted in.
@@ -127,38 +145,70 @@ struct MainShell: View {
     }
 }
 
-/// Top bar: menu (glass) · workspace switcher (title) · search + new task (glass).
+/// Top bar: menu (glass) · workspace switcher (title) · 선택 + search + new task (glass).
+/// In 선택 모드: 모두 선택 / 선택 해제 · N개 선택 · a close button that ends the mode.
 struct ShellToolbar: ToolbarContent {
     @Environment(Router.self) private var router
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Button {
-                UIApplication.endEditing()
-                router.toggleSidebar()
-                Haptics.select()
-            } label: {
-                Image(systemName: "line.3.horizontal")
+        let selection = router.selection
+        if selection.isActive {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(selection.allPicked ? "선택 해제" : "모두 선택") { selection.toggleAll() }
             }
-            .accessibilityLabel("메뉴 열기")
-        }
-        ToolbarItem(placement: .principal) {
-            WorkspaceSwitcher()
-        }
-        .sharedBackgroundVisibility(.hidden)
-        ToolbarItemGroup(placement: .topBarTrailing) {
-            Button {
-                router.present(.init(id: "search", detents: [.large]) { SearchSheet() })
-            } label: {
-                Image(systemName: "magnifyingglass")
+            ToolbarItem(placement: .principal) {
+                Text("\(selection.ids.count)개 선택")
+                    .font(ObFont.bodyStrong)
+                    .foregroundStyle(Ob.text)
+                    .monospacedDigit()
             }
-            .accessibilityLabel("검색")
-            Button {
-                router.present(.init(id: "new-task", detents: [.medium, .large]) { NewTaskSheet(prefill: router.newTaskPrefill) })
-            } label: {
-                Image(systemName: "square.and.pencil")
+            .sharedBackgroundVisibility(.hidden)
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    selection.end()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .accessibilityLabel("선택 끝내기")
             }
-            .accessibilityLabel("새 작업")
+        } else {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    UIApplication.endEditing()
+                    router.toggleSidebar()
+                    Haptics.select()
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                }
+                .accessibilityLabel("메뉴 열기")
+            }
+            ToolbarItem(placement: .principal) {
+                WorkspaceSwitcher()
+            }
+            .sharedBackgroundVisibility(.hidden)
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                // Only on a page whose list can be picked from (not 홈, a timeline or an empty list).
+                if selection.canSelect {
+                    Button {
+                        selection.begin()
+                    } label: {
+                        Image(systemName: "checkmark.circle")
+                    }
+                    .accessibilityLabel("선택")
+                }
+                Button {
+                    router.present(.init(id: "search", detents: [.large]) { SearchSheet() })
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                }
+                .accessibilityLabel("검색")
+                Button {
+                    router.present(.init(id: "new-task", detents: [.medium, .large]) { NewTaskSheet(prefill: router.newTaskPrefill) })
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                }
+                .accessibilityLabel("새 작업")
+            }
         }
     }
 }
@@ -172,12 +222,16 @@ extension Router {
     }
 }
 
-/// The page for a sidebar destination, with the composer docked at the bottom where it belongs.
+/// The page for a sidebar destination, with the composer docked at the bottom where it belongs. In 선택
+/// 모드 the selection bar takes its place; the composer stays underneath, hidden, so a half-typed task
+/// is still there afterwards.
 struct PageView: View {
     var page: Page
     @Environment(AppStore.self) private var store
+    @Environment(Router.self) private var router
 
     var body: some View {
+        let selecting = router.selection.isActive
         screen
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .obPage()
@@ -187,10 +241,22 @@ struct PageView: View {
                 VStack(spacing: 0) {
                     // The running clock floats above the composer (one across all spaces).
                     RunningTimerPill()
-                        .padding(.bottom, page.showsComposer && canCompose ? 0 : ObSpace.md)
-                    if page.showsComposer, canCompose {
-                        Composer(page: page)
+                        .padding(.bottom, (page.showsComposer && canCompose) || selecting ? 0 : ObSpace.md)
+                    // While picking, the selection bar takes the composer's place (the composer stays
+                    // underneath, so half-typed text survives).
+                    ZStack(alignment: .bottom) {
+                        if page.showsComposer, canCompose {
+                            Composer(page: page)
+                                .opacity(selecting ? 0 : 1)
+                                .allowsHitTesting(!selecting)
+                                .accessibilityHidden(selecting)
+                        }
+                        // 휴지통 shows its own (되살리기 · 영구 삭제).
+                        if selecting, page != .trash {
+                            SelectionBar()
+                        }
                     }
+                    .animation(ObMotion.standard, value: selecting)
                 }
                 .animation(ObMotion.mid, value: store.running?.entry.id)
             }
@@ -213,6 +279,7 @@ struct PageView: View {
         case .all: AllScreen()
         case .forecast: ForecastScreen()
         case .logbook: LogbookScreen()
+        case .trash: TrashScreen()
         case let .project(id): ProjectScreen(projectId: id)
         }
     }

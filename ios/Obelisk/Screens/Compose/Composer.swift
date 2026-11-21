@@ -4,7 +4,7 @@ import SwiftUI
 /// web QuickAdd inside. Type "보고서 내일 오후 3시 #업무 !높음": the chips above the line show exactly what
 /// will be understood (tap one to keep its words as text), Jev offers project / priority / fixed for what
 /// the text leaves open, return or ↑ adds the task and keeps the keyboard up for the next one. "+" opens
-/// the full form with what's typed so far.
+/// the full form with what's typed so far. Pasting several lines offers 줄마다 작업 N개 만들기 (web ⌘V).
 struct Composer: View {
     var page: Page
 
@@ -15,7 +15,15 @@ struct Composer: View {
     @State private var busy = false
     @State private var helpOpen = false
     @State private var jev = ComposeJevState()
+    /// Text pasted with several lines: kept whole for 줄마다 작업 만들기 while the field still shows it joined.
+    @State private var pasted: PastedLines?
     @FocusState private var focused: Bool
+
+    private struct PastedLines: Equatable {
+        var raw: String
+        var joined: String
+        var count: Int
+    }
 
     var body: some View {
         let m = model
@@ -35,6 +43,7 @@ struct Composer: View {
         .animation(ObMotion.standard, value: m.offers.map(\.kind))
         .animation(ObMotion.standard, value: m.typing)
         .animation(ObMotion.mid, value: helpOpen)
+        .animation(ObMotion.standard, value: pasted)
         .task(id: m.triageKey) {
             await jev.run(
                 key: m.triageKey,
@@ -158,6 +167,20 @@ struct Composer: View {
                 .overlay(alignment: .bottom) { Hairline().padding(.horizontal, ObSpace.lg) }
                 .transition(.opacity)
             }
+            if let p = pasted, text == p.joined {
+                Button {
+                    Task { await makeLines(p, m) }
+                } label: {
+                    ListsButtonLabel(title: "줄마다 작업 \(p.count)개 만들기", symbol: "list.bullet")
+                }
+                .buttonStyle(.ob(.outline, size: .small))
+                .disabled(busy)
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity)
+                .accessibilityHint("붙여넣은 줄을 각각 작업으로 추가해요")
+            }
             if !m.chips.isEmpty || m.defaultChip != nil {
                 // Everything that will be understood, at a glance (wraps rather than scrolls).
                 FlowRow(spacing: 6, lineSpacing: 6) {
@@ -225,10 +248,18 @@ struct Composer: View {
                 .accessibilityLabel("새 작업")
                 .accessibilityHint(m.ctx.placeholder)
                 .onChange(of: text) { old, new in
+                    // Edited after a paste: the offer goes.
+                    if let p = pasted, new != p.joined { pasted = nil }
                     guard new.contains("\n") else { return }
-                    // Return adds the task (↵ on the web); pasted lines become one.
+                    // Return adds the task (↵ on the web); pasted lines become one, or one each when the
+                    // offer above the field is taken.
                     let returned = new.hasSuffix("\n") && String(new.dropLast()) == old
-                    text = new.replacingOccurrences(of: "\n", with: returned ? "" : " ")
+                    let joined = new.replacingOccurrences(of: "\n", with: returned ? "" : " ")
+                    if !returned {
+                        let count = pasteLines(new).count
+                        if count > 1 { pasted = PastedLines(raw: new, joined: joined, count: count) }
+                    }
+                    text = joined
                     if returned { Task { await submit() } }
                 }
         }
@@ -329,6 +360,19 @@ struct Composer: View {
         })
     }
 
+    /// 줄마다 작업 N개 만들기: every pasted line read like quick add, with this page's defaults (one undo).
+    private func makeLines(_ p: PastedLines, _ m: Model) async {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        let ctx = PasteContext(projectId: m.ctx.projectId.flatMap { $0 }, defaultDueDate: m.ctx.defaultDueDate, assigneeId: m.ctx.defaultAssigneeId)
+        guard !(await store.pasteTasks(p.raw, ctx)).isEmpty else { return }
+        text = ""
+        disabled = []
+        pasted = nil
+        jev.reset()
+    }
+
     private func submit() async {
         let m = model
         guard !m.title.isEmpty, !busy else { return }
@@ -361,6 +405,7 @@ struct Composer: View {
         Haptics.tap()
         text = ""
         disabled = []
+        pasted = nil
         jev.reset()
         if !ComposeContext.shows(created, on: page, store) {
             // It went somewhere this page doesn't list: say so, with a way there.

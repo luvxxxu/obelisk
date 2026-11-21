@@ -101,11 +101,11 @@ export const WEBHOOK_EVENT_GROUPS: WebhookEventGroup[] = [
     id: 'task',
     label: '작업',
     events: [
-      { key: 'task.created', label: '새 작업', hint: '작업이 만들어질 때' },
+      { key: 'task.created', label: '새 작업', hint: '작업이 만들어지거나 휴지통에서 되살아날 때' },
       { key: 'task.completed', label: '완료', hint: '작업을 완료할 때' },
       { key: 'task.updated', label: '수정', hint: '제목·상태·날짜·담당자·우선순위가 바뀔 때' },
       { key: 'task.postponed', label: '미룸', hint: '미루기를 적용할 때 (연쇄 이동 포함)' },
-      { key: 'task.deleted', label: '삭제', hint: '작업을 삭제할 때' },
+      { key: 'task.deleted', label: '삭제', hint: '작업을 휴지통으로 옮길 때' },
       { key: 'task.dependency', label: '선행 작업', hint: '선행 작업을 연결하거나 해제할 때' },
     ],
   },
@@ -156,6 +156,9 @@ export function webhookEventFor(
     case 'task.postponed':
     case 'task.deleted':
       return { key: action, event: action };
+    // Back from the trash: it reappears, so 새 작업 subscribers hear about it under its own name.
+    case 'task.restored':
+      return { key: 'task.created', event: action };
     case 'task.updated': {
       const status = (data?.changes as Record<string, { to?: unknown }> | undefined)?.status;
       return status?.to === 'done' ? { key: 'task.completed', event: 'task.completed' } : { key: 'task.updated', event: action };

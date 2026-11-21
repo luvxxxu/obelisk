@@ -93,11 +93,11 @@ struct WebhookEventGroup: Codable, Hashable, Sendable, Identifiable {
 
 let WEBHOOK_EVENT_GROUPS: [WebhookEventGroup] = [
     WebhookEventGroup(id: .task, label: "작업", orgOnly: false, events: [
-        WebhookEventOption(key: .taskCreated, label: "새 작업", hint: "작업이 만들어질 때"),
+        WebhookEventOption(key: .taskCreated, label: "새 작업", hint: "작업이 만들어지거나 휴지통에서 되살아날 때"),
         WebhookEventOption(key: .taskCompleted, label: "완료", hint: "작업을 완료할 때"),
         WebhookEventOption(key: .taskUpdated, label: "수정", hint: "제목·상태·날짜·담당자·우선순위가 바뀔 때"),
         WebhookEventOption(key: .taskPostponed, label: "미룸", hint: "미루기를 적용할 때 (연쇄 이동 포함)"),
-        WebhookEventOption(key: .taskDeleted, label: "삭제", hint: "작업을 삭제할 때"),
+        WebhookEventOption(key: .taskDeleted, label: "삭제", hint: "작업을 휴지통으로 옮길 때"),
         WebhookEventOption(key: .taskDependency, label: "선행 작업", hint: "선행 작업을 연결하거나 해제할 때"),
     ]),
     WebhookEventGroup(id: .project, label: "프로젝트", orgOnly: false, events: [
@@ -133,6 +133,9 @@ func webhookEventFor(_ action: String, _ data: [String: JSONValue]?) -> WebhookE
     switch action {
     case "task.created", "task.postponed", "task.deleted":
         return WebhookEventRoute(key: WebhookEventKey(rawValue: action)!, event: action)
+    case "task.restored":
+        // Back from the trash: subscribers to 새 작업 hear about it (no subscription key of its own).
+        return WebhookEventRoute(key: .taskCreated, event: action)
     case "task.updated":
         let status = data?["changes"]?["status"]
         return status?["to"] == .string("done")

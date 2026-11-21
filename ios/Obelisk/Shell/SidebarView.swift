@@ -91,6 +91,7 @@ struct SidebarView: View {
             row(.all)
             row(.forecast, count: c.risk, tone: c.conflicts > 0 ? .danger : (c.risk > 0 ? .warn : .neutral))
             row(.logbook)
+            row(.trash)
         }
     }
 

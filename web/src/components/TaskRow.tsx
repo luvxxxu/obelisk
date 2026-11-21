@@ -5,12 +5,15 @@ import { memo, useMemo, useRef, useState } from 'react';
 import { useClock } from '@/lib/clock';
 import { cx, dateTone, dueSoonLabel, overdueLabel, spanLabel, timeLabel } from '@/lib/format';
 import { previewFor, requestDateChange } from '@/lib/reschedule';
-import { clearPicks, getPicked, pickRange, togglePick, useIsPicked, visibleRowIds } from '@/lib/selection';
-import { canEdit, memberAvatar, memberName, selectTask, toggleDone, useApp } from '@/lib/store';
+import { clearPicks, getPicked, pickableRowIds, pickRange, togglePick, useIsPicked } from '@/lib/selection';
+import { keyLetter } from '@/lib/shortcuts';
+import { canEdit, getState, memberAvatar, memberName, selectTask, toggleDone, updateTask, useApp } from '@/lib/store';
+import { actionTargets, completeTasks } from '@/lib/task-actions';
 import { useElapsed, useRunning } from '@/lib/timeplan';
+import { setUi, useUi } from '@/lib/ui-state';
 import { DatePickerPanel } from './DatePicker';
 import { Icon } from './Icon';
-import { Avatar, Popover, tip, ui } from './primitives';
+import { Avatar, isEnter, Popover, tip, ui } from './primitives';
 import s from './TaskRow.module.css';
 
 export function shiftSpan(t: Pick<Task, 'startDate' | 'dueDate'>, days: number) {
@@ -135,6 +138,50 @@ function PostponeMenu({ task, onClose }: { task: Task; onClose: () => void }) {
   );
 }
 
+/**
+ * E / F2: the title becomes a field in place. Enter or leaving it saves (one 제목 변경 undo step),
+ * Esc puts the old title back; an empty title is not saved.
+ */
+function RenameField({ task, onDone }: { task: Task; onDone: (backToRow: boolean) => void }) {
+  const [value, setValue] = useState(task.title);
+  const finished = useRef(false);
+
+  const finish = (save: boolean, backToRow: boolean) => {
+    if (finished.current) return;
+    finished.current = true;
+    const title = value.trim();
+    setUi({ renaming: null });
+    if (save && title && title !== task.title) void updateTask(task.id, { title });
+    onDone(backToRow);
+  };
+
+  return (
+    <input
+      className={cx(s.title, s.renameInput)}
+      value={value}
+      maxLength={500}
+      autoFocus
+      aria-label="작업 제목"
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setValue(e.target.value)}
+      // The row opens the task on click; inside the field a click only moves the caret.
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (isEnter(e)) {
+          e.preventDefault();
+          finish(true, true);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          finish(false, true);
+        }
+      }}
+      onBlur={() => finish(true, false)}
+    />
+  );
+}
+
 export const TaskRow = memo(function TaskRow({
   task,
   showProject = true,
@@ -150,7 +197,12 @@ export const TaskRow = memo(function TaskRow({
   const [completing, setCompleting] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const postponeRef = useRef<HTMLButtonElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
   const picked = useIsPicked(task.id);
+  const { renaming, taskMenu } = useUi();
+  const isRenaming = renaming === task.id;
+  // Right-clicked on its own (not as one of the picks): ringed while its menu is open.
+  const menuOnRow = taskMenu?.ids.length === 1 && taskMenu.ids[0] === task.id;
 
   const project = showProject && task.projectId ? projects.find((p) => p.id === task.projectId) : null;
   const waitingOn = deps.filter((d) => {
@@ -199,24 +251,32 @@ export const TaskRow = memo(function TaskRow({
         picked && s.picked,
         task.status === 'canceled' && s.canceled,
       )}
+      ref={rowRef}
       data-task-row={task.id}
+      // The one row that can edit its title in place (E / F2, 제목 바꾸기); others open the panel.
+      data-renamable=""
+      data-context={menuOnRow || undefined}
+      data-renaming={isRenaming || undefined}
       aria-selected={picked || undefined}
       tabIndex={0}
       // Shift would otherwise extend a text selection across the rows.
       onMouseDown={(e) => e.shiftKey && e.preventDefault()}
       onClick={(e) => {
         // Shift: a range from the last row picked; ⌘/Ctrl: one row in or out. A plain click opens it.
-        if (e.shiftKey) return pickRange(visibleRowIds(), task.id);
+        if (e.shiftKey) return pickRange(pickableRowIds(), task.id);
         if (e.metaKey || e.ctrlKey) return togglePick(task.id);
         if (getPicked().size) clearPicks();
         selectTask(task.id);
       }}
       onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return;
+        if (e.target !== e.currentTarget || e.altKey || e.metaKey || e.ctrlKey) return;
         if (e.key === 'Enter') selectTask(task.id);
-        if (e.key === 'x' || e.key === ' ') {
+        if ((keyLetter(e) === 'x' && !e.shiftKey) || e.key === ' ') {
           e.preventDefault();
-          complete();
+          // With tasks picked the key acts on all of them (the shell's x does the same off the rows).
+          const tasks = getState().tasks;
+          if ([...getPicked()].some((id) => tasks[id])) void completeTasks(actionTargets());
+          else complete();
         }
       }}
     >
@@ -225,7 +285,11 @@ export const TaskRow = memo(function TaskRow({
       <div className={s.main}>
         <div className={s.content}>
           <div className={s.titleLine}>
-            <span className={s.title}>{task.title}</span>
+            {isRenaming ? (
+              <RenameField task={task} onDone={(backToRow) => backToRow && rowRef.current?.focus()} />
+            ) : (
+              <span className={s.title}>{task.title}</span>
+            )}
             {task.notes && (
               <span className={s.noteIcon} {...tip('메모 있음', { side: 'top' })}>
                 <Icon name="list" size={13} />

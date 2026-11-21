@@ -4,6 +4,7 @@ import SwiftUI
 /// collapsible with a link to its page.
 struct AllScreen: View {
     @Environment(AppStore.self) private var store
+    @Environment(Router.self) private var router
 
     private struct Group: Identifiable {
         var id: String
@@ -15,8 +16,9 @@ struct AllScreen: View {
     var body: some View {
         let groups = makeGroups()
         let total = groups.reduce(0) { $0 + $1.tasks.count }
+        let rows = groups.flatMap { router.selection.shown("group:\($0.id)", $0.tasks, collapsedByDefault: false) }
 
-        List {
+        SelectableList(rows: rows) {
             ListsHeader(
                 "전체 작업",
                 description: "진행 중인 작업 \(total)개를 프로젝트별로 모았어요. 머리글을 눌러 접거나 펼칠 수 있어요."
@@ -24,7 +26,7 @@ struct AllScreen: View {
             .listsPlainRow()
 
             ForEach(groups) { g in
-                ListsGroup(tasks: g.tasks, accessibilityTitle: g.name, showProject: false) {
+                ListsGroup(tasks: g.tasks, accessibilityTitle: g.name, foldKey: "group:\(g.id)", showProject: false) {
                     HStack(spacing: ObSpace.sm) {
                         if let p = g.project {
                             ProjectSwatch(color: p.color, size: 9)

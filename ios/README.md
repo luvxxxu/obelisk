@@ -27,7 +27,7 @@ SIMCTL_CHILD_OBELISK_DEV_EMAIL=demo@obelisk.test SIMCTL_CHILD_OBELISK_DEV_PASSWO
 xcrun simctl launch booted dev.lxvu.obelisk -route today -push task:#4 -theme dark
 ```
 
-- `-route` opens a sidebar page: `home overview inbox today upcoming mine all forecast logbook project:<id>`
+- `-route` opens a sidebar page: `home overview inbox today upcoming mine all forecast logbook trash project:<id>`
 - `-push` pushes a screen: `task:<id|#number>`, `settings:<general|org|ai|jev|webhooks>`
 - `-theme light|dark`
 - `-workspace <id>` opens that workspace
@@ -84,6 +84,23 @@ session-only actions such as sharing projects and creating API tokens.
 back on failure, and refreshes every 20 seconds while the app is in front. After each change it
 writes `snapshot.json` to the App Group container (widget, Siri, share extension) and reschedules
 local notifications.
+
+## Picking several tasks, undo and keyboard shortcuts
+
+- **선택 모드** on every task list (오늘, 인박스, 전체, 예정 and 프로젝트 in list mode, 내 작업, 완료 기록,
+  휴지통): the top bar's 선택 button, a row menu's 선택, or a two-finger pan down the rows. The list
+  is a `List(selection:)` in edit mode (`Components/SelectableList.swift`); `Router.selection`
+  (`Store/TaskSelection.swift`) holds the picks so the top bar (N개 선택, 모두 선택) and the bottom bar
+  that replaces the composer (완료 · 미루기 · 프로젝트 · 우선순위 · 삭제; 휴지통: 되살리기 · 영구 삭제)
+  read the same thing. Ten or more tasks ask before going to the trash.
+- **One undo history** (`Store/UndoCenter.swift`): every change pushes an entry once the server
+  accepts it; the toast's 실행 취소, a shake and ⌘Z / ⌘⇧Z walk the same list.
+- **Hardware keyboard** (`Shell/ShellKeys.swift`; iPhone with a keyboard, iPad compatibility mode):
+  ⌘N 새 작업 · ⌘K / ⌘F 검색 · ⌘Z / ⌘⇧Z · ⌘A 모두 선택 · ⌫ / ⌘⌫ 휴지통 · ⌘↵ 완료 · ⌘D 복제 · ⌘C 텍스트로
+  복사 · ⌘V 줄마다 작업 만들기 · Esc 선택 끝내기. They act on the picks, else on the open task.
+- **Tasks as text** (`Shared/Core/TaskText.swift`, same as web `task-text.ts`): a copied task is a
+  quick-add line (`견적서 보내기 11/22 15:00 #런칭 !높음`); pasted lines become tasks, and pasting
+  several lines into the composer offers 줄마다 작업 N개 만들기.
 
 ## Outside the app
 

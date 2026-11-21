@@ -27,6 +27,7 @@ struct MineScreen: View {
 private struct MineContent: View {
     var now: Clock
     @Environment(AppStore.self) private var store
+    @Environment(Router.self) private var router
 
     private struct Delegated: Identifiable {
         var id: String
@@ -46,8 +47,12 @@ private struct MineContent: View {
         let done = Array(tasks.filter { $0.status == .done && $0.assigneeId != nil && $0.assigneeId == me }.listsByCompletion().prefix(30))
         let delegated = delegatedGroups(tasks, me: me)
         let name = store.workspace?.name ?? ""
+        let selection = router.selection
+        let rows = (overdue + current + later + undated).map(\.id)
+            + delegated.flatMap { selection.shown("delegated:\($0.id)", $0.tasks, collapsedByDefault: true) }
+            + selection.shown("최근 완료", done, collapsedByDefault: true)
 
-        List {
+        SelectableList(rows: rows) {
             ListsHeader(
                 "내 작업",
                 description: "\(name)에서 내가 맡은 작업 \(mine.count)개" + (overdue.isEmpty ? "" : " · 기한 지남 \(overdue.count)개")
@@ -69,7 +74,7 @@ private struct MineContent: View {
 
             ForEach(delegated) { g in
                 let who = g.name ?? "전 멤버"
-                ListsGroup(tasks: g.tasks, accessibilityTitle: "\(who)에게 맡긴 작업", defaultCollapsed: true) {
+                ListsGroup(tasks: g.tasks, accessibilityTitle: "\(who)에게 맡긴 작업", foldKey: "delegated:\(g.id)", defaultCollapsed: true) {
                     HStack(spacing: ObSpace.sm) {
                         Avatar(name: who, size: 20)
                         Text("\(who)에게 맡긴 작업")

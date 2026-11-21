@@ -100,6 +100,35 @@ func runFormatTests() {
             expectEqual(r, .apply([DateChange(taskId: "b", startDate: "2026-11-20", dueDate: "2026-11-21")]))
         }
 
+        test("several tasks moved together preview as one group") {
+            let fixedB = makeTask(id: "fb", startDate: "2026-11-22", dueDate: "2026-11-22", fixed: true, title: "발표")
+            let first = makeTask(id: "a1", dueDate: "2026-11-21", dueTime: "15:00", title: "자료")
+            let other = makeTask(id: "c1", dueDate: "2026-11-21", title: "메일")
+            let all = [first, fixedB, other, b]
+            let byId = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+            let groupDeps = [PlanDependency(taskId: "fb", dependsOnId: "a1")]
+            let week = [first, other].map { GroupMove(taskId: $0.id, next: TimedSpan(startDate: nil, dueDate: "2026-11-28")) }
+            let p = previewGroup(week, byId, planItems(all), groupDeps)
+            expectTrue(p.hasImpact, "a fixed date breaks")
+            expectEqual(p.report.summary.conflictCount, 1)
+            expectEqual(p.shiftDays, 7)
+            expectEqual(p.only.map(\.taskId), ["a1", "c1"])
+            expectEqual(p.only[0].dueTime, .some("15:00"))
+            expectEqual(p.cascade.map(\.taskId), ["a1", "c1"], "a fixed task is never moved for you")
+            let pending = PendingChange(taskId: "a1", title: "작업 2개", next: week[0].next, preview: p, count: 2)
+            expectEqual(pendingChanges(pending, .only), p.only)
+
+            // Moving a task and the one waiting on it: the dependent is a root, not pushed twice.
+            let both = [GroupMove(taskId: "a", next: TimedSpan(startDate: "2026-11-18", dueDate: "2026-11-20")),
+                        GroupMove(taskId: "b", next: TimedSpan(startDate: "2026-11-21", dueDate: "2026-11-22"))]
+            let q = previewGroup(both, ["a": a, "b": b], items, deps)
+            expectEqual(q.cascade.map(\.taskId), ["a", "b"])
+            expectEqual(q.cascade[1].dueDate, "2026-11-22")
+            let alone = previewGroup([both[0]], ["a": a, "b": b], items, deps)
+            expectTrue(alone.hasImpact)
+            expectEqual(alone.cascade.map(\.taskId), ["a", "b"])
+        }
+
         test("same-day times stay in order") {
             let t = makeTask(startDate: TODAY, startTime: "10:00", dueDate: TODAY, dueTime: "11:30")
             let moved = orderTimes(t, TimedSpan(startDate: TODAY, dueDate: TODAY, startTime: .some("13:00")))

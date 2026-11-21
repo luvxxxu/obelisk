@@ -73,12 +73,14 @@ struct ListsTitleText: View {
 }
 
 extension View {
-    /// A full-width row in an Obelisk task list with no insets and no separator (headers, callouts, empty states).
+    /// A full-width row in an Obelisk task list with no insets and no separator (headers, callouts, empty
+    /// states). Never picked in 선택 모드, even when a `ForEach` tags it (예정's empty days).
     func listsPlainRow(top: CGFloat = 0, bottom: CGFloat = 0, horizontal: CGFloat = 0) -> some View {
         self
             .listRowInsets(EdgeInsets(top: top, leading: horizontal, bottom: bottom, trailing: horizontal))
             .listRowSeparator(.hidden)
             .listRowBackground(Ob.bg)
+            .selectionDisabled()
     }
 }
 
@@ -90,15 +92,26 @@ struct ListsGroup<Label: View, Aside: View>: View {
     var showProject = true
     var showDate: TaskRow.DateDisplay = .full
     var collapsible = true
+    var defaultCollapsed = false
     var accessibilityTitle: String
+    /// What the fold is remembered under: the group's id where names can repeat (two projects both
+    /// called "정리"), else the title.
+    var foldKey: String
     @ViewBuilder var label: () -> Label
     @ViewBuilder var aside: () -> Aside
 
-    @State private var collapsed: Bool
+    @Environment(Router.self) private var router
+
+    /// The fold lives in `router.selection` (keyed by `foldKey`), like TaskSection's.
+    private var collapsed: Bool {
+        guard collapsible else { return defaultCollapsed }
+        return router.selection.isCollapsed(foldKey, default: defaultCollapsed)
+    }
 
     init(
         tasks: [TaskItem],
         accessibilityTitle: String,
+        foldKey: String? = nil,
         showProject: Bool = true,
         showDate: TaskRow.DateDisplay = .full,
         collapsible: Bool = true,
@@ -108,12 +121,13 @@ struct ListsGroup<Label: View, Aside: View>: View {
     ) {
         self.tasks = tasks
         self.accessibilityTitle = accessibilityTitle
+        self.foldKey = foldKey ?? accessibilityTitle
         self.showProject = showProject
         self.showDate = showDate
         self.collapsible = collapsible
+        self.defaultCollapsed = defaultCollapsed
         self.label = label
         self.aside = aside
-        _collapsed = State(initialValue: defaultCollapsed)
     }
 
     var body: some View {
@@ -127,6 +141,9 @@ struct ListsGroup<Label: View, Aside: View>: View {
                 }
             } header: {
                 header
+                    .onAppear {
+                        if collapsible { router.selection.keepDefault(foldKey, defaultCollapsed) }
+                    }
             }
         }
     }
@@ -135,7 +152,8 @@ struct ListsGroup<Label: View, Aside: View>: View {
         HStack(spacing: ObSpace.sm) {
             if collapsible {
                 Button {
-                    withAnimation(ObMotion.standard) { collapsed.toggle() }
+                    let folded = collapsed
+                    withAnimation(ObMotion.standard) { router.selection.setCollapsed(foldKey, !folded) }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "chevron.right")

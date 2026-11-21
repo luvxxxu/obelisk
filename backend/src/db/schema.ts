@@ -1,4 +1,4 @@
-import type { HomeLayout, WebhookPayload, WorkHours } from '@obelisk/core';
+import type { Dependency, HomeLayout, Task, WebhookPayload, WorkHours } from '@obelisk/core';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -317,6 +317,33 @@ export const taskDependencies = pgTable(
     index('deps_workspace_idx').on(t.workspaceId),
     index('deps_depends_on_idx').on(t.dependsOnId),
   ],
+);
+
+/**
+ * 휴지통: deleted tasks wait here for config.trashDays, then the hourly sweep removes them.
+ * The row leaves `tasks` (so no reader has to filter it out) and is kept as a snapshot with the
+ * dependency links it had, so a restore puts back the same id, #number and links.
+ * The user and project columns mirror the snapshot so deletions elsewhere null them, like on `tasks`.
+ */
+export const taskTrash = pgTable(
+  'task_trash',
+  {
+    /** The task's own id. */
+    id: uuid('id').primaryKey(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+    deletedBy: uuid('deleted_by').references(() => users.id, { onDelete: 'set null' }),
+    deletedAt: ts('deleted_at').notNull().defaultNow(),
+    /** The task as it was (core Task: dates as strings). */
+    task: jsonb('task').$type<Task>().notNull(),
+    /** Links touching the task at delete time (both directions). */
+    dependencies: jsonb('dependencies').$type<Dependency[]>().notNull().default([]),
+  },
+  (t) => [index('task_trash_workspace_idx').on(t.workspaceId, t.deletedAt)],
 );
 
 /**
@@ -737,6 +764,7 @@ export const emailTokens = pgTable(
 export type UserRow = typeof users.$inferSelect;
 export type ServerSettingsRow = typeof serverSettings.$inferSelect;
 export type TaskRow = typeof tasks.$inferSelect;
+export type TaskTrashRow = typeof taskTrash.$inferSelect;
 export type ProjectRow = typeof projects.$inferSelect;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type AvatarRow = typeof avatars.$inferSelect;

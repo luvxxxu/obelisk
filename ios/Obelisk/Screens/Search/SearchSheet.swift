@@ -157,6 +157,7 @@ struct SearchSheet: View {
             go("forecast", "파급 예측", .forecast),
             go("all", "전체 작업", .all),
             go("logbook", "완료 기록", .logbook),
+            go("trash", "휴지통", .trash, hint: "지운 작업 되살리기"),
             settings("ai", "AI 연결 (MCP · Skill)", .ai),
             settings("jev", "Jev 설정", .jev, hint: "판단 모델 연결"),
             settings("settings", "설정", nil),

@@ -18,9 +18,10 @@ import { Icon } from '@/components/Icon';
 import { tip, ui } from '@/components/primitives';
 import { cx, overdueLabel, spanLabel } from '@/lib/format';
 import { usePref, useTasks } from '@/lib/hooks';
-import { moveTasks, selectTask, toggleDone, useApp, type TaskMove } from '@/lib/store';
+import { getState, moveTasks, movesBack, selectTask, toggleDone, useApp, type TaskMove } from '@/lib/store';
 import { toast } from '@/lib/toast';
 import { isApple } from '@/lib/ui-helpers';
+import { notify, pushUndo } from '@/lib/undo';
 import s from '../home.module.css';
 import { Board, BoardCard, CardMeta, CardProps, CardSlot, Column, ColumnAdd, ColumnMore, Database, DropHint, type Hue, Tag } from './blocks';
 import { useFlip } from './motion';
@@ -159,37 +160,49 @@ export function UrgentBoard({ today, doneToday, onNew }: { today: string; doneTo
         return !!t && (t.position !== c.position || (!!c.status && c.status !== t.status));
       });
       if (!changes.length) return;
-      const undo: TaskMove[] = changes.map((c) => ({
-        taskId: c.taskId,
-        position: app.tasks[c.taskId]!.position,
-        ...(c.status ? { status: app.tasks[c.taskId]!.status } : {}),
-      }));
+      // A card taken out of 완료 goes back with the time it was done.
+      const undo: TaskMove[] = movesBack(changes, app);
 
       if (switched) setOrder('manual');
-      void moveTasks(changes).then((ok) => {
-        if (!ok && switched) setOrder('urgency');
+      const label = status ? '상태 변경' : '순서 변경';
+      const replay = { record: false, quiet: true };
+      void moveTasks(changes, { record: false }).then((ok) => {
+        if (!ok) {
+          if (switched) setOrder('urgency');
+          return;
+        }
+        // A redo into 완료 keeps the time the server stamped the first time, not the moment of the redo.
+        const done = getState().tasks;
+        const again = changes.map((c) => {
+          const at = c.status === 'done' ? done[c.taskId]?.completedAt : null;
+          return at ? { ...c, completedAt: at } : c;
+        });
+        // One entry for every card this move re-spread, so ⌘Z and the toast put the board back together.
+        const entry = pushUndo({
+          label,
+          undo: () => {
+            capture();
+            return moveTasks(undo, replay);
+          },
+          redo: () => {
+            capture();
+            return moveTasks(again, replay);
+          },
+        });
+        if (switched) {
+          toast.show('직접 정렬로 바꿨어요 · 끌어 놓은 순서가 그대로 남아요', {
+            action: {
+              label: '긴급도순으로',
+              run: () => {
+                capture();
+                setOrder('urgency');
+              },
+            },
+          });
+        } else if (status) {
+          notify(`“${task.title}” ${COLUMN[to].title}으로 옮겼어요`, entry);
+        }
       });
-      if (switched) {
-        toast.show('직접 정렬로 바꿨어요 · 끌어 놓은 순서가 그대로 남아요', {
-          action: {
-            label: '긴급도순으로',
-            run: () => {
-              capture();
-              setOrder('urgency');
-            },
-          },
-        });
-      } else if (status) {
-        toast.show(`“${task.title}” ${COLUMN[to].title}으로 옮겼어요`, {
-          action: {
-            label: '실행 취소',
-            run: () => {
-              capture();
-              void moveTasks(undo);
-            },
-          },
-        });
-      }
     },
     [app.tasks, lists, order, setOrder, capture, keep],
   );

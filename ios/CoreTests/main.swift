@@ -11,6 +11,7 @@ runOverviewTests()
 runJevTests()
 runWebhooksTests()
 runFormatTests()
+runTaskTextTests()
 runParityTests()
 
 let total = TestRun.passed + TestRun.failedTests

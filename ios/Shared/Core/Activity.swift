@@ -143,6 +143,8 @@ func describeActivity(action: String, data: [String: JSONValue]?, subject: Strin
         return JS.truthy(d["cascade"]) && moved != 0 && !moved.isNaN ? "\(verb) · 후속 작업 \(JS.numberString(moved))개도 함께 옮김" : verb
     case "task.deleted":
         return "작업을 삭제했습니다"
+    case "task.restored":
+        return "작업을 휴지통에서 되살렸습니다"
     case "dependency.added":
         return "선행 작업 연결 · \(JS.string(JS.coalesce(d["blockedBy"], "")))"
     case "dependency.removed":

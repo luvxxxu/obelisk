@@ -1,0 +1,32 @@
+/* List gestures (ListGestures.tsx). Both float above the page and never take the pointer:
+   the drag label must not hide the drop target under it from elementFromPoint. */
+
+/* Box selection over list rows: the same hairline box as the timeline's Shift+drag. */
+.box {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  border: 1px solid color-mix(in srgb, var(--text) 45%, transparent);
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  pointer-events: none;
+}
+
+/* "작업 N개" following the pointer while picked tasks are carried to the sidebar. */
+.dragLabel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 90;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}

@@ -213,6 +213,32 @@ export interface Dependency {
   dependsOnId: string;
 }
 
+/** How long a deleted task waits in the trash (휴지통) before it is removed for good. */
+export const TRASH_DAYS = 30;
+
+/** A deleted task waiting in the trash, as `GET /api/trash` lists it (newest first). */
+export interface TrashItem {
+  /** The task as it was when it was deleted (same id and #number it gets back on restore). */
+  task: Task;
+  /** Its dependency links at that moment; a restore re-links those whose other end still exists. */
+  dependencies: Dependency[];
+  deletedAt: string;
+  deletedBy: string | null;
+  deletedByName: string | null;
+  /** When it will be removed for good (deletedAt + TRASH_DAYS). */
+  purgeAt: string;
+  /** Whether you may restore it or delete it for good (edit access where it would land). */
+  canRestore: boolean;
+}
+
+/** `POST /api/trash/restore`: the tasks back in the list, and the links that were re-made. */
+export interface RestoreResult {
+  tasks: Task[];
+  dependencies: Dependency[];
+  /** Asked-for ids that were not in the trash any more (already restored or removed). */
+  missing: string[];
+}
+
 export interface Bootstrap {
   user: User;
   today: ISODate;

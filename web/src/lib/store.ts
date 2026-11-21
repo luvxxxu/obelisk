@@ -6,6 +6,7 @@ import {
   type AccessView,
   type AccountGate,
   type Bootstrap,
+  type BulkCreateTasksInput,
   type CreateProjectInput,
   type CreateTaskInput,
   type DateChange,
@@ -13,10 +14,12 @@ import {
   type Member,
   type PlanItem,
   type Project,
+  type RestoreResult,
   type ServerInfo,
   type Task,
   type TaskStatus,
   type Team,
+  type TrashItem,
   type UpdateProjectInput,
   type UpdateTaskInput,
   type User,
@@ -26,8 +29,10 @@ import {
 } from '@obelisk/core';
 import { useSyncExternalStore } from 'react';
 import { api, ApiError, setWorkspaceHeader } from './api';
+import { unpick } from './selection';
 import { toast } from './toast';
 import { setUi } from './ui-state';
+import { clearUndo, notify, pushUndo, type UndoEntry } from './undo';
 
 export interface AppState {
   /** gated: signed in, but the account isn't let in yet (see `gate`). */
@@ -234,6 +239,8 @@ export function load(silent = false): Promise<void> {
       if (gen !== generation) return;
       if (state.status === 'ready' && localWrites !== writes && state.workspace?.id === b.workspace.id) return; // stale; the next sync catches up
       storeWorkspace(b.workspace.id);
+      // Fell back to another space (the remembered one is gone): its undo entries point at tasks there.
+      if (state.workspace && state.workspace.id !== b.workspace.id) clearUndo();
       const tasks: Record<string, Task> = {};
       for (const t of b.tasks) tasks[t.id] = t;
       set((s) => ({
@@ -271,6 +278,7 @@ export function load(silent = false): Promise<void> {
 
 export function reset() {
   generation++;
+  clearUndo();
   storeWorkspace(null);
   set({
     status: 'unauthenticated',
@@ -298,6 +306,8 @@ export async function switchWorkspace(id: string, opts: { selectTaskId?: string 
   }
   generation++;
   inflight = null;
+  // Undo entries act on the tasks of the space being left.
+  clearUndo();
   storeWorkspace(id);
   set({ status: 'loading', projects: [], tasks: {}, deps: [], members: [], teams: [], selectedTaskId: opts.selectTaskId ?? null });
   await load();
@@ -336,13 +346,136 @@ export function selectTask(id: string | null) {
 
 // ─────────────────────────────── tasks
 
-export async function createTask(input: CreateTaskInput): Promise<Task | null> {
+/**
+ * Every task and dependency change takes these. `record` (default true) pushes an undo entry once
+ * the server agreed; undo/redo themselves and callers that push one entry for a whole batch pass
+ * false. `quiet` skips the change's own toast (undo/redo show theirs).
+ */
+export interface MutationOpts {
+  record?: boolean;
+  label?: string;
+  quiet?: boolean;
+}
+
+/** How undo and redo call back in: no new entry, no second toast. */
+const REPLAY: MutationOpts = { record: false, quiet: true };
+
+const depKey = (d: Dependency) => `${d.taskId}:${d.dependsOnId}`;
+
+/**
+ * Add links the server reports (created, restored), skipping ones already here. `bothEnds` keeps only
+ * links whose two tasks are in the list, as a bootstrap in an organization would.
+ */
+function mergeDeps(list: Dependency[], { bothEnds = false } = {}) {
+  if (!list.length) return;
+  localWrites++;
+  set((s) => {
+    const have = new Set(s.deps.map(depKey));
+    const add: Dependency[] = [];
+    for (const d of list) {
+      if (have.has(depKey(d))) continue;
+      if (bothEnds && !(s.tasks[d.taskId] && s.tasks[d.dependsOnId])) continue;
+      have.add(depKey(d));
+      add.push({ taskId: d.taskId, dependsOnId: d.dependsOnId });
+    }
+    return add.length ? { deps: [...s.deps, ...add] } : {};
+  });
+}
+
+/** Take tasks (and every link touching them) out of the list. */
+function dropTasks(gone: ReadonlySet<string>) {
+  const touches = (d: Dependency) => gone.has(d.taskId) || gone.has(d.dependsOnId);
+  if (![...gone].some((id) => state.tasks[id]) && !state.deps.some(touches)) return;
+  set((s) => {
+    const tasks = { ...s.tasks };
+    for (const id of gone) delete tasks[id];
+    return {
+      tasks,
+      deps: s.deps.filter((d) => !touches(d)),
+      selectedTaskId: s.selectedTaskId && gone.has(s.selectedTaskId) ? null : s.selectedTaskId,
+    };
+  });
+}
+
+/**
+ * Tasks the server changed through a call that is not one of the store's own (Jev's postpone):
+ * merged in at once, and a background refresh that started earlier is dropped.
+ */
+export function applyServerTasks(list: Task[]) {
+  if (list.length) upsertTasks(list);
+}
+
+/**
+ * A change that makes a task done again carries the time it was done, so an undo of 완료 취소 (or a
+ * redo of 완료) leaves it on the same day in 완료 기록 instead of stamping now.
+ */
+function doneAt(t: Pick<Task, 'status' | 'completedAt'> | undefined): { completedAt?: string } {
+  return t?.status === 'done' && t.completedAt ? { completedAt: t.completedAt } : {};
+}
+
+/** The fields `patch` touches, as they are on `prev`: what puts the task back. A date brings its time along. */
+export function inversePatch(prev: Task, patch: UpdateTaskInput): UpdateTaskInput {
+  const back: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (v !== undefined && k !== 'completedAt') back[k] = prev[k as keyof Task];
+  }
+  if ('startDate' in back) back.startTime = prev.startTime;
+  if ('dueDate' in back) back.dueTime = prev.dueTime;
+  if (back.status === 'done') Object.assign(back, doneAt(prev));
+  return back as UpdateTaskInput;
+}
+
+/** `patch` once more, a completion with the time the server gave it the first time. */
+function againPatch(patch: UpdateTaskInput, after: Task | undefined): UpdateTaskInput {
+  return patch.status === 'done' ? { ...patch, ...doneAt(after) } : patch;
+}
+
+/** The server takes this many changes per request; a larger batch goes in turns. */
+const CHUNK = 500;
+
+function chunks<T>(list: T[]): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += CHUNK) out.push(list.slice(i, i + CHUNK));
+  return out;
+}
+
+/** A patch that leaves the task as it is (a blur without an edit) is not worth an undo step. */
+function changesNothing(prev: Task, patch: UpdateTaskInput): boolean {
+  return Object.entries(patch).every(([k, v]) => v === undefined || prev[k as keyof Task] === v);
+}
+
+/** The short noun an undo toast shows for an edit (`실행 취소함 · 제목 변경`). */
+export function patchLabel(prev: Pick<Task, 'status'>, patch: UpdateTaskInput): string {
+  const has = (k: keyof UpdateTaskInput) => patch[k] !== undefined;
+  if (has('status')) return patch.status === 'done' ? '완료' : prev.status === 'done' ? '완료 취소' : '상태 변경';
+  if (has('startDate') || has('dueDate')) return '날짜 변경';
+  if (has('startTime') || has('dueTime')) return '시간 변경';
+  if (has('title')) return '제목 변경';
+  if (has('notes')) return '메모 변경';
+  if (has('priority')) return '우선순위 변경';
+  if (has('projectId')) return '프로젝트 이동';
+  if (has('assigneeId')) return '담당자 변경';
+  if (has('fixed')) return '고정 변경';
+  if (has('position')) return '순서 변경';
+  if (has('estimateMinutes')) return '예상 시간 변경';
+  return '작업 수정';
+}
+
+/** Undo of a create moves the new tasks to the trash; redo brings the same ones (same #number) back. */
+function recordCreated(ids: string[], label: string): UndoEntry {
+  return pushUndo({
+    label,
+    undo: () => deleteTasks(ids, REPLAY),
+    redo: async () => !!(await restoreTasks(ids, REPLAY)),
+  });
+}
+
+export async function createTask(input: CreateTaskInput, opts: MutationOpts = {}): Promise<Task | null> {
   try {
     const { task } = await api<{ task: Task }>('POST', '/api/tasks', input);
     upsertTasks([task]);
-    if (input.blockedBy?.length) {
-      set((s) => ({ deps: [...s.deps, ...input.blockedBy!.map((d) => ({ taskId: task.id, dependsOnId: d }))] }));
-    }
+    if (input.blockedBy?.length) mergeDeps(input.blockedBy.map((d) => ({ taskId: task.id, dependsOnId: d })));
+    if (opts.record !== false) recordCreated([task.id], opts.label ?? '작업 추가');
     return task;
   } catch (e) {
     fail(e, '작업을 만들지 못했습니다');
@@ -350,7 +483,26 @@ export async function createTask(input: CreateTaskInput): Promise<Task | null> {
   }
 }
 
-export async function updateTask(id: string, patch: UpdateTaskInput): Promise<Task | null> {
+/** Several new tasks in one transaction (duplicate, paste). Links between them come back with them. */
+export async function createTasks(input: BulkCreateTasksInput, opts: MutationOpts = {}): Promise<Task[] | null> {
+  try {
+    const res = await api<{ tasks: Task[]; dependencies: Dependency[] }>('POST', '/api/tasks/bulk', input);
+    applyServerTasks(res.tasks);
+    mergeDeps(res.dependencies);
+    if (opts.record !== false && res.tasks.length) {
+      recordCreated(
+        res.tasks.map((t) => t.id),
+        opts.label ?? (res.tasks.length === 1 ? '작업 추가' : `작업 ${res.tasks.length}개 추가`),
+      );
+    }
+    return res.tasks;
+  } catch (e) {
+    fail(e, '작업을 만들지 못했습니다');
+    return null;
+  }
+}
+
+export async function updateTask(id: string, patch: UpdateTaskInput, opts: MutationOpts = {}): Promise<Task | null> {
   const prev = state.tasks[id];
   if (!guard(prev)) return null;
   const optimistic: Task = { ...prev, ...(patch as Partial<Task>) };
@@ -358,13 +510,22 @@ export async function updateTask(id: string, patch: UpdateTaskInput): Promise<Ta
   if (!optimistic.startDate) optimistic.startTime = null;
   if (!optimistic.dueDate) optimistic.dueTime = null;
   if (patch.status && patch.status !== prev.status) {
-    optimistic.completedAt = patch.status === 'done' ? new Date().toISOString() : null;
+    optimistic.completedAt = patch.status === 'done' ? (patch.completedAt ?? new Date().toISOString()) : null;
   }
   upsertTasks([optimistic]);
   try {
     const { task } = await api<{ task: Task }>('PATCH', `/api/tasks/${id}`, patch);
     upsertTasks([task]);
     if (task.status !== prev.status) statusListeners.forEach((fn) => fn(task, prev));
+    if (opts.record !== false && !changesNothing(prev, patch)) {
+      const back = inversePatch(prev, patch);
+      const again = againPatch(patch, task);
+      pushUndo({
+        label: opts.label ?? patchLabel(prev, patch),
+        undo: async () => !!(await updateTask(id, back, REPLAY)),
+        redo: async () => !!(await updateTask(id, again, REPLAY)),
+      });
+    }
     return task;
   } catch (e) {
     upsertTasks([prev]);
@@ -373,12 +534,22 @@ export async function updateTask(id: string, patch: UpdateTaskInput): Promise<Ta
   }
 }
 
-export async function toggleDone(id: string) {
+export async function toggleDone(id: string, opts: MutationOpts = {}) {
   const t = state.tasks[id];
   if (!guard(t)) return;
   const done = t.status !== 'done';
-  const res = await updateTask(id, { status: done ? 'done' : 'todo' });
-  if (res && done) {
+  const next = done ? 'done' : 'todo';
+  const res = await updateTask(id, { status: next }, { record: false });
+  if (!res) return;
+  const entry =
+    opts.record === false
+      ? null
+      : pushUndo({
+          label: opts.label ?? (done ? '완료' : '완료 취소'),
+          undo: async () => !!(await updateTask(id, { status: t.status, ...doneAt(t) }, REPLAY)),
+          redo: async () => !!(await updateTask(id, { status: next, ...doneAt(res) }, REPLAY)),
+        });
+  if (done && !opts.quiet) {
     const unblocked = state.deps
       .filter((d) => d.dependsOnId === id)
       .map((d) => state.tasks[d.taskId])
@@ -395,19 +566,32 @@ export async function toggleDone(id: string) {
     const spent = res.actualMinutes
       ? ` · 실제 ${formatDurationKo(res.actualMinutes)}${res.estimateMinutes ? ` (예상 ${formatDurationKo(res.estimateMinutes)})` : ''}`
       : '';
-    toast.show(
+    notify(
       unblocked.length ? `완료 · 이제 ${unblocked.length}개 작업을 시작할 수 있어요${spent}` : `“${t.title}” 완료${spent}`,
-      {
-        action: { label: '실행 취소', run: () => void updateTask(id, { status: t.status }) },
-        ...(res.actualMinutes ? { secondary: { label: '시간 고치기', run: () => setUi({ actual: { taskId: id } }) } } : {}),
-      },
+      entry,
+      res.actualMinutes ? { secondary: { label: '시간 고치기', run: () => setUi({ actual: { taskId: id } }) } } : {},
     );
   }
 }
 
-/** Atomically apply a set of date changes (single task or a previewed cascade). */
-export async function reschedule(changes: DateChange[], rootId?: string): Promise<boolean> {
+/**
+ * Atomically apply a set of date changes (single task or a previewed cascade). Its undo puts every
+ * date and time back without a `rootId`, so taking a postpone back does not count as another one.
+ * True when every change was saved.
+ */
+export async function reschedule(changes: DateChange[], rootId?: string, opts: MutationOpts = {}): Promise<boolean> {
+  const saved = await rescheduleSaved(changes, rootId, opts);
+  return saved.length > 0 && saved.length === changes.length;
+}
+
+/**
+ * `reschedule`, saying which changes the server saved. More than 500 go in parts of 500, each one
+ * all or nothing; the first refusal stops the rest and puts those tasks back. The undo it records
+ * covers the parts that went through.
+ */
+export async function rescheduleSaved(changes: DateChange[], rootId?: string, opts: MutationOpts = {}): Promise<DateChange[]> {
   const prev = changes.map((c) => state.tasks[c.taskId]).filter((t): t is Task => !!t);
+  if (!prev.length) return [];
   if (!prev.every((t) => canEdit(t))) {
     const blocked = prev.filter((t) => !canEdit(t));
     toast.error(
@@ -415,7 +599,7 @@ export async function reschedule(changes: DateChange[], rootId?: string): Promis
         ? READ_ONLY_MESSAGE
         : `함께 밀리는 작업 중 ${blocked.map((t) => `#${t.number}`).join(', ')}은(는) 보기 전용이라 옮길 수 없어요. ‘이 작업만’ 옮겨 보세요.`,
     );
-    return false;
+    return [];
   }
   upsertTasks(
     changes
@@ -432,31 +616,83 @@ export async function reschedule(changes: DateChange[], rootId?: string): Promis
       })
       .filter((t): t is Task => !!t),
   );
+  const saved: DateChange[] = [];
   try {
-    const { tasks } = await api<{ tasks: Task[] }>('POST', '/api/tasks/reschedule', { changes, rootId });
-    upsertTasks(tasks);
-    return true;
+    for (const part of chunks(changes)) {
+      const { tasks } = await api<{ tasks: Task[] }>('POST', '/api/tasks/reschedule', { changes: part, rootId });
+      upsertTasks(tasks);
+      saved.push(...part);
+    }
   } catch (e) {
-    upsertTasks(prev);
+    const done = new Set(saved.map((c) => c.taskId));
+    upsertTasks(prev.filter((t) => !done.has(t.id)));
     fail(e);
-    return false;
   }
+  if (opts.record !== false && saved.length) {
+    const done = new Set(saved.map((c) => c.taskId));
+    const before = datesOf(prev.filter((t) => done.has(t.id)));
+    pushUndo({
+      label: opts.label ?? (before.length === 1 ? '날짜 변경' : `작업 ${before.length}개 날짜 변경`),
+      undo: () => reschedule(before, undefined, REPLAY),
+      redo: () => reschedule(saved, undefined, REPLAY),
+    });
+  }
+  return saved;
+}
+
+/** Dates and times exactly as they are now: what an undo of a date move sends back. */
+export function datesOf(list: Task[]): DateChange[] {
+  return list.map((t) => ({ taskId: t.id, startDate: t.startDate, dueDate: t.dueDate, startTime: t.startTime, dueTime: t.dueTime }));
 }
 
 export interface TaskMove {
   taskId: string;
   position: number;
   status?: TaskStatus;
+  /** With status `done`: when it was done (an undo of 완료 취소 keeps the old day); otherwise ignored. */
+  completedAt?: string;
 }
 
-/** Board moves (manual order, and a new status when a card changes column), applied optimistically. */
-export async function moveTasks(changes: TaskMove[]): Promise<boolean> {
+/**
+ * Where `changes` would take the tasks from: their position, and their status when it changes (a
+ * done task with the time it was done). Called after a move, it gives where the tasks are now: a redo.
+ */
+export function movesBack(changes: TaskMove[], s: AppState = state): TaskMove[] {
+  return changes.flatMap((c) => {
+    const t = s.tasks[c.taskId];
+    return t ? [{ taskId: t.id, position: t.position, ...(c.status ? { status: t.status, ...doneAt(t) } : {}) }] : [];
+  });
+}
+
+function movesLabel(changes: TaskMove[], s: AppState): string {
+  const st = changes.find((c) => c.status);
+  if (!st) return '순서 변경';
+  const n = changes.filter((c) => c.status).length;
+  if (st.status === 'done') return n > 1 ? `작업 ${n}개 완료` : '완료';
+  if (s.tasks[st.taskId]?.status === 'done') return n > 1 ? `작업 ${n}개 완료 취소` : '완료 취소';
+  return '상태 변경';
+}
+
+/** Board moves (manual order, and a new status when a card changes column), applied optimistically. True when every change was saved. */
+export async function moveTasks(changes: TaskMove[], opts: MutationOpts = {}): Promise<boolean> {
   if (!changes.length) return true;
+  return (await moveTasksSaved(changes, opts)).length === changes.length;
+}
+
+/**
+ * `moveTasks`, saying which changes the server saved. More than 500 go in parts of 500, each one
+ * all or nothing; the first refusal stops the rest and puts those tasks back. The undo it records
+ * covers the parts that went through.
+ */
+export async function moveTasksSaved(changes: TaskMove[], opts: MutationOpts = {}): Promise<TaskMove[]> {
   const prev = changes.map((c) => state.tasks[c.taskId]).filter((t): t is Task => !!t);
+  if (!prev.length) return [];
   if (!prev.every((t) => canEdit(t))) {
     toast.error(READ_ONLY_MESSAGE);
-    return false;
+    return [];
   }
+  const before = movesBack(changes);
+  const was = state;
   const now = new Date().toISOString();
   upsertTasks(
     changes.flatMap((c) => {
@@ -465,55 +701,54 @@ export async function moveTasks(changes: TaskMove[]): Promise<boolean> {
       const next: Task = { ...t, position: c.position };
       if (c.status && c.status !== t.status) {
         next.status = c.status;
-        next.completedAt = c.status === 'done' ? now : null;
+        next.completedAt = c.status === 'done' ? (c.completedAt ?? now) : null;
       }
       return [next];
     }),
   );
+  const saved: TaskMove[] = [];
   try {
-    const { tasks } = await api<{ tasks: Task[] }>('POST', '/api/tasks/reorder', { changes });
-    upsertTasks(tasks);
-    return true;
+    for (const part of chunks(changes)) {
+      const { tasks } = await api<{ tasks: Task[] }>('POST', '/api/tasks/reorder', { changes: part });
+      upsertTasks(tasks);
+      saved.push(...part);
+    }
   } catch (e) {
-    upsertTasks(prev);
+    const done = new Set(saved.map((c) => c.taskId));
+    upsertTasks(prev.filter((t) => !done.has(t.id)));
     fail(e);
-    return false;
   }
+  if (opts.record !== false && saved.length) {
+    const done = new Set(saved.map((c) => c.taskId));
+    const back = before.filter((c) => done.has(c.taskId));
+    const again = movesBack(saved);
+    pushUndo({ label: opts.label ?? movesLabel(saved, was), undo: () => moveTasks(back, REPLAY), redo: () => moveTasks(again, REPLAY) });
+  }
+  return saved;
 }
 
-export async function deleteTask(id: string) {
-  const t = state.tasks[id];
-  if (!guard(t)) return;
-  const prevDeps = state.deps;
-  localWrites++;
-  set((s) => {
-    const tasks = { ...s.tasks };
-    delete tasks[id];
-    return {
-      tasks,
-      deps: s.deps.filter((d) => d.taskId !== id && d.dependsOnId !== id),
-      selectedTaskId: s.selectedTaskId === id ? null : s.selectedTaskId,
-    };
-  });
-  try {
-    await api('DELETE', `/api/tasks/${id}`);
-    toast.show(`“${t.title}” 삭제됨`);
-  } catch (e) {
-    set((s) => ({ tasks: { ...s.tasks, [id]: t }, deps: prevDeps }));
-    fail(e);
-  }
+/** One task to the trash (it can be restored for 30 days). */
+export function deleteTask(id: string, opts: MutationOpts = {}): Promise<boolean> {
+  return deleteTasks([id], opts);
 }
 
 /**
  * Change several tasks at once (multi-select: project, priority), each with its own patch so an undo
  * can put every task back as it was. Applied optimistically; any that fail come back.
  */
-export async function patchTasks(changes: { id: string; patch: UpdateTaskInput }[]): Promise<boolean> {
+export async function patchTasks(changes: { id: string; patch: UpdateTaskInput }[], opts: MutationOpts = {}): Promise<boolean> {
+  const tried = changes.filter((c) => state.tasks[c.id]).length;
+  const saved = await patchTasksSaved(changes, opts);
+  return tried > 0 && saved.length === tried;
+}
+
+/** `patchTasks`, saying which task ids the server saved (the rest came back as they were). */
+export async function patchTasksSaved(changes: { id: string; patch: UpdateTaskInput }[], opts: MutationOpts = {}): Promise<string[]> {
   const list = changes.flatMap((c) => (state.tasks[c.id] ? [{ ...c, prev: state.tasks[c.id]! }] : []));
-  if (!list.length) return true;
+  if (!list.length) return [];
   if (!list.every((c) => canEdit(c.prev))) {
     toast.error(READ_ONLY_MESSAGE);
-    return false;
+    return [];
   }
   upsertTasks(list.map((c) => ({ ...c.prev, ...(c.patch as Partial<Task>) })));
   const results = await Promise.allSettled(list.map((c) => api<{ task: Task }>('PATCH', `/api/tasks/${c.id}`, c.patch)));
@@ -521,56 +756,119 @@ export async function patchTasks(changes: { id: string; patch: UpdateTaskInput }
   const failed: Task[] = [];
   results.forEach((r, i) => (r.status === 'fulfilled' ? saved.push(r.value.task) : failed.push(list[i]!.prev)));
   upsertTasks([...saved, ...failed]);
+  // The ones that did change can be taken back even when others failed.
+  const done = list.filter((_, i) => results[i]!.status === 'fulfilled');
+  if (opts.record !== false && done.length) {
+    const back = done.map((c) => ({ id: c.id, patch: inversePatch(c.prev, c.patch) }));
+    const again = done.map((c) => ({ id: c.id, patch: againPatch(c.patch, state.tasks[c.id]) }));
+    pushUndo({
+      label: opts.label ?? patchLabel(done[0]!.prev, done[0]!.patch),
+      undo: () => patchTasks(back, REPLAY),
+      redo: () => patchTasks(again, REPLAY),
+    });
+  }
   if (failed.length) fail((results.find((r) => r.status === 'rejected') as PromiseRejectedResult).reason);
-  return !failed.length;
+  return done.map((c) => c.id);
 }
 
-/** Delete several tasks at once (the timeline's multi-select). Any that fail come back. */
-export async function deleteTasks(ids: string[]): Promise<boolean> {
-  const list = ids.map((id) => state.tasks[id]).filter((t): t is Task => !!t);
-  if (!list.length) return true;
+/**
+ * Move tasks to the trash (휴지통), all or nothing, in one request. They leave the list (and the
+ * picks) at once and come back with every link if the server says no; an undo restores the same rows.
+ */
+export async function deleteTasks(ids: string[], opts: MutationOpts = {}): Promise<boolean> {
+  const list = [...new Set(ids)].map((id) => state.tasks[id]).filter((t): t is Task => !!t);
+  if (!list.length) return false;
   if (!list.every((t) => canEdit(t))) {
     toast.error(READ_ONLY_MESSAGE);
     return false;
   }
   const gone = new Set(list.map((t) => t.id));
+  const goneIds = [...gone];
   const prevDeps = state.deps;
+  unpick(goneIds);
   localWrites++;
-  set((s) => {
-    const tasks = { ...s.tasks };
-    for (const id of gone) delete tasks[id];
-    return {
-      tasks,
-      deps: s.deps.filter((d) => !gone.has(d.taskId) && !gone.has(d.dependsOnId)),
-      selectedTaskId: s.selectedTaskId && gone.has(s.selectedTaskId) ? null : s.selectedTaskId,
-    };
-  });
-  const results = await Promise.allSettled(list.map((t) => api('DELETE', `/api/tasks/${t.id}`)));
-  const failed = list.filter((_, i) => results[i]!.status === 'rejected');
-  if (failed.length) {
+  dropTasks(gone);
+  try {
+    await api<{ deleted: string[] }>('POST', '/api/tasks/delete', { ids: goneIds });
+  } catch (e) {
+    localWrites++;
     set((s) => {
       const tasks = { ...s.tasks };
-      for (const t of failed) tasks[t.id] = t;
-      const keep = new Set(s.deps.map((d) => `${d.taskId}:${d.dependsOnId}`));
-      const back = prevDeps.filter((d) => tasks[d.taskId] && tasks[d.dependsOnId] && !keep.has(`${d.taskId}:${d.dependsOnId}`));
+      for (const t of list) tasks[t.id] = t;
+      const have = new Set(s.deps.map(depKey));
+      const back = prevDeps.filter((d) => (gone.has(d.taskId) || gone.has(d.dependsOnId)) && !have.has(depKey(d)));
       return { tasks, deps: [...s.deps, ...back] };
     });
-    fail((results.find((r) => r.status === 'rejected') as PromiseRejectedResult).reason);
+    fail(e, '휴지통으로 옮기지 못했습니다');
+    return false;
   }
-  const done = list.length - failed.length;
-  if (done) toast.show(done === 1 ? `“${list.find((t) => !failed.includes(t))!.title}” 삭제됨` : `작업 ${done}개 삭제됨`);
-  return !failed.length;
+  // A background refresh that read the server before the delete landed may have put them back.
+  localWrites++;
+  dropTasks(gone);
+  const n = list.length;
+  const entry =
+    opts.record === false
+      ? null
+      : pushUndo({
+          label: opts.label ?? (n === 1 ? '작업 삭제' : `작업 ${n}개 삭제`),
+          undo: async () => !!(await restoreTasks(goneIds, REPLAY)),
+          redo: () => deleteTasks(goneIds, REPLAY),
+        });
+  if (!opts.quiet) notify(n === 1 ? `“${list[0]!.title}”을(를) 휴지통으로 옮겼어요` : `작업 ${n}개를 휴지통으로 옮겼어요`, entry);
+  return true;
 }
 
-export async function addDependency(taskId: string, dependsOnId: string) {
+/**
+ * Bring tasks back from the trash: the same rows (id, #number, dates), plus the links whose other
+ * end still exists. Undo moves them back to the trash.
+ */
+export async function restoreTasks(ids: string[], opts: MutationOpts = {}): Promise<RestoreResult | null> {
+  if (!ids.length) return null;
+  try {
+    const res = await api<RestoreResult>('POST', '/api/trash/restore', { ids: [...new Set(ids)] });
+    // Picked as 휴지통 rows, they must not come back picked in the list (the bar would act on them unseen).
+    unpick(ids);
+    // Tasks first: a link is only kept once both of its tasks are back in the list.
+    applyServerTasks(res.tasks);
+    mergeDeps(res.dependencies, { bothEnds: true });
+    const back = res.tasks.map((t) => t.id);
+    const entry =
+      opts.record === false || !back.length
+        ? null
+        : pushUndo({
+            label: opts.label ?? '복원',
+            undo: () => deleteTasks(back, REPLAY),
+            redo: async () => !!(await restoreTasks(back, REPLAY)),
+          });
+    if (!opts.quiet && back.length) {
+      notify(back.length === 1 ? `“${res.tasks[0]!.title}”을(를) 되살렸어요` : `작업 ${back.length}개를 되살렸어요`, entry);
+    }
+    // In an organization a task from a deleted project goes back to its maker's (or assignee's)
+    // inbox, which only they can see: it is restored, just not into this list.
+    const elsewhere = new Set(ids).size - back.length - res.missing.length;
+    if (!opts.quiet && elsewhere > 0) {
+      toast.show(`작업 ${elsewhere}개는 만든 사람이나 담당자의 인박스로 되살렸어요`);
+    }
+    return res;
+  } catch (e) {
+    fail(e, '되살리지 못했습니다');
+    return null;
+  }
+}
+
+export async function addDependency(taskId: string, dependsOnId: string, opts: MutationOpts = {}): Promise<boolean> {
   if (!guard(state.tasks[taskId])) return false;
+  const had = state.deps.some((d) => d.taskId === taskId && d.dependsOnId === dependsOnId);
   try {
     await api('POST', `/api/tasks/${taskId}/dependencies`, { dependsOnId });
-    set((s) => ({
-      deps: s.deps.some((d) => d.taskId === taskId && d.dependsOnId === dependsOnId)
-        ? s.deps
-        : [...s.deps, { taskId, dependsOnId }],
-    }));
+    mergeDeps([{ taskId, dependsOnId }]);
+    if (opts.record !== false && !had) {
+      pushUndo({
+        label: opts.label ?? '의존 관계 추가',
+        undo: () => removeDependency(taskId, dependsOnId, REPLAY),
+        redo: () => addDependency(taskId, dependsOnId, REPLAY),
+      });
+    }
     return true;
   } catch (e) {
     fail(e);
@@ -578,15 +876,62 @@ export async function addDependency(taskId: string, dependsOnId: string) {
   }
 }
 
-export async function removeDependency(taskId: string, dependsOnId: string) {
-  if (!guard(state.tasks[taskId])) return;
-  const prev = state.deps;
-  set((s) => ({ deps: s.deps.filter((d) => !(d.taskId === taskId && d.dependsOnId === dependsOnId)) }));
+export async function removeDependency(taskId: string, dependsOnId: string, opts: MutationOpts = {}): Promise<boolean> {
+  if (!guard(state.tasks[taskId])) return false;
+  const link = { taskId, dependsOnId };
+  const had = state.deps.some((d) => depKey(d) === depKey(link));
+  localWrites++;
+  set((s) => ({ deps: s.deps.filter((d) => depKey(d) !== depKey(link)) }));
   try {
     await api('DELETE', `/api/tasks/${taskId}/dependencies/${dependsOnId}`);
+    if (opts.record !== false && had) {
+      pushUndo({
+        label: opts.label ?? '의존 관계 해제',
+        undo: () => addDependency(taskId, dependsOnId, REPLAY),
+        redo: () => removeDependency(taskId, dependsOnId, REPLAY),
+      });
+    }
+    return true;
   } catch (e) {
-    set({ deps: prev });
+    if (had) mergeDeps([link]);
     fail(e);
+    return false;
+  }
+}
+
+// ─────────────────────────────── trash (휴지통; purging is final, so no undo: the page confirms first)
+
+export async function listTrash(): Promise<TrashItem[] | null> {
+  try {
+    const { items } = await api<{ items: TrashItem[] }>('GET', '/api/trash');
+    return items;
+  } catch (e) {
+    fail(e, '휴지통을 불러오지 못했습니다');
+    return null;
+  }
+}
+
+/** Delete trashed tasks for good. Returns how many went, or null when it failed (already toasted). */
+export async function purgeTrash(ids: string[], opts: { quiet?: boolean } = {}): Promise<number | null> {
+  if (!ids.length) return 0;
+  try {
+    const { purged } = await api<{ purged: number }>('POST', '/api/trash/purge', { ids: [...new Set(ids)] });
+    if (!opts.quiet && purged) toast.show(purged === 1 ? '작업을 영구 삭제했어요' : `작업 ${purged}개를 영구 삭제했어요`);
+    return purged;
+  } catch (e) {
+    fail(e, '영구 삭제하지 못했습니다');
+    return null;
+  }
+}
+
+export async function emptyTrash(opts: { quiet?: boolean } = {}): Promise<number | null> {
+  try {
+    const { purged } = await api<{ purged: number }>('POST', '/api/trash/empty');
+    if (!opts.quiet) toast.show(purged ? `휴지통을 비웠어요 · 작업 ${purged}개` : '휴지통이 이미 비어 있어요');
+    return purged;
+  } catch (e) {
+    fail(e, '휴지통을 비우지 못했습니다');
+    return null;
   }
 }
 

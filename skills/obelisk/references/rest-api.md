@@ -15,10 +15,11 @@ Helper: `scripts/obelisk.sh METHOD PATH [JSON]`.
 | GET | `/api/tasks/:ref` | ref = `12`, uuid, or unique title fragment (URL-encode `#` as `%23` or omit it) |
 | POST | `/api/tasks` | `{title, notes?, status?, priority?: 0-3, projectId?, startDate?, startTime?, dueDate?, dueTime?, fixed?, estimateMinutes?, assigneeId?, blockedBy?: uuid[]}` — times are `HH:MM` (24h, the user's timezone) and need their date; `estimateMinutes` 1–1440. Tasks carry `actualMinutes` (recorded time) |
 | POST | `/api/tasks/bulk` | `{projectId?, tasks: [{key?, title, …, blockedBy?: (key \| "#12" \| uuid)[]}]}` |
-| PATCH | `/api/tasks/:id` | any task field; `null` clears dates/times/project/assignee (clearing a date clears its time; a new date keeps the time) |
+| PATCH | `/api/tasks/:id` | any task field; `null` clears dates/times/project/assignee (clearing a date clears its time; a new date keeps the time). `completedAt` (ISO datetime) is used instead of now when the task ends up `done` (an undo restoring the old time); ignored otherwise, a future time counts as now |
 | GET | `/api/tasks/:id/activity` | who changed what on this task |
-| DELETE | `/api/tasks/:id` | |
-| POST | `/api/tasks/reorder` | `{changes: [{taskId, position, status?}]}` — manual board order (lower first), atomic |
+| DELETE | `/api/tasks/:id` | moves it to the trash (휴지통), restorable for 30 days |
+| POST | `/api/tasks/delete` | `{ids: uuid[]}` (1–5000) → `{deleted}` — moves them to the trash in one go; one missing or read-only task cancels the whole call |
+| POST | `/api/tasks/reorder` | `{changes: [{taskId, position, status?, completedAt?}]}` (1–500) — manual board order (lower first), atomic; `completedAt` as in PATCH |
 | POST | `/api/tasks/:id/dependencies` | `{dependsOnId}` — `:id` is blocked by `dependsOnId` |
 | DELETE | `/api/tasks/:id/dependencies/:dependsOnId` | |
 | POST | `/api/impact/simulate` | `{taskId, days}` or `{taskId, toDate}` → `{task, days, report}` (read-only) |
@@ -28,7 +29,11 @@ Helper: `scripts/obelisk.sh METHOD PATH [JSON]`.
 | GET | `/api/projects` | `?archived=true` to include archived |
 | POST | `/api/projects` | `{name, color?}` colors: slate red orange amber green teal blue indigo violet pink |
 | PATCH | `/api/projects/:id` | `{name?, color?, archived?}` |
-| DELETE | `/api/projects/:id?deleteTasks=false` | tasks move to inbox unless `deleteTasks=true` (needs manage) |
+| DELETE | `/api/projects/:id?deleteTasks=false` | tasks move to inbox unless `deleteTasks=true`, which moves them to the trash (needs manage) |
+| GET | `/api/trash` | `{items: [{task, dependencies, deletedAt, deletedBy, deletedByName, purgeAt, canRestore}]}`, newest first, only what you can see. `task.projectId` is where a restore lands (`null` = inbox, e.g. the project was deleted); `purgeAt` = deleted + 30 days |
+| POST | `/api/trash/restore` | `{ids}` (1–5000) → `{tasks, dependencies, missing}` — same id, number and dates; links come back where the other task still exists, or once it is restored too. An organization inbox task restored by someone who could not see it there (its deleter) is assigned to them. Needs edit where the task lands (403 for the whole call otherwise); 404 when none of the ids is in the trash |
+| POST | `/api/trash/purge` | `{ids}` (1–5000) → `{purged}` — deletes those for good (same right as restoring) |
+| POST | `/api/trash/empty` | → `{purged}` — deletes for good everything in the trash you may restore |
 | GET | `/api/projects/:id/access` | member access, grants to people and teams, everyone's effective level |
 | GET | `/api/workspaces` | your workspaces with your role |
 | GET | `/api/workspaces/:id` | workspace, members, teams |
@@ -70,7 +75,7 @@ Sharing a project (`PUT /api/projects/:id/access`), moving it between workspaces
 
 Moving to another server: API tokens are not moved (make new ones on the new server), incoming webhooks get new URLs there, and organization members other than the importer wait in 가입 대기 (`/api/workspaces/:id/reservations`) until they open their claim link (`/invite/obr_…`); an account with the same email is not let in without it.
 
-Access levels: `view` (read), `edit` (create/change/delete tasks and links), `manage` (also rename, archive, delete, share). Roles: `owner`, `admin` (manage every project, members, teams), `member`.
+Access levels: `view` (read), `edit` (create/change/delete tasks and links, restore them from the trash), `manage` (also rename, archive, delete, share). Roles: `owner`, `admin` (manage every project, members, teams), `member`.
 
 Priority numbers: 0 none, 1 low, 2 medium, 3 high.
 

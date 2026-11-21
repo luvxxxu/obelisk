@@ -73,6 +73,9 @@ struct PendingChange: Hashable, Sendable {
     var title: String
     var next: TimedSpan
     var preview: DateChangePreview
+    /// Set when several tasks move together (`previewGroup`): `only` / `cascade` then already carry
+    /// every task's times, and `taskId` / `next` are the first of them.
+    var count: Int? = nil
 }
 
 /// What to do with a requested date edit (`requestDateChange` on the web).
@@ -111,7 +114,57 @@ enum PendingResolution: String, Codable, CaseIterable, Hashable, Sendable {
 
 /// The changes to send for a resolved pending change (the web's `resolvePending`).
 func pendingChanges(_ p: PendingChange, _ mode: PendingResolution) -> [DateChange] {
-    withTimes(mode == .cascade ? p.preview.cascade : p.preview.only, p.taskId, p.next)
+    let changes = mode == .cascade ? p.preview.cascade : p.preview.only
+    return p.count != nil ? changes : withTimes(changes, p.taskId, p.next)
+}
+
+/// One task of several moved together.
+struct GroupMove: Hashable, Sendable {
+    var taskId: String
+    var next: TimedSpan
+}
+
+/// The same preview for several tasks moved together (web `previewGroup`): every moved task is a root,
+/// each pushing its successors by however far its own finish moved. `shiftDays` is the largest move.
+func previewGroup(_ moves: [GroupMove], _ tasks: [String: TaskItem], _ items: [PlanItem], _ deps: [PlanDependency]) -> DateChangePreview {
+    var roots: [String: TimedSpan] = [:]
+    var shifts: [(String, Int)] = []
+    var shiftDays = 0
+    for m in moves {
+        roots[m.taskId] = m.next
+        let t = tasks[m.taskId]
+        let oldEnd = t.flatMap { $0.dueDate ?? $0.startDate }
+        let newEnd = m.next.dueDate ?? m.next.startDate
+        let d = (oldEnd.jsTruthy && newEnd.jsTruthy) ? toDay(newEnd!) - toDay(oldEnd!) : 0
+        shifts.append((m.taskId, d))
+        if abs(d) > abs(shiftDays) { shiftDays = d }
+    }
+    var report = simulate(items, deps, orderedShifts: shifts)
+    for k in report.impacts.indices where report.impacts[k].kind == .root {
+        if let next = roots[report.impacts[k].taskId] {
+            report.impacts[k].to = DateSpan(startDate: next.startDate, dueDate: next.dueDate)
+        }
+    }
+    let only = moves.compactMap { m -> DateChange? in
+        guard let t = tasks[m.taskId] else { return nil }
+        let next = orderTimes(t, m.next)
+        let times = resolvedTimes(t, next)
+        return DateChange(
+            taskId: m.taskId, startDate: next.startDate, dueDate: next.dueDate,
+            startTime: .some(times.startTime), dueTime: .some(times.dueTime)
+        )
+    }
+    let cascade = only + report.impacts
+        .filter { $0.kind == .shifted && roots[$0.taskId] == nil }
+        .map { DateChange(taskId: $0.taskId, startDate: $0.to.startDate, dueDate: $0.to.dueDate) }
+    return DateChangePreview(
+        report: report,
+        shiftDays: shiftDays,
+        startsBeforeBlockers: [],
+        hasImpact: report.summary.delayedCount + report.summary.conflictCount > 0,
+        only: only,
+        cascade: cascade
+    )
 }
 
 /// The tasks' current dates and times for every change, to send back for "실행 취소".

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { getState, selectTask } from './store';
 
 /**
@@ -70,6 +70,18 @@ export function clearPicks() {
   emit();
 }
 
+/** Drop tasks that left the list (moved to the trash), so an undo does not bring them back picked. */
+export function unpick(ids: Iterable<string>) {
+  const gone = new Set(ids);
+  if (![...picked].some((id) => gone.has(id)) && !(anchor && gone.has(anchor))) return;
+  const next = [...picked].filter((id) => !gone.has(id));
+  picked = next.length ? new Set(next) : EMPTY;
+  if (anchor && gone.has(anchor)) anchor = null;
+  if (!picked.size) anchor = null;
+  rangeBase = new Set([...rangeBase].filter((id) => !gone.has(id)));
+  emit();
+}
+
 /** Add or remove one task. The task open in the side panel joins the first pick. */
 export function togglePick(id: string) {
   const next = new Set(picked);
@@ -102,6 +114,28 @@ export function pickRange(order: readonly string[], id: string) {
   closePanel();
 }
 
+/**
+ * A sweep (press on a row and drag): `base` plus the rows from `from` to `to`. `from` becomes the
+ * anchor, so a later Shift+click or Shift+↓ re-draws the same range instead of piling up.
+ */
+export function pickSpan(order: readonly string[], from: string, to: string, base: ReadonlySet<string>) {
+  anchor = from;
+  rangeBase = base;
+  pickRange(order, to);
+}
+
+/**
+ * Keyboard range (Shift+↑/↓, Shift+Home/End): the rows from the anchor to `id`. With no anchor on
+ * screen yet, `from` (the row focus is leaving) becomes one, and what was picked stays picked.
+ */
+export function extendRange(order: readonly string[], from: string, id: string) {
+  if (!anchor || !order.includes(anchor)) {
+    anchor = from;
+    rangeBase = picked;
+  }
+  pickRange(order, id);
+}
+
 /** Task ids of the list rows on screen, top to bottom (what a Shift range spans). */
 export function visibleRowIds(): string[] {
   if (typeof document === 'undefined') return [];
@@ -111,6 +145,61 @@ export function visibleRowIds(): string[] {
     if (id && !out.includes(id)) out.push(id);
   }
   return out;
+}
+
+/**
+ * Whether a row can be picked. 모아보기 (/overview) mixes every space's tasks and its rows draw no
+ * picked state, so nothing there can be picked; elsewhere every row can (휴지통 rows are not in the
+ * task list, yet its own bar acts on them).
+ */
+export function isPickable(_id: string): boolean {
+  return typeof location === 'undefined' || !location.pathname.startsWith('/overview');
+}
+
+/**
+ * The press that closed a menu or a popover (its event time). It only dismissed that, so the list
+ * must not also read it as a click on empty space that lets go of the picks.
+ */
+let dismissedAt = -Infinity;
+
+/** A menu's or popover's outside-press handler calls this with the press that closes it. */
+export function markDismissPress(e: Event) {
+  dismissedAt = e.timeStamp;
+}
+
+/** Whether the press made at `pressedAt` (its pointerdown's time) closed a menu or popover. */
+export function closedSomething(pressedAt: number): boolean {
+  // The popover hears the mousedown that follows the pointerdown of the same press.
+  return dismissedAt >= pressedAt - 16;
+}
+
+/** `visibleRowIds()` without the rows that cannot be picked (what ⌘A, a sweep and a box take). */
+export function pickableRowIds(): string[] {
+  return visibleRowIds().filter(isPickable);
+}
+
+/**
+ * ⌘A. A view without list rows (the timeline) registers what it shows instead; the newest
+ * registration wins while it is mounted.
+ */
+let selectAllSources: (() => string[])[] = [];
+
+export function useSelectAll(source: () => string[]) {
+  const ref = useRef(source);
+  ref.current = source;
+  useEffect(() => {
+    const read = () => ref.current();
+    selectAllSources = [...selectAllSources, read];
+    return () => {
+      selectAllSources = selectAllSources.filter((s) => s !== read);
+    };
+  }, []);
+}
+
+/** What ⌘A picks on this page: the registered view's tasks, else every pickable row. */
+export function selectAllIds(): string[] {
+  const source = selectAllSources[selectAllSources.length - 1];
+  return source ? source() : pickableRowIds();
 }
 
 /** A view that shows the action bar itself (the timeline) registers while it is mounted. */

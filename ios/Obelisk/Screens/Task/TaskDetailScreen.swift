@@ -7,6 +7,7 @@ struct TaskDetailScreen: View {
     var taskId: String
 
     @Environment(AppStore.self) private var store
+    @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
     /// The task was here at some point (so it disappearing means it was deleted, not that it never existed).
     @State private var seen = false
@@ -26,8 +27,13 @@ struct TaskDetailScreen: View {
         .onAppear {
             visible = true
             if task != nil { seen = true }
+            // Hardware shortcuts (⌫, ⌘D, ⌘↵, ⌘C) act on the task on top.
+            router.taskOnTop = taskId
         }
-        .onDisappear { visible = false }
+        .onDisappear {
+            visible = false
+            if router.taskOnTop == taskId { router.taskOnTop = nil }
+        }
         .onChange(of: task == nil) { _, gone in
             if !gone {
                 seen = true
@@ -46,7 +52,9 @@ struct TaskDetailMissing: View {
                 .font(.system(size: 22))
                 .foregroundStyle(Ob.text3)
                 .accessibilityHidden(true)
-            EmptyState("작업을 찾을 수 없어요", message: "삭제되었을 수 있어요.")
+            EmptyState("작업을 찾을 수 없어요", message: "삭제된 작업은 30일 동안 휴지통에 있어요.") {
+                ListsPageButton(title: "휴지통에서 찾기", symbol: "trash", page: .trash)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.bottom, 80)
@@ -77,7 +85,6 @@ struct TaskDetailContent: View {
     @State private var sheet: TaskDetailSheet?
     /// Runs once the sheet is gone: a date change may need the impact sheet, which can't open over ours.
     @State private var afterSheet: (() -> Void)?
-    @State private var confirmDelete = false
 
     init(task: TaskItem) {
         self.task = task
@@ -133,14 +140,6 @@ struct TaskDetailContent: View {
                 .environment(store)
                 .environment(router)
                 .environment(store.toasts)
-        }
-        .confirmationDialog("작업을 삭제할까요?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("삭제", role: .destructive) {
-                Task { await store.deleteTask(task.id) }
-            }
-            Button("취소", role: .cancel) {}
-        } message: {
-            Text("“\(task.title)”과(와) 연결된 의존 관계가 모두 삭제돼요. 되돌릴 수 없어요.")
         }
         .onChange(of: task.title) { _, v in
             if focus != .title { title = v }
@@ -277,7 +276,7 @@ struct TaskDetailContent: View {
         Task { await store.updateTask(t.id, p) }
     }
 
-    // MARK: toolbar (완료 · 미루기 · 작업 취소 · 링크 복사 · 공유 · 삭제)
+    // MARK: toolbar (완료 · 미루기 · 작업 취소 · 링크 복사 · 공유 · 휴지통)
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
@@ -334,10 +333,11 @@ struct TaskDetailContent: View {
                 }
                 if !readOnly {
                     Section {
+                        // No confirm: it goes to the trash, and the toast (or ⌘Z, or a shake) brings it back.
                         Button(role: .destructive) {
-                            confirmDelete = true
+                            Task { await store.trashTasks([task.id]) }
                         } label: {
-                            Label("삭제", systemImage: "trash")
+                            Label("휴지통으로 옮기기", systemImage: "trash")
                         }
                     }
                 }

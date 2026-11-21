@@ -2,6 +2,7 @@
 
 import type { Task } from '@obelisk/core';
 import { useState, type ReactNode } from 'react';
+import { unpick } from '@/lib/selection';
 import { Icon, type IconName } from './Icon';
 import { TaskRow } from './TaskRow';
 import s from './View.module.css';
@@ -67,12 +68,17 @@ export function TaskGroup({
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   if (!tasks.length && !empty) return null;
+  const toggle = () => {
+    // Folding a group lets go of its picked rows, as Finder does: a shortcut must not act on rows out of sight.
+    if (!collapsed) unpick(tasks.map((t) => t.id));
+    setCollapsed(!collapsed);
+  };
   return (
     <section className={s.group} data-tone={tone}>
       {title && (
         <div className={s.groupHeader} data-tone={tone}>
           {collapsible ? (
-            <button className={s.groupToggle} onClick={() => setCollapsed((c) => !c)} aria-expanded={!collapsed}>
+            <button className={s.groupToggle} onClick={toggle} aria-expanded={!collapsed}>
               <span className={s.chevron} data-open={!collapsed}>
                 <Icon name="chevronRight" size={14} strokeWidth={2} />
               </span>

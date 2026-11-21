@@ -140,7 +140,7 @@ struct HomeStatusCallout: View {
         let changes = changesFromReport(data.fc, true)
         if await store.reschedule(changes) {
             Haptics.success()
-            store.toasts.show("\(changes.count)개 작업을 오늘 기준으로 다시 맞췄어요")
+            store.history.notify("\(changes.count)개 작업을 오늘 기준으로 다시 맞췄어요", store.history.latest)
         }
         busy = false
     }

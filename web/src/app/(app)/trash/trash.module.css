@@ -1,0 +1,17 @@
+/* 휴지통 rows reuse the task row (components/TaskRow.module.css); these are the two differences. */
+
+/* a quiet status mark where a list row has its checkbox: these rows are not ticked */
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--text-4);
+}
+
+/* 되살리기 (words) and 영구 삭제 (icon) */
+.actions {
+  gap: 4px;
+}

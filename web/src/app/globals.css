@@ -412,6 +412,13 @@ html[data-dragging] * {
   -webkit-user-select: none !important;
 }
 
+/* Rows are being picked by a sweep or a box (ListGestures): no text selection on the way. */
+html[data-selecting],
+html[data-selecting] * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 /* A home widget is being resized (home dashboard edit mode). */
 html[data-resizing],
 html[data-resizing] * {

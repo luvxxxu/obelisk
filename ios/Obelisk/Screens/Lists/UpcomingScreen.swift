@@ -50,8 +50,9 @@ struct UpcomingScreen: View {
         let today = store.today
         let (days, later) = agenda(today)
         let nothing = days.allSatisfy { $0.tasks.isEmpty } && later.isEmpty
+        let rows = (days.flatMap(\.tasks) + later.flatMap(\.tasks)).map(\.id)
 
-        return List {
+        return SelectableList(rows: rows) {
             ListsHeader(
                 "예정",
                 description: "앞으로 2주는 날짜별로, 그 이후는 월별로 보여드려요.",

@@ -2,22 +2,17 @@
 
 import type { Announcement } from '@obelisk/core';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useJevAutoPilot } from '@/lib/jev';
-import { clearPicks, getPicked, useHasInlineBar } from '@/lib/selection';
+import { clearPicks, useHasInlineBar } from '@/lib/selection';
+import { useShortcuts } from '@/lib/shortcuts';
 import { getState, load, selectTask, startSync, useApp } from '@/lib/store';
-import {
-  DESKTOP_QUERY,
-  isApple,
-  modCombo,
-  restoreSidebar,
-  toggleSidebar,
-  useMediaQuery,
-} from '@/lib/ui-helpers';
+import { DESKTOP_QUERY, modCombo, restoreSidebar, toggleSidebar, useMediaQuery } from '@/lib/ui-helpers';
 import { getUi, setUi, useUi } from '@/lib/ui-state';
 import { SelectionDock } from './BulkBar';
 import { Icon, Logo } from './Icon';
 import { GateScreen } from './GateScreen';
+import { ListGestures } from './ListGestures';
 import { CommandPalette, QuickAddModal, ShortcutsHelp, Toaster } from './Overlays';
 import { JevDialogs } from './JevDialogs';
 import { CommitDialog } from './CommitDialog';
@@ -27,105 +22,9 @@ import { PostponeDialog } from './PostponeDialog';
 import { tip, TooltipLayer, ui } from './primitives';
 import { Sidebar } from './Sidebar';
 import { TaskDetail } from './TaskDetail';
+import { TaskMenuLayer, TrashConfirm } from './TaskMenu';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import s from './AppShell.module.css';
-
-function isTyping(e: KeyboardEvent) {
-  const el = e.target as HTMLElement | null;
-  if (!el) return false;
-  return el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName);
-}
-
-function isDesktop() {
-  return typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(DESKTOP_QUERY).matches;
-}
-
-function useShortcuts() {
-  const router = useRouter();
-  const gPressed = useRef(0);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const u = getUi();
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setUi({ palette: !u.palette });
-        return;
-      }
-      // ⌘B / Ctrl+B — collapse/expand the sidebar (sheet on small screens).
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'b') {
-        // On Apple, Ctrl+B in a text field is the native "cursor back" — leave it alone.
-        if (e.ctrlKey && !e.metaKey && isApple() && isTyping(e)) return;
-        e.preventDefault();
-        if (isDesktop()) toggleSidebar();
-        else setUi({ nav: !u.nav });
-        return;
-      }
-      if (isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (u.palette || u.quickAdd || u.shortcuts) return;
-      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
-
-      if (Date.now() - gPressed.current < 900) {
-        const dest: Record<string, string> = {
-          h: '/',
-          o: '/overview',
-          t: '/today',
-          u: '/upcoming',
-          i: '/inbox',
-          f: '/forecast',
-          a: '/all',
-          l: '/logbook',
-        };
-        gPressed.current = 0;
-        if (dest[e.key]) {
-          e.preventDefault();
-          router.push(dest[e.key]!);
-          return;
-        }
-      }
-
-      switch (e.key) {
-        case 'n':
-        case 'c':
-          e.preventDefault();
-          setUi({ quickAdd: true });
-          break;
-        case '/':
-          e.preventDefault();
-          setUi({ palette: true });
-          break;
-        case '?':
-          e.preventDefault();
-          setUi({ shortcuts: true });
-          break;
-        case 'g':
-          gPressed.current = Date.now();
-          break;
-        case 'Escape':
-          if (getPicked().size) clearPicks();
-          else if (getState().selectedTaskId) selectTask(null);
-          else if (u.nav) setUi({ nav: false });
-          break;
-        case 'j':
-        case 'k':
-        case 'ArrowDown':
-        case 'ArrowUp': {
-          const rows = Array.from(document.querySelectorAll<HTMLElement>('main [data-task-row]'));
-          if (!rows.length) return;
-          e.preventDefault();
-          const cur = rows.indexOf(document.activeElement as HTMLElement);
-          const down = e.key === 'j' || e.key === 'ArrowDown';
-          const next = cur < 0 ? (down ? 0 : rows.length - 1) : Math.max(0, Math.min(rows.length - 1, cur + (down ? 1 : -1)));
-          rows[next]?.focus();
-          rows[next]?.scrollIntoView({ block: 'nearest' });
-          break;
-        }
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [router]);
-}
 
 /**
  * Top bar, ChatGPT style: the space switcher is the title ("개인 공간 ⌄"); nothing else competes with it.
@@ -188,6 +87,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const desktop = useMediaQuery(DESKTOP_QUERY);
+  // The page scroller: list gestures listen on it and auto-scroll it.
+  const [main, setMain] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     if (getState().status === 'idle' || getState().status === 'unauthenticated') void load();
@@ -203,9 +104,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (desktop && getUi().nav) setUi({ nav: false });
   }, [desktop]);
   useShortcuts();
-  // A selection belongs to the page it was made on.
+  // A selection (and a rename or menu on one of its rows) belongs to the page it was made on.
   const workspaceId = app.workspace?.id;
-  useEffect(() => clearPicks(), [pathname, workspaceId]);
+  useEffect(() => {
+    clearPicks();
+    const u = getUi();
+    if (u.renaming || u.taskMenu) setUi({ renaming: null, taskMenu: null });
+  }, [pathname, workspaceId]);
   const inlineBar = useHasInlineBar();
 
   if (app.status === 'gated' && app.gate) return <GateScreen gate={app.gate} />;
@@ -241,19 +146,21 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
       {nav && <div className={s.scrim} onClick={() => setUi({ nav: false })} />}
 
-      <main className={s.main}>
+      <main className={s.main} ref={setMain}>
         {app.server.announcement && <NoticeBanner notice={app.server.announcement} />}
         <TopBar desktop={desktop} collapsed={collapsed} nav={nav} />
         <div key={pathname} className={s.route}>
           {children}
         </div>
-        <SelectionDock hidden={inlineBar} />
+        {/* 휴지통 draws its own bar for its rows. */}
+        <SelectionDock hidden={inlineBar || pathname.startsWith('/trash')} />
       </main>
+      <ListGestures main={main} />
 
       {app.selectedTaskId && (
         <>
           <div className={s.panelScrim} onClick={() => selectTask(null)} />
-          <aside className={s.panel} aria-label="작업 상세">
+          <aside className={s.panel} aria-label="작업 상세" data-task-panel="">
             <TaskDetail taskId={app.selectedTaskId} />
           </aside>
         </>
@@ -267,6 +174,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <CommitDialog />
       <ActualDialog />
       <JevAutoPilot />
+      <TaskMenuLayer />
+      <TrashConfirm />
       <Toaster />
       <TooltipLayer />
     </div>

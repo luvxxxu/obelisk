@@ -16,8 +16,8 @@ import {
 } from '@obelisk/core';
 import { useSyncExternalStore } from 'react';
 import { withTime } from './format';
-import { getState, planItems, reschedule, updateTask } from './store';
-import { toast } from './toast';
+import { datesOf, getState, planItems, reschedule, rescheduleSaved, updateTask } from './store';
+import { notify, pushUndo } from './undo';
 
 /** Dates plus, optionally, new times. A time left undefined stays as it is (and goes with a cleared date). */
 export interface TimedSpan extends DateSpan {
@@ -193,18 +193,23 @@ export function requestGroupChange(moves: GroupMove[]) {
 
 async function commit(taskId: string, changes: DateChange[], count: number) {
   const s = getState();
-  const before: DateChange[] = changes
-    .map((c) => s.tasks[c.taskId])
-    .filter((t): t is Task => !!t)
-    .map((t) => ({ taskId: t.id, startDate: t.startDate, dueDate: t.dueDate, startTime: t.startTime, dueTime: t.dueTime }));
+  const before = datesOf(changes.map((c) => s.tasks[c.taskId]).filter((t): t is Task => !!t));
   const task = s.tasks[taskId];
-  const ok = await reschedule(changes, taskId);
-  if (!ok || !task) return;
+  // The root's postpone counts once; undo and redo send no root so taking it back is not another postpone.
+  // A batch over 500 goes in parts: the undo covers the parts that went through.
+  const saved = await rescheduleSaved(changes, taskId, { record: false });
+  if (!saved.length || !task) return;
+  const moved = new Set(saved.map((c) => c.taskId));
+  const back = before.filter((c) => moved.has(c.taskId));
+  if (saved.length < changes.length) count = saved.length;
+  const entry = pushUndo({
+    label: count > 1 ? `작업 ${count}개 날짜 변경` : '날짜 변경',
+    undo: () => reschedule(back, undefined, { record: false, quiet: true }),
+    redo: () => reschedule(saved, undefined, { record: false, quiet: true }),
+  });
   const after = getState().tasks[taskId];
   const when = after?.dueDate ?? after?.startDate;
   const time = after?.dueDate ? after.dueTime : after?.startTime;
   const label = when ? withTime(formatRelativeKo(when, getState().today), time) : '날짜 없음';
-  toast.show(count > 1 ? `${count}개 작업 일정을 함께 옮겼어요` : `“${task.title}” → ${label}`, {
-    action: { label: '실행 취소', run: () => void reschedule(before) },
-  });
+  notify(count > 1 ? `${count}개 작업 일정을 함께 옮겼어요` : `“${task.title}” → ${label}`, entry);
 }

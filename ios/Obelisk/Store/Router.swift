@@ -4,7 +4,7 @@ import SwiftUI
 /// A sidebar destination (the web's top-level routes). Choosing one replaces the screen, like picking a
 /// conversation in ChatGPT's sidebar; everything deeper is pushed on top.
 enum Page: Hashable, Sendable {
-    case home, overview, inbox, today, upcoming, mine, all, forecast, logbook
+    case home, overview, inbox, today, upcoming, mine, all, forecast, logbook, trash
     case project(String)
 
     var label: String {
@@ -18,6 +18,7 @@ enum Page: Hashable, Sendable {
         case .all: "전체 작업"
         case .forecast: "파급 예측"
         case .logbook: "완료 기록"
+        case .trash: "휴지통"
         case .project: "프로젝트"
         }
     }
@@ -34,6 +35,7 @@ enum Page: Hashable, Sendable {
         case .all: "list.bullet"
         case .forecast: "chart.line.uptrend.xyaxis"
         case .logbook: "checkmark.circle"
+        case .trash: "trash"
         case .project: "folder"
         }
     }
@@ -41,7 +43,7 @@ enum Page: Hashable, Sendable {
     /// Whether the floating composer (quick add) shows on this page.
     var showsComposer: Bool {
         switch self {
-        case .forecast, .logbook, .overview: false
+        case .forecast, .logbook, .overview, .trash: false
         default: true
         }
     }
@@ -58,6 +60,7 @@ enum Page: Hashable, Sendable {
         case "all": self = .all
         case "forecast": self = .forecast
         case "logbook": self = .logbook
+        case "trash": self = .trash
         default:
             if slug.hasPrefix("project:") { self = .project(String(slug.dropFirst(8))) } else { return nil }
         }
@@ -166,10 +169,18 @@ final class Router {
     var fullScreen: SheetRoute?
     /// 서버 관리 opens here next (AdminView takes it and clears it).
     var adminFocus: AdminFocus?
+    /// 선택 모드 of the page's task list (picks, 모두 선택, the bottom bar).
+    let selection = TaskSelection()
+    /// The task whose detail screen is on top, set by that screen: hardware shortcuts (⌫, ⌘D, ⌘↵, ⌘C)
+    /// act on it when nothing is picked, like the web's open panel.
+    var taskOnTop: String?
 
     /// Pick a sidebar page: clears anything pushed, closes the sidebar.
     func open(_ page: Page) {
-        if self.page != page { path = NavigationPath() }
+        if self.page != page {
+            path = NavigationPath()
+            selection.reset()
+        }
         self.page = page
         withAnimation(ObMotion.mid) { sidebarOpen = false }
     }
@@ -213,6 +224,8 @@ final class Router {
         sheet = nil
         fullScreen = nil
         adminFocus = nil
+        selection.reset()
+        taskOnTop = nil
     }
 
     /// 서버 관리 on a given tab (pushes it unless it is already the top screen; AdminView follows `adminFocus`).

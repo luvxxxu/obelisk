@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   addDays,
   atLeast,
@@ -21,14 +21,17 @@ import {
   type ProjectColor,
   type ReorderTasksInput,
   type RescheduleInput,
+  type RestoreResult,
   type Task,
   type TaskStatus,
+  type TrashItem,
   type UpdateTaskInput,
   type ViewName,
 } from '@obelisk/core';
-import { and, desc, eq, gte, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, isNull, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { config } from '../config';
 import { InjectDb, type Db } from '../db/db.module';
-import { projects, taskDependencies, tasks, users, workspaces, type TaskRow } from '../db/schema';
+import { projects, taskDependencies, tasks, taskTrash, users, workspaces, type TaskRow, type TaskTrashRow } from '../db/schema';
 import { AccessService, type Access, type Conn } from '../workspace/access.service';
 import { ActivityService } from '../workspace/activity.service';
 import { toTask } from './mappers';
@@ -54,6 +57,26 @@ export interface TaskFilter {
 }
 
 export const taskSubject = (t: { number: number; title: string }) => `#${t.number} ${t.title}`;
+
+/** Big id lists go to Postgres in pieces (one bind parameter per id). */
+function chunks<T>(list: T[], size = 500): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
+/** Postgres aborted the transaction to break a deadlock (40P01); drizzle may wrap the driver's error. */
+function isDeadlock(e: unknown): boolean {
+  for (let x: unknown = e, depth = 0; x && typeof x === 'object' && depth < 4; x = (x as { cause?: unknown }).cause, depth++) {
+    if ((x as { code?: unknown }).code === '40P01') return true;
+  }
+  return false;
+}
+
+const linkKey = (d: Dependency) => `${d.taskId}>${d.dependsOnId}`;
+
+/** The columns of a trash row that decide who may see and restore it. */
+type TrashSubject = Pick<TaskTrashRow, 'projectId' | 'createdBy' | 'assigneeId' | 'deletedBy'>;
 
 /** Times need their date, and start may not come after due (by date, then by time on the same day). */
 function assertSpan(
@@ -400,6 +423,7 @@ export class TasksService {
   }
 
   async update(a: Access, id: string, patch: UpdateTaskInput, conn: Conn = this.db): Promise<Task> {
+    const { completedAt: doneAt, ...fields } = patch;
     const cur = await this.editableRow(a, id, conn);
     const start = patch.startDate !== undefined ? patch.startDate : cur.startDate;
     const due = patch.dueDate !== undefined ? patch.dueDate : cur.dueDate;
@@ -419,12 +443,14 @@ export class TasksService {
       await this.assertAssignee(conn, a, assigneeId, projectId);
     }
 
-    const set: Partial<TaskRow> = { ...patch, updatedAt: new Date() } as Partial<TaskRow>;
+    const set: Partial<TaskRow> = { ...fields, updatedAt: new Date() } as Partial<TaskRow>;
     if (startTime !== cur.startTime) set.startTime = startTime;
     if (dueTime !== cur.dueTime) set.dueTime = dueTime;
     if (patch.status && patch.status !== cur.status) {
       set.completedAt = patch.status === 'done' ? new Date() : null;
     }
+    // A given completion time (an undo putting a task back to done) wins over now, never later than now.
+    if ((patch.status ?? cur.status) === 'done' && doneAt) set.completedAt = new Date(Math.min(Date.parse(doneAt), Date.now()));
     if (cur.dueDate && due && due > cur.dueDate) set.postponedCount = cur.postponedCount + 1;
     if (!cur.firstDueDate && due) set.firstDueDate = due;
     const onlyPosition = Object.keys(patch).every((k) => k === 'position');
@@ -503,7 +529,7 @@ export class TasksService {
       const out: Task[] = [];
       for (const c of input.changes) {
         if (c.status) {
-          out.push(await this.update(a, c.taskId, { status: c.status, position: c.position }, tx));
+          out.push(await this.update(a, c.taskId, { status: c.status, position: c.position, completedAt: c.completedAt }, tx));
           continue;
         }
         await this.editableRow(a, c.taskId, tx);
@@ -520,11 +546,7 @@ export class TasksService {
   }
 
   async remove(a: Access, id: string) {
-    const cur = await this.editableRow(a, id);
-    await this.db.transaction(async (tx) => {
-      await tx.delete(tasks).where(and(eq(tasks.id, id), eq(tasks.workspaceId, a.workspaceId)));
-      await this.activity.record(tx, a, { action: 'task.deleted', taskId: id, projectId: cur.projectId, subject: taskSubject(cur) });
-    });
+    await this.trash(a, [id]);
     return { ok: true };
   }
 
@@ -580,5 +602,421 @@ export class TasksService {
       }
     });
     return { ok: true };
+  }
+
+  // ───────────────────────────── trash (휴지통)
+
+  /**
+   * Trash rows the caller can see. In an organization: those of projects they can see, plus those
+   * whose project is gone (they would land in the inbox) when they made, hold or deleted the task.
+   */
+  private trashScope(a: Access): SQL {
+    const ws = eq(taskTrash.workspaceId, a.workspaceId);
+    if (a.kind === 'personal') return ws;
+    const here = this.db.select({ id: projects.id }).from(projects).where(eq(projects.workspaceId, a.workspaceId));
+    const gone = or(isNull(taskTrash.projectId), notInArray(taskTrash.projectId, here))!;
+    const mine = or(eq(taskTrash.createdBy, a.userId), eq(taskTrash.assigneeId, a.userId), eq(taskTrash.deletedBy, a.userId))!;
+    const orphan = and(gone, mine)!;
+    const visible = a.visibleProjectIds();
+    return and(ws, visible.length ? or(inArray(taskTrash.projectId, visible), orphan) : orphan)!;
+  }
+
+  /** Where a trashed task lands on restore: its project while it is still here, else the inbox. */
+  private landing(a: Access, r: Pick<TaskTrashRow, 'projectId'>): string | null {
+    return r.projectId && a.projectLevel(r.projectId) ? r.projectId : null;
+  }
+
+  /** Restoring (or deleting for good) needs edit where the task lands; in an org inbox the deleter also may. */
+  private canRestore(a: Access, r: TrashSubject): boolean {
+    const projectId = this.landing(a, r);
+    if (!projectId && a.kind === 'org' && r.deletedBy === a.userId) return true;
+    return canEditTask({ projectId, createdBy: r.createdBy, assigneeId: r.assigneeId }, a);
+  }
+
+  /**
+   * Moves task rows to the trash: a snapshot with every link touching them first, then the delete
+   * (which drops the links by cascade). Callers check permissions and decide what to log.
+   */
+  async moveToTrash(conn: Conn, a: Access, rows: TaskRow[]): Promise<void> {
+    if (!rows.length) return;
+    // All links before any delete: a link between two of these rows would be gone by the second chunk.
+    const found = new Map<string, Dependency>();
+    for (const ids of chunks(rows.map((r) => r.id))) {
+      const links = await conn
+        .select({ taskId: taskDependencies.taskId, dependsOnId: taskDependencies.dependsOnId })
+        .from(taskDependencies)
+        .where(
+          and(
+            eq(taskDependencies.workspaceId, a.workspaceId),
+            or(inArray(taskDependencies.taskId, ids), inArray(taskDependencies.dependsOnId, ids)),
+          ),
+        );
+      for (const d of links) found.set(linkKey(d), d);
+    }
+    const touching = new Map<string, Dependency[]>();
+    for (const d of found.values()) {
+      for (const id of [d.taskId, d.dependsOnId]) touching.set(id, [...(touching.get(id) ?? []), d]);
+    }
+    for (const part of chunks(rows)) {
+      const ids = part.map((r) => r.id);
+      // A leftover row for the same id (restored by hand, say) gives way to the newer snapshot.
+      await conn.delete(taskTrash).where(inArray(taskTrash.id, ids));
+      await conn.insert(taskTrash).values(
+        part.map((r) => ({
+          id: r.id,
+          workspaceId: a.workspaceId,
+          projectId: r.projectId,
+          createdBy: r.createdBy,
+          assigneeId: r.assigneeId,
+          deletedBy: a.userId,
+          task: toTask(r),
+          dependencies: touching.get(r.id) ?? [],
+        })),
+      );
+      await conn.delete(tasks).where(and(eq(tasks.workspaceId, a.workspaceId), inArray(tasks.id, ids)));
+    }
+  }
+
+  /** Moves tasks to the trash, all or nothing: one missing or view-only task cancels the whole call. */
+  async trash(a: Access, ids: string[]): Promise<{ deleted: string[] }> {
+    const unique = [...new Set(ids)];
+    return this.db.transaction(async (tx) => {
+      const found = new Map<string, TaskRow>();
+      for (const part of chunks(unique)) {
+        // Locked, so a second delete of the same task waits and then finds it gone (404).
+        const rows = await tx
+          .select()
+          .from(tasks)
+          .where(and(eq(tasks.workspaceId, a.workspaceId), inArray(tasks.id, part)))
+          .for('update');
+        for (const r of rows) found.set(r.id, r);
+      }
+      const rows = unique.map((id) => {
+        const r = found.get(id);
+        if (!r || !a.taskLevel(r)) throw new NotFoundException('작업을 찾을 수 없습니다');
+        a.assertTaskEditable(r);
+        return r;
+      });
+      await this.moveToTrash(tx, a, rows);
+      // Logged after the rows are gone, as before the trash existed: webhooks still send task: null.
+      for (const r of rows) {
+        await this.activity.record(tx, a, { action: 'task.deleted', taskId: r.id, projectId: r.projectId, subject: taskSubject(r) });
+      }
+      return { deleted: unique };
+    });
+  }
+
+  /** The workspace the first of these ids was trashed in, so restore links work whichever space is open. */
+  async trashWorkspace(ids: string[]): Promise<string | null> {
+    for (const part of chunks(ids)) {
+      const [row] = await this.db
+        .select({ workspaceId: taskTrash.workspaceId })
+        .from(taskTrash)
+        .where(inArray(taskTrash.id, part))
+        .limit(1);
+      if (row) return row.workspaceId;
+    }
+    return null;
+  }
+
+  /** The caller's trash in this workspace, newest first. */
+  async listTrash(a: Access): Promise<TrashItem[]> {
+    const rows = await this.db
+      .select({ row: taskTrash, deletedByName: users.name })
+      .from(taskTrash)
+      .leftJoin(users, eq(users.id, taskTrash.deletedBy))
+      .where(this.trashScope(a));
+    // A batch shares one deletedAt (the transaction's now()), so the number keeps its order stable.
+    rows.sort((x, y) => y.row.deletedAt.getTime() - x.row.deletedAt.getTime() || y.row.task.number - x.row.task.number);
+    // Links only to tasks the caller can see, live or listed here: hidden tasks leave no trace.
+    const listed = new Set(rows.map((r) => r.row.id));
+    const others = [...new Set(rows.flatMap((r) => r.row.dependencies.flatMap((d) => [d.taskId, d.dependsOnId])))].filter(
+      (id) => !listed.has(id),
+    );
+    const live = new Set<string>();
+    for (const part of chunks(others)) {
+      const found = await this.db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(a.taskScope(), inArray(tasks.id, part)));
+      for (const t of found) live.add(t.id);
+    }
+    const seen = (id: string) => listed.has(id) || live.has(id);
+    return rows.map(({ row, deletedByName }) => ({
+      // Project and people as a restore would put them: a deleted project means the inbox.
+      task: { ...row.task, projectId: this.landing(a, row), createdBy: row.createdBy, assigneeId: row.assigneeId },
+      dependencies: row.dependencies.filter((d) => seen(d.taskId) && seen(d.dependsOnId)),
+      deletedAt: row.deletedAt.toISOString(),
+      deletedBy: row.deletedBy,
+      deletedByName,
+      purgeAt: new Date(row.deletedAt.getTime() + config.trashDays * 86_400_000).toISOString(),
+      canRestore: this.canRestore(a, row),
+    }));
+  }
+
+  /** "#12", "12", an id, or an unambiguous piece of the title of a task in the caller's trash. */
+  async resolveTrashed(a: Access, ref: string): Promise<TrashItem> {
+    const s = String(ref).trim();
+    const items = await this.listTrash(a);
+    let hit: TrashItem | undefined;
+    if (/^#?\d+$/.test(s)) hit = items.find((i) => i.task.number === Number(s.replace('#', '')));
+    else if (UUID_RE.test(s)) hit = items.find((i) => i.task.id === s);
+    else if (s) {
+      const lower = s.toLowerCase();
+      const matches = items.filter((i) => i.task.title.toLowerCase().includes(lower));
+      const exact = matches.filter((i) => i.task.title.toLowerCase() === lower);
+      hit = exact.length === 1 ? exact[0] : matches.length === 1 ? matches[0] : undefined;
+      if (!hit && matches.length > 1) {
+        throw new BadRequestException(`휴지통에 "${s}"에 해당하는 작업이 여러 개입니다: ${matches.slice(0, 6).map((i) => taskSubject(i.task)).join(', ')}`);
+      }
+    }
+    if (!hit) throw new NotFoundException(`휴지통에서 작업 "${s}"를 찾을 수 없습니다`);
+    return hit;
+  }
+
+  /** An assignee stays only while still a member who can see where the task lands (as assertAssignee). */
+  private async keptAssignee(conn: Conn, a: Access, assigneeId: string | null, projectId: string | null) {
+    if (!assigneeId || assigneeId === a.userId) return assigneeId;
+    if (a.kind === 'personal' || !(await this.access.membership(a.workspaceId, assigneeId, conn))) return null;
+    if (projectId && !atLeast(await this.access.userLevel(a.workspaceId, assigneeId, projectId, conn), 'view')) return null;
+    return assigneeId;
+  }
+
+  /**
+   * Puts trashed tasks back as they were: same id, #number, dates and history, `updatedAt` now so
+   * clients that load recent tasks get them. A task whose project is gone lands in the inbox. Then
+   * the links whose both ends exist again are re-made, unless one would now close a cycle.
+   * One task the caller may not restore cancels the whole call.
+   *
+   * Two restores at once of tasks that hold each other's links lock each other's trash rows (the
+   * link is handed on to the row still in the trash) and Postgres aborts one as a deadlock; that one
+   * simply runs again, by which time the other task is live and the link is re-made directly.
+   */
+  async restore(a: Access, ids: string[]): Promise<RestoreResult> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.restoreOnce(a, ids);
+      } catch (e) {
+        if (attempt < 2 && isDeadlock(e)) continue;
+        throw e;
+      }
+    }
+  }
+
+  private async restoreOnce(a: Access, ids: string[]): Promise<RestoreResult> {
+    const unique = [...new Set(ids)];
+    return this.db.transaction(async (tx) => {
+      const trashed: TaskTrashRow[] = [];
+      const liveRows: Pick<TaskRow, 'id' | 'workspaceId' | 'projectId' | 'createdBy' | 'assigneeId'>[] = [];
+      for (const part of chunks(unique)) {
+        // Locked, so a second restore of the same task waits and then finds it live instead.
+        trashed.push(
+          ...(await tx
+            .select()
+            .from(taskTrash)
+            .where(and(this.trashScope(a), inArray(taskTrash.id, part)))
+            .for('update')),
+        );
+        liveRows.push(
+          ...(await tx
+            .select({ id: tasks.id, workspaceId: tasks.workspaceId, projectId: tasks.projectId, createdBy: tasks.createdBy, assigneeId: tasks.assigneeId })
+            .from(tasks)
+            .where(inArray(tasks.id, part))),
+        );
+      }
+      const live = new Set(liveRows.map((r) => r.id));
+      const pending = trashed.filter((r) => !live.has(r.id));
+      for (const r of pending) {
+        if (!this.canRestore(a, r)) {
+          throw new ForbiddenException(
+            `${taskSubject(r.task)} 작업을 되살릴 권한이 없습니다 (보기 전용). 프로젝트 관리자에게 쓰기 권한을 요청하세요.`,
+          );
+        }
+      }
+
+      // Numbers are never handed out twice, so the old one is normally free; if not, a new one.
+      const taken = new Set<number>();
+      for (const part of chunks(pending.map((r) => r.task.number))) {
+        const rows = await tx
+          .select({ n: tasks.number })
+          .from(tasks)
+          .where(and(eq(tasks.workspaceId, a.workspaceId), inArray(tasks.number, part)));
+        for (const r of rows) taken.add(r.n);
+      }
+      // One membership lookup per assignee and landing, however many of their tasks come back.
+      const keptCache = new Map<string, Promise<string | null>>();
+      const kept = (assigneeId: string | null, projectId: string | null) => {
+        const key = `${assigneeId}:${projectId}`;
+        if (!keptCache.has(key)) keptCache.set(key, this.keptAssignee(tx, a, assigneeId, projectId));
+        return keptCache.get(key)!;
+      };
+      const values: (typeof tasks.$inferInsert)[] = [];
+      for (const r of pending) {
+        const t = r.task;
+        const projectId = this.landing(a, r);
+        const number = taken.has(t.number) ? await this.nextNumber(tx, a.workspaceId) : t.number;
+        taken.add(number);
+        let assigneeId = await kept(r.assigneeId, projectId);
+        // An org inbox task is seen only by its maker and its assignee. Restored by someone else (its
+        // deleter, after its project went), it goes back to their inbox, as when a project is deleted
+        // without its tasks; but if neither is in the org any more nobody could ever see it again, so
+        // then the restorer becomes its assignee and keeps it.
+        if (!a.taskLevel({ projectId, createdBy: r.createdBy, assigneeId })) {
+          const maker = projectId === null && r.createdBy ? await kept(r.createdBy, null) : null;
+          if (!assigneeId && !maker) assigneeId = a.userId;
+        }
+        values.push({
+          id: t.id,
+          workspaceId: a.workspaceId,
+          createdBy: r.createdBy,
+          assigneeId,
+          number,
+          projectId,
+          title: t.title,
+          notes: t.notes,
+          status: t.status,
+          priority: t.priority,
+          startDate: t.startDate,
+          startTime: t.startDate ? t.startTime : null,
+          dueDate: t.dueDate,
+          dueTime: t.dueDate ? t.dueTime : null,
+          fixed: t.fixed,
+          position: t.position,
+          postponedCount: t.postponedCount,
+          completedAt: t.completedAt ? new Date(t.completedAt) : null,
+          createdAt: new Date(t.createdAt),
+          updatedAt: new Date(),
+        });
+      }
+      const restored: TaskRow[] = [];
+      for (const part of chunks(values)) restored.push(...(await tx.insert(tasks).values(part).returning()));
+
+      const snapshot = new Map<string, Dependency>();
+      for (const r of pending) for (const d of r.dependencies) snapshot.set(linkKey(d), d);
+      const ends = [...new Set([...snapshot.values()].flatMap((d) => [d.taskId, d.dependsOnId]))];
+      const present = new Set<string>();
+      for (const part of chunks(ends)) {
+        const found = await tx
+          .select({ id: tasks.id })
+          .from(tasks)
+          .where(and(eq(tasks.workspaceId, a.workspaceId), inArray(tasks.id, part)));
+        for (const t of found) present.add(t.id);
+      }
+      // The whole workspace's links, not only visible ones: a hidden path can close a cycle too.
+      const graph: Dependency[] = await tx
+        .select({ taskId: taskDependencies.taskId, dependsOnId: taskDependencies.dependsOnId })
+        .from(taskDependencies)
+        .where(eq(taskDependencies.workspaceId, a.workspaceId));
+      const existing = new Set(graph.map(linkKey));
+      const relinked: Dependency[] = [];
+      for (const d of snapshot.values()) {
+        if (!present.has(d.taskId) || !present.has(d.dependsOnId) || existing.has(linkKey(d))) continue;
+        if (wouldCreateCycle(graph, d.taskId, d.dependsOnId)) continue;
+        graph.push(d);
+        existing.add(linkKey(d));
+        relinked.push(d);
+      }
+      for (const part of chunks(relinked)) {
+        await tx
+          .insert(taskDependencies)
+          .values(part.map((d) => ({ ...d, workspaceId: a.workspaceId })))
+          .onConflictDoNothing();
+      }
+
+      // A link whose other task is still in the trash moves into that task's snapshot, which may
+      // lack it (deleted after the link went with this one), so restoring that task re-makes it.
+      const waiting = new Map<string, Dependency[]>();
+      for (const d of snapshot.values()) {
+        for (const other of [d.taskId, d.dependsOnId]) {
+          if (!present.has(other)) waiting.set(other, [...(waiting.get(other) ?? []), d]);
+        }
+      }
+      for (const part of chunks([...waiting.keys()])) {
+        const others = await tx
+          .select({ id: taskTrash.id, dependencies: taskTrash.dependencies })
+          .from(taskTrash)
+          .where(and(eq(taskTrash.workspaceId, a.workspaceId), inArray(taskTrash.id, part)))
+          .for('update');
+        for (const o of others) {
+          const merged = new Map(o.dependencies.map((d) => [linkKey(d), d]));
+          for (const d of waiting.get(o.id)!) merged.set(linkKey(d), d);
+          if (merged.size === o.dependencies.length) continue;
+          await tx.update(taskTrash).set({ dependencies: [...merged.values()] }).where(eq(taskTrash.id, o.id));
+        }
+      }
+
+      for (const row of restored) {
+        await this.activity.record(tx, a, { action: 'task.restored', taskId: row.id, projectId: row.projectId, subject: taskSubject(row) });
+      }
+      for (const part of chunks(trashed.map((r) => r.id))) await tx.delete(taskTrash).where(inArray(taskTrash.id, part));
+
+      const liveHere = liveRows.some((r) => r.workspaceId === a.workspaceId && a.taskLevel(r));
+      if (!restored.length && !liveHere) throw new NotFoundException('휴지통에 없는 작업이에요');
+
+      // What the caller sees afterwards, as bootstrap would show it.
+      const visible = new Set(restored.filter((r) => a.taskLevel(r)).map((r) => r.id));
+      const otherEnds = ends.filter((id) => present.has(id) && !visible.has(id));
+      for (const part of chunks(otherEnds)) {
+        const found = await tx
+          .select({ id: tasks.id })
+          .from(tasks)
+          .where(and(a.taskScope(), inArray(tasks.id, part)));
+        for (const t of found) visible.add(t.id);
+      }
+      const back = new Set(restored.map((r) => r.id));
+      return {
+        tasks: restored.filter((r) => visible.has(r.id)).map(toTask),
+        dependencies: relinked.filter((d) => visible.has(d.taskId) && visible.has(d.dependsOnId)),
+        missing: unique.filter((id) => !back.has(id)),
+      };
+    });
+  }
+
+  /** Deletes trashed tasks for good. Each needs the same right as restoring it; unknown ids are skipped. */
+  async purge(a: Access, ids: string[]): Promise<{ purged: number }> {
+    return this.db.transaction(async (tx) => {
+      const rows: Pick<TaskTrashRow, 'id' | 'projectId' | 'createdBy' | 'assigneeId' | 'deletedBy' | 'task'>[] = [];
+      for (const part of chunks([...new Set(ids)])) {
+        rows.push(
+          ...(await tx
+            .select({
+              id: taskTrash.id,
+              projectId: taskTrash.projectId,
+              createdBy: taskTrash.createdBy,
+              assigneeId: taskTrash.assigneeId,
+              deletedBy: taskTrash.deletedBy,
+              task: taskTrash.task,
+            })
+            .from(taskTrash)
+            .where(and(this.trashScope(a), inArray(taskTrash.id, part)))),
+        );
+      }
+      for (const r of rows) {
+        if (!this.canRestore(a, r)) {
+          throw new ForbiddenException(`${taskSubject(r.task)} 작업을 영구 삭제할 권한이 없습니다 (보기 전용).`);
+        }
+      }
+      for (const part of chunks(rows.map((r) => r.id))) await tx.delete(taskTrash).where(inArray(taskTrash.id, part));
+      return { purged: rows.length };
+    });
+  }
+
+  /** Deletes for good everything in the caller's trash that they may restore; the rest stays. */
+  async emptyTrash(a: Access): Promise<{ purged: number }> {
+    const rows = await this.db
+      .select({
+        id: taskTrash.id,
+        projectId: taskTrash.projectId,
+        createdBy: taskTrash.createdBy,
+        assigneeId: taskTrash.assigneeId,
+        deletedBy: taskTrash.deletedBy,
+      })
+      .from(taskTrash)
+      .where(this.trashScope(a));
+    const ids = rows.filter((r) => this.canRestore(a, r)).map((r) => r.id);
+    await this.db.transaction(async (tx) => {
+      for (const part of chunks(ids)) await tx.delete(taskTrash).where(inArray(taskTrash.id, part));
+    });
+    return { purged: ids.length };
   }
 }

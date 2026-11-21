@@ -5,7 +5,8 @@
  *
  * Covers: invites, private-by-default projects, member/team/everyone grants (view < edit < manage),
  * the private inbox, assignees, cascades through read-only tasks, roles, activity visibility,
- * moving a project between workspaces, and that MCP calls carry exactly the account's rights.
+ * who sees and restores what in the trash, moving a project between workspaces, and that MCP
+ * calls carry exactly the account's rights.
  */
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -270,6 +271,54 @@ const act = await call('get_activity', { task: `#${t1.number}` });
 check(act.structuredContent.activity.some((e: any) => e.via?.includes('org-smoke')), 'get_activity shows changes made through the token');
 await client.close();
 
+// ───────────────────────────── trash follows visibility
+
+console.log('trash');
+{
+  const binOf = async (b: Browser) => (await b.api('GET', '/api/trash')).items as any[];
+  const has = (items: any[], id: string) => items.some((i) => i.task.id === id);
+  const { task: secret } = await ann.api('POST', '/api/tasks', { title: '비밀 메모', projectId: hiddenAnn.task.projectId });
+  await ann.api('POST', '/api/tasks/delete', { ids: [secret.id] });
+  check(!has(await binOf(bob), secret.id), "a member does not see the trash of a project they can't see");
+  check((await bob.status('POST', '/api/trash/restore', { ids: [secret.id] })) === 404, 'nor restore it (404)');
+  check((await bob.api('POST', '/api/trash/purge', { ids: [secret.id] })).purged === 0, 'nor purge it');
+  check((await binOf(ann)).find((i) => i.task.id === secret.id)?.canRestore === true, 'the owner sees it and may restore it');
+
+  await ann.api('DELETE', `/api/tasks/${t3.id}`);
+  const seenByBob = (await binOf(bob)).find((i) => i.task.id === t3.id);
+  check(seenByBob && seenByBob.canRestore === false, 'view access shows the trashed task, read-only');
+  check((await bob.status('POST', '/api/trash/restore', { ids: [t3.id] })) === 403, 'view cannot restore (403)');
+  check((await bob.status('POST', '/api/trash/purge', { ids: [t3.id] })) === 403, 'view cannot purge (403)');
+  await bob.api('POST', '/api/trash/empty');
+  check(has(await binOf(ann), t3.id), "emptying skips what you can't restore");
+
+  await bob.api('DELETE', `/api/tasks/${inbox.id}`);
+  check(!has(await binOf(ann), inbox.id), "someone else's private inbox task stays private in the trash");
+  check(has(await binOf(cat), inbox.id), 'its assignee sees it there');
+  check((await ann.status('POST', '/api/trash/restore', { ids: [inbox.id] })) === 404, 'and the owner cannot restore it');
+
+  const { project: doomed } = await ann.api('POST', '/api/projects', { name: '정리할 프로젝트' });
+  await ann.api('PUT', `/api/projects/${doomed.id}/access`, { members: [{ userId: bobUser.id, level: 'edit' }] });
+  const { task: bobMade } = await bob.api('POST', '/api/tasks', { title: 'Bob이 만든 작업', projectId: doomed.id });
+  const { task: bobMade2 } = await bob.api('POST', '/api/tasks', { title: 'Bob이 만든 두 번째 작업', projectId: doomed.id });
+  await ann.api('DELETE', `/api/projects/${doomed.id}?deleteTasks=true`);
+  const orphan = (await binOf(bob)).find((i) => i.task.id === bobMade.id);
+  check(orphan?.task.projectId === null && orphan.canRestore, 'a deleted project leaves its tasks to their makers, bound for the inbox');
+  const back = await bob.api('POST', '/api/trash/restore', { ids: [bobMade.id] });
+  check(back.tasks[0]?.projectId === null && (await bob.api('GET', `/api/tasks/${bobMade.id}`)).task.id === bobMade.id, 'restored into their private inbox');
+  const byDeleter = await ann.api('POST', '/api/trash/restore', { ids: [bobMade2.id] });
+  check(
+    byDeleter.tasks.length === 0 && byDeleter.missing.length === 0,
+    "the deleter's restore puts it back in its maker's private inbox (not missing, just not theirs to see)",
+  );
+  const bobsAgain = (await bob.api('GET', `/api/tasks/${bobMade2.id}`)).task;
+  check(bobsAgain.projectId === null && bobsAgain.assigneeId === null, 'its maker sees it, unassigned, in their inbox');
+
+  const restored = await ann.api('POST', '/api/trash/restore', { ids: [t3.id, secret.id] });
+  check(restored.tasks.length === 2 && restored.dependencies.some((d: any) => d.taskId === t3.id && d.dependsOnId === t2.id), 'the owner restores with links');
+  check((await bob.api('POST', '/api/trash/restore', { ids: [inbox.id] })).tasks.length === 1, 'the maker restores their inbox task');
+}
+
 // ───────────────────────────── move a project in
 
 console.log('move project between workspaces');
@@ -291,8 +340,17 @@ check(!(await bob.api('GET', '/api/bootstrap')).projects.some((p: any) => p.id =
 // ───────────────────────────── leaving & deleting
 
 console.log('leaving and deleting');
+const { project: catsProject } = await ann.api('POST', '/api/projects', { name: 'Cat의 프로젝트' });
+await ann.api('PUT', `/api/projects/${catsProject.id}/access`, { members: [{ userId: catUser.id, level: 'edit' }] });
+const { task: catMade } = await cat.api('POST', '/api/tasks', { title: 'Cat이 남긴 작업', projectId: catsProject.id });
+await ann.api('DELETE', `/api/projects/${catsProject.id}?deleteTasks=true`);
 await ann.api('DELETE', `/api/workspaces/${org.id}/members/${catUser.id}`);
 check((await cat.status('GET', '/api/bootstrap')) === 404, 'a removed member loses the org');
+const orphaned = await ann.api('POST', '/api/trash/restore', { ids: [catMade.id] });
+check(
+  orphaned.tasks[0]?.id === catMade.id && orphaned.tasks[0].assigneeId === annUser.id && orphaned.tasks[0].projectId === null,
+  'a task whose maker has left comes back assigned to whoever restores it, so it does not vanish',
+);
 check((await new Browser('x').api('GET', `/api/invites/${token}`)).invite.valid === false, 'old link stays used up');
 check((await ann.status('DELETE', `/api/workspaces/${org.id}`, { confirm: 'wrong' })) === 400, 'deleting needs the exact name');
 check((await bob.status('DELETE', `/api/workspaces/${org.id}`, { confirm: org.name })) === 403, 'only owners delete');

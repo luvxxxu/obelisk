@@ -10,6 +10,7 @@ import {
   postponeInput,
   reorderTasksInput,
   rescheduleInput,
+  taskIdsInput,
   taskStatus,
   nowIn,
   todayIn,
@@ -165,6 +166,13 @@ export class PlannerController {
     return { tasks: await this.tasks.reorder(await this.access.forTask(auth, input.changes[0]!.taskId), input) };
   }
 
+  /** Moves tasks to the trash in one transaction (all or nothing). */
+  @Post('tasks/delete')
+  async deleteTasks(@Auth() auth: AuthContext, @Body() body: unknown) {
+    const { ids } = parse(taskIdsInput, body);
+    return this.tasks.trash(await this.access.forTask(auth, ids[0]!), ids);
+  }
+
   @Get('tasks/:ref')
   async getTask(@Auth() auth: AuthContext, @Req() req: Request, @Param('ref') ref: string) {
     const a = z.uuid().safeParse(ref).success ? await this.access.forTask(auth, ref) : await this.ws(auth, req);
@@ -202,6 +210,40 @@ export class PlannerController {
     @Param('dependsOnId', ParseUUIDPipe) dependsOnId: string,
   ) {
     return this.tasks.removeDependency(await this.access.forTask(auth, id), id, dependsOnId);
+  }
+
+  // ── trash (휴지통). Its own prefix: GET tasks/:ref would take "tasks/trash" as a task ref.
+
+  /**
+   * The workspace the ids were trashed in (like routes on one task by id), else the open one,
+   * which then answers "not in the trash" the same way for ids from a space you are not in.
+   */
+  private async trashAccess(auth: AuthContext, req: Request, ids: string[]): Promise<Access> {
+    const workspaceId = await this.tasks.trashWorkspace(ids);
+    if (!workspaceId) return this.ws(auth, req);
+    return this.access.forWorkspace(auth, workspaceId).catch(() => this.ws(auth, req));
+  }
+
+  @Get('trash')
+  async listTrash(@Auth() auth: AuthContext, @Req() req: Request) {
+    return { items: await this.tasks.listTrash(await this.ws(auth, req)) };
+  }
+
+  @Post('trash/restore')
+  async restoreTasks(@Auth() auth: AuthContext, @Req() req: Request, @Body() body: unknown) {
+    const { ids } = parse(taskIdsInput, body);
+    return this.tasks.restore(await this.trashAccess(auth, req, ids), ids);
+  }
+
+  @Post('trash/purge')
+  async purgeTrash(@Auth() auth: AuthContext, @Req() req: Request, @Body() body: unknown) {
+    const { ids } = parse(taskIdsInput, body);
+    return this.tasks.purge(await this.trashAccess(auth, req, ids), ids);
+  }
+
+  @Post('trash/empty')
+  async emptyTrash(@Auth() auth: AuthContext, @Req() req: Request) {
+    return this.tasks.emptyTrash(await this.ws(auth, req));
   }
 
   // ── impact

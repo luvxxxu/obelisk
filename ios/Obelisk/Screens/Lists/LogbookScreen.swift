@@ -15,7 +15,7 @@ struct LogbookScreen: View {
         let total = days.reduce(0) { $0 + $1.tasks.count }
         let today = store.today
 
-        List {
+        SelectableList(rows: days.flatMap(\.tasks).map(\.id)) {
             ListsHeader(
                 "완료 기록",
                 description: "최근 30일 동안 \(total)개를 끝냈어요. 동그라미를 다시 누르면 완료를 취소해요."

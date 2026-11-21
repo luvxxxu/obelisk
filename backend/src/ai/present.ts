@@ -33,6 +33,7 @@ import {
   type ISOTime,
   type ProjectColor,
   type TaskStatus,
+  todayIn,
 } from '@obelisk/core';
 
 export type PriorityName = 'none' | 'low' | 'medium' | 'high';
@@ -135,6 +136,21 @@ export interface WorkspaceOut {
   role: WorkspaceRole;
   members: number;
   default: boolean;
+}
+
+export interface TrashOut {
+  ref: string;
+  id: string;
+  title: string;
+  status: TaskStatus;
+  /** Where a restore puts it: a project name, or 인박스. */
+  project: string | null;
+  deletedAt: string;
+  /** Who deleted it (organizations only). */
+  deletedBy?: string | null;
+  purgeAt: string;
+  /** The caller may not restore it (view-only project). */
+  readOnly?: true;
 }
 
 export interface MemberOut {
@@ -503,6 +519,23 @@ export function mdMembers(o: { workspace: string; members: MemberOut[] }): strin
     (m) => `- **${esc(m.name)}**${m.me ? ' (나)' : ''} · ${ROLE_LABEL_KO[m.role]} · ${esc(m.email)}${m.teams.length ? ` · ${m.teams.map(esc).join(', ')}` : ''}`,
   );
   return join(`### ${esc(o.workspace)} 멤버 · ${o.members.length}`, lines.join('\n'));
+}
+
+export function mdTrash(o: { workspace: string; timezone: string; items: TrashOut[] }): string {
+  if (!o.items.length) return join(`### ${esc(o.workspace)} 휴지통`, '휴지통이 비어 있습니다.');
+  const today = todayIn(o.timezone);
+  const lines = o.items.map((i) => {
+    // Calendar days in the user's time zone, as the web and iOS count them: the purge day itself is 오늘.
+    const left = diffDays(todayIn(o.timezone, new Date(i.purgeAt)), today);
+    const meta = [
+      esc(i.project ?? '인박스'),
+      left > 0 ? `${left}일 후 영구 삭제` : '오늘 영구 삭제',
+      i.deletedBy ? `${esc(i.deletedBy)} 삭제` : null,
+      i.readOnly ? '👁 보기 전용' : null,
+    ].filter(Boolean);
+    return `- ${STATUS_GLYPH[i.status]} ${code(i.ref)} ${esc(i.title)} · ${meta.join(' · ')}`;
+  });
+  return join(`### ${esc(o.workspace)} 휴지통 · ${o.items.length}`, lines.join('\n'), '_30일이 지나면 영구 삭제됩니다. restore_task로 되살릴 수 있습니다._');
 }
 
 function timeKo(iso: string, timezone: string): string {

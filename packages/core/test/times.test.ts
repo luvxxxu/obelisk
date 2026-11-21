@@ -11,7 +11,7 @@ import {
 } from '../src/dates';
 import type { PlanItem } from '../src/impact';
 import { parseDateTimePhrase, parseQuickAdd, parseTimePhrase } from '../src/quickadd';
-import { createTaskInput, spanIssues, updateTaskInput } from '../src/schemas';
+import { createTaskInput, reorderTasksInput, spanIssues, taskIdsInput, updateTaskInput } from '../src/schemas';
 import { compareTasks, isOverdue, selectView } from '../src/views';
 import { parseIncoming, reminderAlerts, reminderSummary, scheduleAlerts, scheduleSummary } from '../src/webhooks';
 
@@ -65,6 +65,26 @@ describe('schemas', () => {
     expect(createTaskInput.safeParse({ title: 'x', dueDate: TODAY, dueTime: '15:30' }).success).toBe(true);
     expect(createTaskInput.safeParse({ title: 'x', dueDate: TODAY, dueTime: '3pm' }).success).toBe(false);
     expect(updateTaskInput.safeParse({ dueTime: null }).success).toBe(true);
+  });
+
+  test('an undo may send back when a task was finished', () => {
+    expect(updateTaskInput.safeParse({ status: 'done', completedAt: '2026-11-10T03:00:00.000Z' }).success).toBe(true);
+    expect(updateTaskInput.safeParse({ status: 'done', completedAt: '2026-11-10T12:00:00+09:00' }).success).toBe(true);
+    expect(updateTaskInput.safeParse({ status: 'done', completedAt: null }).success).toBe(true);
+    expect(updateTaskInput.safeParse({ status: 'done', completedAt: '2026-11-10' }).success).toBe(false);
+    const change = { taskId: crypto.randomUUID(), position: 1, status: 'done', completedAt: '2026-11-10T03:00:00Z' };
+    expect(reorderTasksInput.safeParse({ changes: [change] }).success).toBe(true);
+    expect(reorderTasksInput.safeParse({ changes: [{ ...change, completedAt: 'yesterday' }] }).success).toBe(false);
+  });
+
+  test('a bulk trash call takes up to 5000 ids, moves and date changes up to 500', () => {
+    const ids = (n: number) => Array.from({ length: n }, () => crypto.randomUUID());
+    expect(taskIdsInput.safeParse({ ids: ids(5000) }).success).toBe(true);
+    expect(taskIdsInput.safeParse({ ids: ids(5001) }).success).toBe(false);
+    expect(taskIdsInput.safeParse({ ids: [] }).success).toBe(false);
+    const moves = ids(501).map((taskId, i) => ({ taskId, position: i }));
+    expect(reorderTasksInput.safeParse({ changes: moves.slice(0, 500) }).success).toBe(true);
+    expect(reorderTasksInput.safeParse({ changes: moves }).success).toBe(false);
   });
 });
 

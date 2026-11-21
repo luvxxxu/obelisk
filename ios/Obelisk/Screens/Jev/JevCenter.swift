@@ -134,30 +134,19 @@ final class JevCenter {
     /// Apply chosen priorities as ordinary edits, with one undo for all of them.
     @discardableResult
     func applyPriorities(_ store: AppStore, _ changes: [PriorityChange], label: String = "우선순위") async -> Int {
-        let prev = changes.compactMap { c in store.task(c.taskId).map { PriorityChange(taskId: c.taskId, priority: $0.priority) } }
-        let ok = await Self.setPriorities(store, changes).count
+        let ok = await store.patchTasks(Self.edits(changes), label: "\(label) 변경").count
         guard ok > 0 else { return 0 }
-        store.toasts.show("\(label) \(ok)개를 바꿨어요", action: .init(label: UNDO_LABEL_KO) {
-            Task { @MainActor in await Self.setPriorities(store, prev) }
-        })
+        store.history.notify("\(label) \(ok)개를 바꿨어요", store.history.latest)
         return ok
     }
 
-    /// PATCH each task's priority side by side; the tasks the server accepted.
-    @discardableResult
-    private static func setPriorities(_ store: AppStore, _ changes: [PriorityChange]) async -> [TaskItem] {
-        let jobs = changes.map { c in
-            Task { @MainActor () -> TaskItem? in
-                var p = TaskPatch()
-                p.priority = c.priority
-                return await store.updateTask(c.taskId, p)
-            }
+    /// Each change as a priority-only edit (`AppStore.patchTasks`).
+    private static func edits(_ changes: [PriorityChange]) -> [TaskEdit] {
+        changes.map { c in
+            var p = TaskPatch()
+            p.priority = c.priority
+            return TaskEdit(id: c.taskId, patch: p)
         }
-        var done: [TaskItem] = []
-        for job in jobs {
-            if let t = await job.value { done.append(t) }
-        }
-        return done
     }
 
     // MARK: - auto-apply (opt-in, fills missing priorities only)
@@ -194,13 +183,20 @@ final class JevCenter {
         }
         guard !picks.isEmpty else { return }
         for sg in picks { applied.insert(sg.taskId) }
-        let done = await Self.setPriorities(store, picks.map { PriorityChange(taskId: $0.taskId, priority: $0.suggested) })
+        let set = Self.edits(picks.map { PriorityChange(taskId: $0.taskId, priority: $0.suggested) })
+        let done = await store.patchTasks(set, label: "Jev 우선순위", record: false)
         guard !done.isEmpty else { return }
         let ids = done.map(\.id)
-        store.toasts.show("Jev가 작업 \(done.count)개의 우선순위를 정했어요", action: .init(label: UNDO_LABEL_KO) {
+        let filled = set.filter { ids.contains($0.id) }
+        let cleared = Self.edits(ids.map { PriorityChange(taskId: $0, priority: 0) })
+        // Undoing also tells Jev not to fill these tasks again.
+        let entry = store.history.push("Jev 우선순위", undo: {
             Self.decline(ids)
-            Task { @MainActor in await Self.setPriorities(store, ids.map { PriorityChange(taskId: $0, priority: 0) }) }
+            return await !store.patchTasks(cleared, label: "Jev 우선순위", record: false).isEmpty
+        }, redo: {
+            await !store.patchTasks(filled, label: "Jev 우선순위", record: false).isEmpty
         })
+        store.history.notify("Jev가 작업 \(done.count)개의 우선순위를 정했어요", entry)
     }
 
     // MARK: - B. postpone
@@ -261,15 +257,21 @@ final class JevCenter {
             return DateChange(taskId: id, startDate: d.start, dueDate: d.due)
         }
 
+        // Redo puts back the dates the postpone wrote.
+        let redo = undo.compactMap { u -> DateChange? in
+            guard let t = written[u.taskId] ?? after[u.taskId] else { return nil }
+            return DateChange(taskId: t.id, startDate: t.startDate, dueDate: t.dueDate)
+        }
+
         if let first = failed.first { store.toasts.error(first) }
         if moved > 0 {
             let others = undo.count - moved
-            store.toasts.show(
-                "작업 \(moved)개를 미뤘어요\(others > 0 ? " · 뒤따르는 \(others)개도 함께 옮겼어요" : "")",
-                action: undo.isEmpty ? nil : .init(label: UNDO_LABEL_KO) {
-                    Task { @MainActor in await store.reschedule(undo) }
-                }
-            )
+            let entry = undo.isEmpty ? nil : store.history.push("미루기", undo: {
+                await store.reschedule(undo, record: false)
+            }, redo: {
+                await store.reschedule(redo, record: false)
+            })
+            store.history.notify("작업 \(moved)개를 미뤘어요\(others > 0 ? " · 뒤따르는 \(others)개도 함께 옮겼어요" : "")", entry)
         }
         return moved
     }

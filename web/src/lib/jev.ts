@@ -21,8 +21,9 @@ import {
 } from '@obelisk/core';
 import { useEffect, useSyncExternalStore } from 'react';
 import { api, ApiError } from './api';
-import { canEdit, getState, load, reschedule, setUser, updateTask, useApp } from './store';
+import { applyServerTasks, canEdit, datesOf, getState, load, reschedule, setUser, updateTask, useApp } from './store';
 import { toast } from './toast';
+import { notify, pushUndo } from './undo';
 
 const OFF: JevStatus = { connected: false, keyUnreadable: false, hint: null, autoApply: false, baseUrl: null, model: null };
 
@@ -145,16 +146,23 @@ export function usePriorities(enabled: boolean): PriorityStore {
 export async function applyPriorities(changes: { taskId: string; priority: Priority }[], label = '우선순위') {
   const s = getState();
   const prev = changes.flatMap((c) => (s.tasks[c.taskId] ? [{ taskId: c.taskId, priority: s.tasks[c.taskId]!.priority }] : []));
-  const results = await Promise.all(changes.map((c) => updateTask(c.taskId, { priority: c.priority })));
+  const results = await Promise.all(changes.map((c) => updateTask(c.taskId, { priority: c.priority }, { record: false })));
   const ok = results.filter(Boolean).length;
   if (!ok) return 0;
-  toast.show(`${label} ${ok}개를 바꿨어요`, {
-    action: {
-      label: '실행 취소',
-      run: () => void Promise.all(prev.map((p) => updateTask(p.taskId, { priority: p.priority }))),
-    },
+  const changed = new Set(results.flatMap((t) => (t ? [t.id] : [])));
+  const entry = pushUndo({
+    label: '우선순위 변경',
+    undo: () => setPriorities(prev.filter((p) => changed.has(p.taskId))),
+    redo: () => setPriorities(changes.filter((c) => changed.has(c.taskId))),
   });
+  notify(`${label} ${ok}개를 바꿨어요`, entry);
   return ok;
+}
+
+/** Undo/redo of a batch of priorities: true when at least one still applied. */
+async function setPriorities(list: { taskId: string; priority: Priority }[]): Promise<boolean> {
+  const results = await Promise.all(list.map((c) => updateTask(c.taskId, { priority: c.priority }, { record: false, quiet: true })));
+  return results.some(Boolean);
 }
 
 // ─────────────────────────────── auto-apply (opt-in, fills missing priorities only)
@@ -196,17 +204,20 @@ export function useJevAutoPilot() {
     if (!picks.length) return;
     for (const sg of picks) applied.add(sg.taskId);
     void (async () => {
-      const done = (await Promise.all(picks.map((sg) => updateTask(sg.taskId, { priority: sg.suggested })))).filter(Boolean) as Task[];
+      const done = (await Promise.all(picks.map((sg) => updateTask(sg.taskId, { priority: sg.suggested }, { record: false })))).filter(
+        Boolean,
+      ) as Task[];
       if (!done.length) return;
-      toast.show(`Jev가 작업 ${done.length}개의 우선순위를 정했어요`, {
-        action: {
-          label: '실행 취소',
-          run: () => {
-            decline(done.map((t) => t.id));
-            void Promise.all(done.map((t) => updateTask(t.id, { priority: 0 })));
-          },
+      const entry = pushUndo({
+        label: '우선순위 변경',
+        // Taking it back also tells Jev to leave these tasks alone from now on.
+        undo: () => {
+          decline(done.map((t) => t.id));
+          return setPriorities(done.map((t) => ({ taskId: t.id, priority: 0 })));
         },
+        redo: () => setPriorities(done.map((t) => ({ taskId: t.id, priority: t.priority }))),
       });
+      notify(`Jev가 작업 ${done.length}개의 우선순위를 정했어요`, entry);
     })();
   }, [on, p, app]);
 }
@@ -223,30 +234,41 @@ export async function fetchPostponePlan(scope: 'today' | 'week', capacity?: numb
  * checked no fixed date breaks). One undo restores every date that changed.
  */
 export async function applyPostpone(picks: PostponeCandidate[]): Promise<number> {
-  const before = new Map(Object.values(getState().tasks).map((t) => [t.id, { startDate: t.startDate, dueDate: t.dueDate }]));
+  const before = new Map(Object.values(getState().tasks).map((t) => [t.id, t]));
   let moved = 0;
   const failed: string[] = [];
+  const updated = new Map<string, Task>();
   for (const c of picks) {
     if (!c.toDate) continue;
     try {
-      await api('POST', '/api/impact/postpone', { taskId: c.taskId, toDate: c.toDate, cascade: true });
+      const res = await api<{ updated: Task[] }>('POST', '/api/impact/postpone', { taskId: c.taskId, toDate: c.toDate, cascade: true });
+      for (const t of res.updated) updated.set(t.id, t);
       moved++;
     } catch (e) {
       failed.push(jevMessage(e, '미루지 못했어요'));
     }
   }
-  await load(true);
-  const after = getState().tasks;
-  const undo = [...before]
-    .filter(([id, d]) => after[id] && (after[id]!.startDate !== d.startDate || after[id]!.dueDate !== d.dueDate))
-    .map(([taskId, d]) => ({ taskId, startDate: d.startDate, dueDate: d.dueDate }));
+  // The server's own rows, so the page (and the undo) never depend on a refresh that may predate the move.
+  applyServerTasks([...updated.values()]);
+  const changed = [...updated.values()].filter((t) => {
+    const b = before.get(t.id);
+    return b && (b.startDate !== t.startDate || b.dueDate !== t.dueDate);
+  });
+  const undo = datesOf(changed.map((t) => before.get(t.id)!));
+  const redo = datesOf(changed);
   if (failed.length) toast.error(failed[0]!);
   if (moved) {
-    const others = undo.length - moved;
-    toast.show(`작업 ${moved}개를 미뤘어요${others > 0 ? ` · 뒤따르는 ${others}개도 함께 옮겼어요` : ''}`, {
-      action: undo.length ? { label: '실행 취소', run: () => void reschedule(undo) } : undefined,
-    });
+    const others = changed.length - moved;
+    const entry = changed.length
+      ? pushUndo({
+          label: moved === 1 ? '미루기' : `작업 ${moved}개 미루기`,
+          undo: () => reschedule(undo, undefined, { record: false, quiet: true }),
+          redo: () => reschedule(redo, undefined, { record: false, quiet: true }),
+        })
+      : null;
+    notify(`작업 ${moved}개를 미뤘어요${others > 0 ? ` · 뒤따르는 ${others}개도 함께 옮겼어요` : ''}`, entry);
   }
+  void load(true);
   return moved;
 }
 

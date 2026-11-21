@@ -15,10 +15,18 @@ struct TaskSection<Aside: View>: View {
     var showProject = true
     var showDate: TaskRow.DateDisplay = .full
     var collapsible = false
+    var defaultCollapsed = false
     var empty: String?
     @ViewBuilder var aside: () -> Aside
 
-    @State private var collapsed: Bool
+    @Environment(Router.self) private var router
+
+    /// The fold lives in `router.selection` (keyed by the title), so 모두 선택 skips exactly what is hidden,
+    /// even after the list is rebuilt (리스트 → 타임라인 → 리스트).
+    private var collapsed: Bool {
+        guard collapsible, let title else { return defaultCollapsed }
+        return router.selection.isCollapsed(title, default: defaultCollapsed)
+    }
 
     init(
         _ title: String?,
@@ -37,9 +45,9 @@ struct TaskSection<Aside: View>: View {
         self.showProject = showProject
         self.showDate = showDate
         self.collapsible = collapsible
+        self.defaultCollapsed = defaultCollapsed
         self.empty = empty
         self.aside = aside
-        _collapsed = State(initialValue: defaultCollapsed)
     }
 
     var body: some View {
@@ -56,10 +64,16 @@ struct TaskSection<Aside: View>: View {
                             .foregroundStyle(Ob.text3)
                             .padding(.vertical, ObSpace.sm)
                             .obTaskListRow()
+                            .selectionDisabled()
                     }
                 }
             } header: {
-                if let title { header(title) }
+                if let title {
+                    header(title)
+                        .onAppear {
+                            if collapsible { router.selection.keepDefault(title, defaultCollapsed) }
+                        }
+                }
             }
         }
     }
@@ -68,7 +82,8 @@ struct TaskSection<Aside: View>: View {
         HStack(spacing: ObSpace.sm) {
             if collapsible {
                 Button {
-                    withAnimation(ObMotion.standard) { collapsed.toggle() }
+                    let folded = collapsed
+                    withAnimation(ObMotion.standard) { router.selection.setCollapsed(title, !folded) }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "chevron.right")

@@ -29,6 +29,7 @@ export const PAGE_META: Record<string, PageMeta> = {
   '/all': { label: '전체 작업', icon: 'layers' },
   '/forecast': { label: '파급 예측', icon: 'ripple' },
   '/logbook': { label: '완료 기록', icon: 'checkCircle' },
+  '/trash': { label: '휴지통', icon: 'trash' },
   '/settings': { label: '설정', icon: 'settings' },
   '/settings/ai': { label: 'AI 연결', icon: 'plug' },
   '/settings/org': { label: '조직 설정', icon: 'building' },

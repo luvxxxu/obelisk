@@ -28,6 +28,11 @@ describe('webhookEventFor', () => {
     });
     expect(webhookEventFor('task.updated', { changes: { status: { from: 'done', to: 'todo' } } })?.key).toBe('task.updated');
     expect(webhookEventFor('task.postponed', {})?.key).toBe('task.postponed');
+    expect(webhookEventFor('task.deleted', {})).toEqual({ key: 'task.deleted', event: 'task.deleted' });
+  });
+
+  test('a restore reaches 새 작업 subscribers under its own event name', () => {
+    expect(webhookEventFor('task.restored', {})).toEqual({ key: 'task.created', event: 'task.restored' });
   });
 
   test('dependencies, projects and organization events group under one key', () => {

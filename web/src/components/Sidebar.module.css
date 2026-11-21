@@ -171,6 +171,12 @@
   outline-offset: -2px;
 }
 
+/* picked tasks dragged over a page or project that takes them */
+.item[data-drop-active='true'] {
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1.5px var(--ring-color);
+}
+
 .item[data-editing='true'] {
   background: var(--bg);
   box-shadow: inset 0 0 0 1px var(--ring-color);

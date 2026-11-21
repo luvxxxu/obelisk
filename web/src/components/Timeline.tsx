@@ -17,8 +17,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useClock } from '@/lib/clock';
 import { cx, spanLabel as relativeSpanLabel } from '@/lib/format';
 import { previewFor, previewGroup, requestDateChange, requestGroupChange, type TimedSpan } from '@/lib/reschedule';
-import { clearPicks, setPicked, togglePick, useInlineBar, usePicked } from '@/lib/selection';
+import { clearPicks, setPicked, togglePick, useInlineBar, usePicked, useSelectAll } from '@/lib/selection';
 import { selectTask, useApp } from '@/lib/store';
+import { openTaskMenu } from '@/lib/task-actions';
 import {
   applySpan,
   clampScale,
@@ -37,7 +38,8 @@ import {
   type DragMode,
   type Timed,
 } from '@/lib/timeline';
-import { modKey } from '@/lib/ui-helpers';
+import { isApple, modKey } from '@/lib/ui-helpers';
+import { useUi } from '@/lib/ui-state';
 import { Icon } from './Icon';
 import { BulkBar } from './BulkBar';
 import { tip } from './primitives';
@@ -164,6 +166,19 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
   );
   const unscheduled = tasks.filter((t) => !daySpan(t) && isActive(t));
   const rowIndex = useMemo(() => new Map(rows.map((t, i) => [t.id, i])), [rows]);
+  // ⌘A here: there are no list rows, so the bars on the timeline are what "all" means.
+  useSelectAll(() => rows.map((t) => t.id));
+
+  // Right-click on a bar or its label: the menu for the picks when it is one of them, else for it alone.
+  const { taskMenu } = useUi();
+  const contextId = taskMenu?.ids.length === 1 ? taskMenu.ids[0] : null;
+  const openMenu = (e: React.MouseEvent, t: Task) => {
+    if (drag?.moved) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const ids = picked.has(t.id) ? [...picked].filter((id) => app.tasks[id]) : [t.id];
+    openTaskMenu(e.clientX, e.clientY, ids);
+  };
 
   const range = useMemo(() => {
     let min = addDays(today, -4);
@@ -391,6 +406,8 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
   const onPointerDown = (e: React.PointerEvent, t: Task, mode: DragMode) => {
     if (e.button !== 0) return;
     e.stopPropagation();
+    // Control-click is the Mac's right click: the context menu takes it.
+    if (e.ctrlKey && isApple()) return;
     const toggle = e.shiftKey || e.metaKey || e.ctrlKey;
     if (!isActive(t)) {
       if (toggle) togglePick(t.id);
@@ -464,7 +481,7 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
   };
 
   const onTracksPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || (e.ctrlKey && isApple())) return;
     if (!e.shiftKey) {
       clearPicks();
       return;
@@ -539,6 +556,8 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
   return (
     <div
       className={s.wrap}
+      // The list gestures (sweep, box, drag to the sidebar) stay out: bars and the Shift+box live here.
+      data-gesture="off"
       data-dragging={drag?.moved ? 'true' : undefined}
       data-scale={hourMode ? 'hour' : 'day'}
       data-zooming={zooming || undefined}
@@ -642,8 +661,14 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
                   return (
                     <button
                       key={t.id}
-                      className={cx(s.label, app.selectedTaskId === t.id && s.labelActive, picked.has(t.id) && s.labelPicked)}
+                      className={cx(
+                        s.label,
+                        app.selectedTaskId === t.id && s.labelActive,
+                        picked.has(t.id) && s.labelPicked,
+                        contextId === t.id && s.labelContext,
+                      )}
                       style={{ height: ROW_H }}
+                      onContextMenu={(e) => openMenu(e, t)}
                       onMouseDown={(e) => e.shiftKey && e.preventDefault()}
                       onClick={(e) => {
                         if (e.shiftKey || e.metaKey || e.ctrlKey) togglePick(t.id);
@@ -653,6 +678,8 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
                         }
                       }}
                       data-kind={im?.kind === 'root' ? undefined : im?.kind}
+                      // Focused, the task keys act on this task (lib/task-actions actionTargets).
+                      data-task-focus={t.id}
                       aria-pressed={picked.size ? picked.has(t.id) : undefined}
                       title={t.title}
                     >
@@ -748,6 +775,7 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
                           im?.kind === 'absorbed' && s.barAbsorbed,
                           app.selectedTaskId === t.id && s.barSelected,
                           picked.has(t.id) && s.barPicked,
+                          contextId === t.id && !picked.has(t.id) && s.barContext,
                           !done && t.dueDate && t.dueDate < today && s.barOverdue,
                         )}
                         style={{
@@ -761,6 +789,7 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
                         onPointerMove={onPointerMove}
                         onPointerUp={onPointerUp}
                         onPointerCancel={() => setDrag(null)}
+                        onContextMenu={(e) => openMenu(e, t)}
                         title={`${t.title}${when ? ` · ${when}` : ''}${t.fixed ? ' (고정)' : ''}`}
                       >
                         {!done && !t.fixed && (
@@ -836,7 +865,7 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
             <span className={s.unschedCount}>{unscheduled.length}</span>
           </span>
           {unscheduled.map((t) => (
-            <button key={t.id} className={s.unschedItem} onClick={() => selectTask(t.id)} title={`${t.title} · 열어서 날짜 넣기`}>
+            <button key={t.id} className={s.unschedItem} onClick={() => selectTask(t.id)} data-task-focus={t.id} title={`${t.title} · 열어서 날짜 넣기`}>
               {t.title}
             </button>
           ))}
@@ -851,7 +880,8 @@ export function Timeline({ tasks, emptyHint }: { tasks: Task[]; emptyHint?: stri
             <Icon name="grip" size={13} />
             끌어서 이동 · 양 끝을 끌어 기간 조절
             <span className={s.legendEsc}>
-              · <kbd>Shift</kbd> 또는 <kbd>{mod}</kbd> 클릭으로 여러 개 · 핀치나 <kbd>{mod}</kbd> 스크롤로 확대
+              · <kbd>Shift</kbd> 또는 <kbd>{mod}</kbd> 클릭으로 여러 개 · <kbd>Shift</kbd> 드래그로 범위 선택 · <kbd>{mod}</kbd>
+              <kbd>A</kbd> 모두 선택 · 우클릭으로 메뉴 · 핀치나 <kbd>{mod}</kbd> 스크롤로 확대
             </span>
           </span>
           <span className={s.legendItems}>

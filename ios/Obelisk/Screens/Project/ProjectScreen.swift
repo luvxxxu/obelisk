@@ -107,7 +107,8 @@ private struct ProjectContent: View {
     // MARK: modes
 
     private func list(_ data: ProjectData, _ risk: ProjectRisk) -> some View {
-        List {
+        let rows = data.active.map(\.id) + router.selection.shown("완료", data.done, collapsedByDefault: true)
+        return SelectableList(rows: rows) {
             header(data, risk)
                 .listsPlainRow()
 
@@ -348,7 +349,7 @@ private struct ProjectContent: View {
         } message: {
             Text(data.mine.isEmpty
                 ? "“\(project.name)” 프로젝트가 삭제돼요."
-                : "“\(project.name)” 프로젝트가 삭제되고, 안의 작업 \(data.mine.count)개는 인박스로 옮겨져요.")
+                : "“\(project.name)” 프로젝트가 삭제되고, 안의 작업 \(data.mine.count)개는 인박스로 옮겨져요. 작업도 함께 삭제하면 휴지통에서 \(TRASH_DAYS)일 동안 되살릴 수 있어요.")
         }
         .padding(.trailing, -ObSpace.sm)
     }

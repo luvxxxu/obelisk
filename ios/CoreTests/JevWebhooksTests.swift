@@ -242,6 +242,10 @@ func runWebhooksTests() {
             expectEqual(webhookEventFor("task.postponed", [:])?.key, .taskPostponed)
         }
 
+        test("a task restored from the trash goes to 새 작업 subscribers as task.restored") {
+            expectEqual(webhookEventFor("task.restored", [:]), WebhookEventRoute(key: .taskCreated, event: "task.restored"))
+        }
+
         test("dependencies, projects and organization events group under one key") {
             expectEqual(webhookEventFor("dependency.added", [:]), WebhookEventRoute(key: .taskDependency, event: "dependency.added"))
             expectEqual(webhookEventFor("project.archived", [:]), WebhookEventRoute(key: .project, event: "project.archived"))

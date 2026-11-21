@@ -16,7 +16,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { cx } from '@/lib/format';
-import { createProject, planItems, reset, selectTask, useApp } from '@/lib/store';
+import { canWriteProject, createProject, planItems, reset, selectTask, useApp } from '@/lib/store';
 import { setUi } from '@/lib/ui-state';
 import {
   applyThemePref,
@@ -38,6 +38,8 @@ interface NavItem {
   icon: IconName;
   count?: number;
   tone?: Tone;
+  /** Picked tasks dragged here land here (`data-task-drop`, read by the list's drag). */
+  drop?: string;
 }
 
 const THEMES: { value: ThemePref; label: string; icon: IconName }[] = [
@@ -104,13 +106,14 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
     page('/'),
     // 모아보기 gathers every space, so it only earns a place once there is more than one.
     ...(app.workspaces.length > 1 ? [page('/overview')] : []),
-    page('/inbox', { count: data.inbox || undefined }),
-    page('/today', { count: data.today || undefined, tone: data.overdue ? 'danger' : undefined }),
+    page('/inbox', { count: data.inbox || undefined, drop: 'inbox' }),
+    page('/today', { count: data.today || undefined, tone: data.overdue ? 'danger' : undefined, drop: 'today' }),
     page('/upcoming'),
     ...(org ? [page('/mine', { count: data.mine || undefined })] : []),
     page('/all'),
     page('/forecast', { count: data.risk || undefined, tone: data.conflicts ? 'danger' : data.risk ? 'warn' : undefined }),
     page('/logbook'),
+    page('/trash'),
   ];
 
   const projects = app.projects.filter((p) => !p.archivedAt).sort((a, b) => a.position - b.position);
@@ -186,7 +189,14 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
             const active = pathname === n.href;
             return (
               <li key={n.href}>
-                <Link href={n.href} className={s.item} data-active={active} aria-current={active ? 'page' : undefined} onClick={close}>
+                <Link
+                  href={n.href}
+                  className={s.item}
+                  data-active={active}
+                  data-task-drop={n.drop}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={close}
+                >
                   <span className={s.itemIcon}>
                     <Icon name={n.icon} size={18} />
                   </span>
@@ -218,7 +228,15 @@ export function Sidebar({ mobile = false }: { collapsed?: boolean; mobile?: bool
               const count = data.byProject.get(p.id);
               return (
                 <li key={p.id}>
-                  <Link href={href} className={s.item} data-active={active} aria-current={active ? 'page' : undefined} onClick={close}>
+                  <Link
+                    href={href}
+                    className={s.item}
+                    data-active={active}
+                    // Only a project you can write to takes dragged tasks.
+                    data-task-drop={canWriteProject(p.id, app) ? `project:${p.id}` : undefined}
+                    aria-current={active ? 'page' : undefined}
+                    onClick={close}
+                  >
                     <span className={s.itemIcon}>
                       <span className={s.swatch} style={{ background: `var(--c-${p.color})` }} aria-hidden="true" />
                     </span>

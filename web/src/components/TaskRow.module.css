@@ -48,6 +48,32 @@
   background: var(--surface-3);
 }
 
+/* right-clicked on its own: ringed while its menu is open (the picks need no ring, they are filled) */
+.row[data-context='true'] {
+  box-shadow: inset 0 0 0 1.5px var(--ring-color);
+}
+
+/* the title is being edited in place (E / F2) */
+.row[data-renaming='true'] {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1.5px var(--ring-color);
+  cursor: default;
+}
+
+.renameInput {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 20px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: inherit;
+  outline: none;
+  cursor: text;
+}
+
 .completing .main {
   opacity: 0.55;
 }

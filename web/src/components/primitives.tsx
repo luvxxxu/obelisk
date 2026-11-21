@@ -13,6 +13,7 @@ import {
   type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { markDismissPress } from '@/lib/selection';
 import { Icon } from './Icon';
 import ui from './ui.module.css';
 
@@ -80,6 +81,8 @@ export function Popover({
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
       if (ref.current?.contains(t) || anchor.current?.contains(t)) return;
+      // The press only closes the popover: a list under it must not also drop its picks.
+      markDismissPress(e);
       onClose();
     };
     const onKey = (e: KeyboardEvent) => {

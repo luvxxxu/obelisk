@@ -370,25 +370,21 @@ struct HomeUrgentBoard: View {
             return t.position != c.position || (c.status != nil && c.status != t.status)
         }
         guard !changes.isEmpty else { return }
-        let undo: [AppStore.TaskMove] = changes.compactMap { c in
-            guard let t = store.task(c.taskId) else { return nil }
-            return AppStore.TaskMove(taskId: c.taskId, position: t.position, status: c.status != nil ? t.status : nil)
-        }
 
         if switched { orderRaw = HomeUrgentOrder.manual.rawValue }
-        Task {
-            let ok = await store.moveTasks(changes)
-            if !ok, switched { orderRaw = HomeUrgentOrder.urgency.rawValue }
-        }
         if switched {
             store.toasts.show("직접 정렬로 바꿨어요 · 끌어 놓은 순서가 그대로 남아요", action: .init(label: "긴급도순으로") {
                 withAnimation(ObMotion.mid) { orderRaw = HomeUrgentOrder.urgency.rawValue }
             })
-        } else if status != nil {
-            let store = self.store
-            store.toasts.show("“\(task.title)” \(to.title)으로 옮겼어요", action: .init(label: "실행 취소") {
-                Task { await store.moveTasks(undo) }
-            })
+        }
+        let store = self.store
+        Task {
+            // The move records its own undo entry (⌘Z and shake reach it); a column change also gets a toast for it.
+            let ok = await store.moveTasks(changes)
+            if !ok, switched { orderRaw = HomeUrgentOrder.urgency.rawValue }
+            if ok, !switched, status != nil {
+                store.history.notify("“\(task.title)” \(to.title)으로 옮겼어요", store.history.latest)
+            }
         }
     }
 

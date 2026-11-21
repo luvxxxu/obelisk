@@ -43,22 +43,23 @@ extension AppStore {
     func resolvePending(_ mode: PendingMode) async {
         guard let p = pendingChange else { return }
         pendingChange = nil
+        let label = p.count.map { "작업 \($0)개 날짜 변경" } ?? "날짜 변경"
         switch mode {
         case .cancel: return
-        case .cascade: await commitDates(p.taskId, pendingChanges(p, .cascade))
-        case .only: await commitDates(p.taskId, pendingChanges(p, .only))
+        case .cascade: await commitDates(p.taskId, pendingChanges(p, .cascade), label: label)
+        case .only: await commitDates(p.taskId, pendingChanges(p, .only), label: label)
         }
     }
 
-    private func commitDates(_ taskId: String, _ changes: [DateChange]) async {
-        let before = undoChanges(changes, Array(tasks.values))
-        guard let task = tasks[taskId], await reschedule(changes, rootId: taskId) else { return }
-        toasts.show(
-            rescheduleToast(changes.count, task.title, tasks[taskId], today),
-            action: .init(label: UNDO_LABEL_KO) { [weak self] in
-                Task { await self?.reschedule(before) }
-            }
-        )
+    /// The reschedule records its own undo entry; the toast offers that entry's 실행 취소.
+    private func commitDates(_ taskId: String, _ changes: [DateChange], label: String = "날짜 변경") async {
+        guard let task = tasks[taskId], await reschedule(changes, rootId: taskId, label: label) else { return }
+        history.notify(rescheduleToast(changes.count, task.title, tasks[taskId], today), history.latest)
+    }
+
+    /// The impact of moving several tasks together (no write): each moved task pushes what waits on it.
+    func previewGroupNow(_ moves: [GroupMove]) -> DateChangePreview {
+        previewGroup(moves, tasks, planItemsNow, deps)
     }
 
     // MARK: quick postpone (web TaskRow PostponeMenu)

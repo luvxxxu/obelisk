@@ -55,6 +55,9 @@ struct TaskPatch: Hashable, Sendable {
     var position: Double?
     /// Minutes it should take (`.some(nil)` clears it).
     var estimateMinutes: Int??
+    /// With status done: the completion time to keep (undo and redo putting a completion back). Sent
+    /// only with that status; nil = the server stamps now.
+    var completedAt: String?
 
     init() {}
 
@@ -75,6 +78,7 @@ struct TaskPatch: Hashable, Sendable {
         if let assigneeId { o["assigneeId"] = .orNull(assigneeId) }
         if let position { o["position"] = .number(position) }
         if let estimateMinutes { o["estimateMinutes"] = estimateMinutes.map { .number(Double($0)) } ?? .null }
+        if status == .done, let completedAt { o["completedAt"] = .string(completedAt) }
         return .object(o)
     }
 
@@ -85,7 +89,7 @@ struct TaskPatch: Hashable, Sendable {
         if let notes { t.notes = notes }
         if let status, status != prev.status {
             t.status = status
-            t.completedAt = status == .done ? ISO8601DateFormatter.obelisk.string(from: Date()) : nil
+            t.completedAt = status == .done ? (completedAt ?? ISO8601DateFormatter.obelisk.string(from: Date())) : nil
         }
         if let priority { t.priority = priority }
         if let projectId { t.projectId = projectId }
@@ -101,6 +105,79 @@ struct TaskPatch: Hashable, Sendable {
         if t.startDate == nil { t.startTime = nil }
         if t.dueDate == nil { t.dueTime = nil }
         return t
+    }
+
+    /// The patch that puts back what this one changes on `prev` (실행 취소). A touched date brings its
+    /// time back with it, since the server drops a time whose date goes away.
+    func reverting(_ prev: TaskItem) -> TaskPatch {
+        var p = TaskPatch()
+        if title != nil { p.title = prev.title }
+        if notes != nil { p.notes = prev.notes }
+        if status != nil {
+            p.status = prev.status
+            if prev.status == .done { p.completedAt = prev.completedAt }
+        }
+        if priority != nil { p.priority = prev.priority }
+        if projectId != nil { p.projectId = .some(prev.projectId) }
+        if startDate != nil || startTime != nil {
+            p.startDate = .some(prev.startDate)
+            p.startTime = .some(prev.startTime)
+        }
+        if dueDate != nil || dueTime != nil {
+            p.dueDate = .some(prev.dueDate)
+            p.dueTime = .some(prev.dueTime)
+        }
+        if fixed != nil { p.fixed = prev.fixed }
+        if assigneeId != nil { p.assigneeId = .some(prev.assigneeId) }
+        if position != nil { p.position = prev.position }
+        if estimateMinutes != nil { p.estimateMinutes = .some(prev.estimateMinutes) }
+        return p
+    }
+
+    /// This patch again (다시 실행): a completion keeps the time the server gave it (`after`), not the
+    /// moment of the redo.
+    func redoing(_ prev: TaskItem, _ after: TaskItem) -> TaskPatch {
+        var p = self
+        if status == .done, prev.status != .done, completedAt == nil { p.completedAt = after.completedAt }
+        return p
+    }
+
+    /// What the undo history calls this edit ("제목 변경", "우선순위 변경").
+    var undoLabel: String {
+        if title != nil { return "제목 변경" }
+        if notes != nil { return "메모 변경" }
+        if let status { return status == .done ? "완료" : "상태 변경" }
+        if priority != nil { return "우선순위 변경" }
+        if projectId != nil { return "프로젝트 이동" }
+        if startDate != nil || dueDate != nil || startTime != nil || dueTime != nil { return "날짜 변경" }
+        if assigneeId != nil { return "담당자 변경" }
+        if fixed != nil { return "고정 변경" }
+        if position != nil { return "순서 변경" }
+        if estimateMinutes != nil { return "예상 시간 변경" }
+        return "작업 수정"
+    }
+}
+
+/// One task's part of a bulk edit (`AppStore.patchTasks`).
+struct TaskEdit: Hashable, Sendable {
+    var id: String
+    var patch: TaskPatch
+}
+
+extension NewTask {
+    /// A copy of an existing task (복제): same content, dates and links to what it waits for, not done.
+    init(copying t: TaskItem, blockedBy: [String] = []) {
+        self.init(title: t.title)
+        notes = t.notes
+        priority = t.priority
+        projectId = t.projectId
+        startDate = t.startDate
+        startTime = t.startTime
+        dueDate = t.dueDate
+        dueTime = t.dueTime
+        fixed = t.fixed
+        assigneeId = t.assigneeId
+        self.blockedBy = blockedBy
     }
 }
 

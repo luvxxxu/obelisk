@@ -1,3 +1,4 @@
+import { TRASH_DAYS } from '@obelisk/core';
 import { resolve } from 'node:path';
 
 const publicUrl = (process.env.PUBLIC_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
@@ -50,6 +51,8 @@ export const config = {
   adminClaimForce: process.env.ADMIN_CLAIM === 'true',
   secureCookies: publicUrl.startsWith('https://'),
   sessionDays: 30,
+  /** Deleted tasks wait in the trash (휴지통) this long before the hourly sweep removes them. */
+  trashDays: TRASH_DAYS,
   /**
    * Outgoing mail (password reset links) through any SMTP server: your mailbox's,
    * e.g. smtps://you@gmail.com:app-password@smtp.gmail.com:465, or for your own domain Cloudflare Email Service:

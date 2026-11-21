@@ -325,6 +325,34 @@ struct Dependency: Codable, Hashable, Sendable {
     var dependsOnId: String
 }
 
+/// How long a deleted task waits in the trash (휴지통) before it is removed for good.
+let TRASH_DAYS = 30
+
+/// A deleted task waiting in the trash, as `GET /api/trash` lists it (newest first).
+struct TrashItem: Codable, Hashable, Identifiable, Sendable {
+    /// The task as it was when it was deleted (same id and #number it gets back on restore).
+    var task: TaskItem
+    /// Its dependency links at that moment; a restore re-links those whose other end still exists.
+    var dependencies: [Dependency]
+    var deletedAt: String
+    var deletedBy: String?
+    var deletedByName: String?
+    /// When it will be removed for good (deletedAt + TRASH_DAYS).
+    var purgeAt: String
+    /// Whether you may restore it or delete it for good (edit access where it would land).
+    var canRestore: Bool
+
+    var id: String { task.id }
+}
+
+/// `POST /api/trash/restore`: the tasks back in the list, and the links that were re-made.
+struct RestoreResult: Codable, Hashable, Sendable {
+    var tasks: [TaskItem]
+    var dependencies: [Dependency]
+    /// Asked-for ids that were not in the trash any more (already restored or removed).
+    var missing: [String]
+}
+
 struct Bootstrap: Codable, Sendable {
     var user: User
     var today: ISODate

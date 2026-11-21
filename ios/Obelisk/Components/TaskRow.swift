@@ -57,8 +57,9 @@ struct TaskCheckbox: View {
 
 /// One task in a list (web components/TaskRow.tsx): checkbox · title (+ note mark) · meta line
 /// (date with tone, 고정, 대기 n, 후속 n, n회 미룸, project, assignee).
-/// Tap opens the task; swipe right completes; swipe left postpones (with impact) or deletes;
-/// long-press for the same actions plus the postpone choices.
+/// Tap opens the task; swipe right completes; swipe left postpones (with impact) or moves it to the
+/// trash (undo from the toast, ⌘Z or a shake); long-press for the same actions plus the postpone choices.
+/// In 선택 모드 (the list's edit mode) a tap picks the row instead, and the checkbox and swipes rest.
 struct TaskRow: View {
     var task: TaskItem
     var showProject = true
@@ -69,22 +70,29 @@ struct TaskRow: View {
 
     @Environment(AppStore.self) private var store
     @Environment(Router.self) private var router
+    @Environment(\.editMode) private var editMode
     @State private var completing = false
 
     var body: some View {
         let editable = store.canEdit(task)
         let active = task.isActive
         let done = task.status == .done || completing
+        let selecting = editMode?.wrappedValue.isEditing == true
 
         HStack(alignment: .top, spacing: 0) {
-            TaskCheckbox(
-                status: done ? .done : task.status,
-                priority: task.priority,
-                disabled: !editable,
-                onToggle: complete
-            )
-            .padding(.leading, -11 + ObSpace.xs)
-            .padding(.top, -1)
+            // The list's own circle takes its place while picking: two circles side by side read as one
+            // control too many.
+            if !selecting {
+                TaskCheckbox(
+                    status: done ? .done : task.status,
+                    priority: task.priority,
+                    disabled: !editable,
+                    onToggle: complete
+                )
+                .padding(.leading, -11 + ObSpace.xs)
+                .padding(.top, -1)
+                .transition(.opacity)
+            }
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -106,12 +114,13 @@ struct TaskRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .contentShape(Rectangle())
-        .onTapGesture { router.openTask(task.id) }
+        // Off while selecting (not removed, so the row keeps its identity): the list's own tap picks.
+        .gesture(TapGesture().onEnded { router.openTask(task.id) }, including: selecting ? .subviews : .all)
         .accessibilityElement(children: .combine)
         .accessibilityAction(named: done ? "완료 취소" : "완료") { complete() }
         // Reveal only: a rightward swipe also opens the sidebar from the edge, so it must never complete by itself.
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            if editable, task.status != .canceled {
+            if editable, !selecting, task.status != .canceled {
                 Button {
                     complete()
                 } label: {
@@ -121,9 +130,9 @@ struct TaskRow: View {
             }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            if editable {
+            if editable, !selecting {
                 Button(role: .destructive) {
-                    Task { await store.deleteTask(task.id) }
+                    Task { await store.trashTasks([task.id]) }
                 } label: {
                     Label("삭제", systemImage: "trash")
                 }
@@ -249,7 +258,9 @@ struct TaskRow: View {
     }
 }
 
-/// Long-press menu for a task (open · complete · postpone choices with their impact · pick a date · delete).
+/// Long-press menu for a task (web TaskMenu): 열기 · 완료 · 오늘로 · 미루기 ▸ (each choice with its impact)
+/// · 우선순위 ▸ · 프로젝트로 옮기기 ▸ · 복제 · 텍스트로 복사 · 링크 복사 · 선택 · 휴지통으로 옮기기.
+/// On a picked row in 선택 모드 it acts on every pick, like a right-click on picked rows on the web.
 struct TaskContextMenu: View {
     var task: TaskItem
     var presentPostpone: () -> Void
@@ -257,7 +268,21 @@ struct TaskContextMenu: View {
     @Environment(Router.self) private var router
 
     var body: some View {
+        let selection = router.selection
+        if selection.isActive, selection.ids.contains(task.id), selection.ids.count > 1 {
+            let ids = selection.ordered
+            Section("작업 \(ids.count)개") {
+                TaskBulkMenuItems(ids: ids)
+            }
+        } else {
+            single
+        }
+    }
+
+    @ViewBuilder
+    private var single: some View {
         let editable = store.canEdit(task)
+        let selection = router.selection
         Button {
             router.openTask(task.id)
         } label: {
@@ -268,6 +293,13 @@ struct TaskContextMenu: View {
                 Task { await store.toggleDone(task.id) }
             } label: {
                 Label(task.status == .done ? "완료 취소" : "완료", systemImage: task.status == .done ? "arrow.uturn.backward" : "checkmark.circle")
+            }
+            if task.isActive, (task.dueDate ?? task.startDate) != store.today {
+                Button {
+                    Task { await store.moveToToday([task.id]) }
+                } label: {
+                    Label("오늘로", systemImage: "sun.max")
+                }
             }
             if task.isActive, task.dueDate != nil || task.startDate != nil {
                 Menu {
@@ -290,12 +322,108 @@ struct TaskContextMenu: View {
                     Label("미루기", systemImage: "calendar.badge.clock")
                 }
             }
+            Menu {
+                PriorityItems(ids: [task.id])
+            } label: {
+                Label("우선순위", systemImage: "flag")
+            }
+            Menu {
+                ProjectMoveItems(ids: [task.id])
+            } label: {
+                Label("프로젝트로 옮기기", systemImage: "folder")
+            }
+        }
+        Divider()
+        if store.canWriteProject(task.projectId) {
+            Button {
+                Task { await selection.duplicate([task.id], store) }
+            } label: {
+                Label("복제", systemImage: "plus.square.on.square")
+            }
+        }
+        Button {
+            store.copyTasks([task.id])
+        } label: {
+            Label("텍스트로 복사", systemImage: "doc.on.doc")
+        }
+        Button {
+            store.copyTaskLinks([task.id])
+        } label: {
+            Label("링크 복사", systemImage: "link")
+        }
+        // Only where the row sits in a pickable list (not on 홈's cards).
+        if !selection.isActive, selection.rows.contains(task.id) {
+            Button {
+                selection.begin(with: task.id)
+            } label: {
+                Label("선택", systemImage: "checkmark.circle")
+            }
+        }
+        if editable {
             Divider()
             Button(role: .destructive) {
-                Task { await store.deleteTask(task.id) }
+                selection.trash([task.id], store)
             } label: {
-                Label("삭제", systemImage: "trash")
+                Label("휴지통으로 옮기기", systemImage: "trash")
             }
+        }
+    }
+}
+
+/// The row menu for several picked tasks: the bar's actions plus 복제 and the copies.
+private struct TaskBulkMenuItems: View {
+    var ids: [String]
+    @Environment(AppStore.self) private var store
+    @Environment(Router.self) private var router
+
+    var body: some View {
+        let allDone = store.sharedValue(ids, { $0.status == .done }) == true
+        Button {
+            Task { await store.completeTasks(ids) }
+        } label: {
+            Label(allDone ? "완료 취소" : "완료", systemImage: allDone ? "arrow.uturn.backward" : "checkmark.circle")
+        }
+        Button {
+            Task { await store.moveToToday(ids) }
+        } label: {
+            Label("오늘로", systemImage: "sun.max")
+        }
+        Menu {
+            BulkPostponeItems(ids: ids)
+        } label: {
+            Label("미루기", systemImage: "calendar.badge.clock")
+        }
+        Menu {
+            PriorityItems(ids: ids)
+        } label: {
+            Label("우선순위", systemImage: "flag")
+        }
+        Menu {
+            ProjectMoveItems(ids: ids)
+        } label: {
+            Label("프로젝트로 옮기기", systemImage: "folder")
+        }
+        Divider()
+        Button {
+            Task { await router.selection.duplicate(ids, store) }
+        } label: {
+            Label("복제", systemImage: "plus.square.on.square")
+        }
+        Button {
+            store.copyTasks(ids)
+        } label: {
+            Label("텍스트로 복사", systemImage: "doc.on.doc")
+        }
+        Button {
+            store.copyTaskLinks(ids)
+        } label: {
+            Label("링크 복사", systemImage: "link")
+        }
+        Divider()
+        Button(role: .destructive) {
+            router.selection.trash(ids, store)
+        } label: {
+            Label("휴지통으로 옮기기", systemImage: "trash")
         }
     }
 }

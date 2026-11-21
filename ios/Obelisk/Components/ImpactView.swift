@@ -215,8 +215,9 @@ struct PendingChangeSheet: View {
     var body: some View {
         let p = change.preview
         let summary = p.report.summary
-        let others = p.cascade.count - 1
+        let others = p.cascade.count - (change.count ?? 1)
         let days = p.shiftDays
+        let onlyTitle = change.count != nil ? "고른 작업만 변경" : "이 작업만 변경"
         let target = change.next.dueDate ?? change.next.startDate
 
         NavigationStack {
@@ -252,9 +253,13 @@ struct PendingChangeSheet: View {
                     if others > 0 {
                         VStack(alignment: .leading, spacing: ObSpace.md) {
                             choice("연쇄 적용", "뒤에 이어진 작업 \(others)개도 필요한 만큼 함께 옮겨요.")
-                            choice("이 작업만 변경", summary.conflictCount == 0
-                                ? "뒤 작업들이 이 작업보다 먼저 시작하는 일정이 돼요."
-                                : "이 작업만 옮기고, 뒤 작업 일정은 그대로 둬요.")
+                            choice(onlyTitle, change.count != nil
+                                ? (summary.conflictCount == 0
+                                    ? "뒤 작업들이 고른 작업보다 먼저 시작하는 일정이 돼요."
+                                    : "고른 작업만 옮기고, 뒤 작업 일정은 그대로 둬요.")
+                                : (summary.conflictCount == 0
+                                    ? "뒤 작업들이 이 작업보다 먼저 시작하는 일정이 돼요."
+                                    : "이 작업만 옮기고, 뒤 작업 일정은 그대로 둬요."))
                         }
                     }
 
@@ -274,7 +279,7 @@ struct PendingChangeSheet: View {
                         Task { await store.resolvePending(.cascade) }
                     }
                     .buttonStyle(.ob(.primary, size: .large, fullWidth: true))
-                    Button("이 작업만 변경") {
+                    Button(onlyTitle) {
                         Task { await store.resolvePending(.only) }
                     }
                     .buttonStyle(.ob(.outline, size: .large, fullWidth: true))
@@ -293,6 +298,10 @@ struct PendingChangeSheet: View {
     }
 
     private func title(days: Int, target: ISODate?) -> String {
+        if change.count != nil {
+            // "작업 3개를 1주 미루면": several tasks have no single target date to name.
+            return days == 0 ? "\(change.title) 일정을 바꾸면" : "\(change.title)를 \(daysLabel(abs(days))) \(days > 0 ? "미루면" : "당기면")"
+        }
         if days == 0 { return "“\(change.title)” 일정을 바꾸면" }
         let to = target.map { "\(formatShortKo($0))로 " } ?? ""
         return "“\(change.title)”을(를) \(to)\(daysLabel(abs(days))) \(days > 0 ? "미루면" : "당기면")"

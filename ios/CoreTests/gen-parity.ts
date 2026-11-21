@@ -293,6 +293,7 @@ const ACTIVITY: { action: string; data: Record<string, unknown> }[] = [
   { action: 'task.postponed', data: { days: null } },
   { action: 'task.postponed', data: { days: 'x' } },
   { action: 'task.deleted', data: {} },
+  { action: 'task.restored', data: {} },
   { action: 'dependency.added', data: { blockedBy: '#2 기획' } },
   { action: 'dependency.removed', data: {} },
   { action: 'project.created', data: { memberAccess: 'view' } },

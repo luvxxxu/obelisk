@@ -147,7 +147,7 @@ struct TaskDetailDelaySimulator: View {
     /// The user already chose cascade or this-task-only after seeing the impact (web: reschedule directly).
     private func apply(_ changes: [DateChange], cascade: Bool) async {
         guard await store.reschedule(changes, rootId: task.id) else { return }
-        if cascade { store.toasts.show("\(changes.count)개 작업 일정을 함께 옮겼어요") }
+        if cascade { store.history.notify("\(changes.count)개 작업 일정을 함께 옮겼어요", store.history.latest) }
         withAnimation(ObMotion.standard) { days = nil }
     }
 }

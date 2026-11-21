@@ -82,6 +82,11 @@ func runAccessTests() {
             ], subject: "런칭")
             expectEqual(text, "공유 설정 · 조직 전체 권한 없음 → 보기 · 김민지 권한 없음 → 쓰기")
         }
+
+        test("a task back from the trash says so") {
+            expectEqual(describeActivity(action: "task.restored", data: [:]), "작업을 휴지통에서 되살렸습니다")
+            expectEqual(activityKind("task.restored"), .task)
+        }
     }
 }
 

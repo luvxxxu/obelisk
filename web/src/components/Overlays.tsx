@@ -8,8 +8,9 @@ import { createPortal } from 'react-dom';
 import { cx } from '@/lib/format';
 import { canWriteProject, selectTask, switchWorkspace, useApp } from '@/lib/store';
 import { dismiss, useToasts } from '@/lib/toast';
-import { modKey } from '@/lib/ui-helpers';
+import { isApple, modKey } from '@/lib/ui-helpers';
 import { setUi, useUi } from '@/lib/ui-state';
+import { redo, undo, useUndoState } from '@/lib/undo';
 import { Icon, type IconName } from './Icon';
 import { Badge, Modal, ui } from './primitives';
 import { QuickAdd } from './QuickAdd';
@@ -108,6 +109,7 @@ export function CommandPalette() {
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const uid = useId();
+  const history = useUndoState();
 
   useEffect(() => {
     if (palette) {
@@ -121,6 +123,27 @@ export function CommandPalette() {
     const go = (href: string) => () => (close(), router.push(href));
     const base: Cmd[] = [
       { id: 'new', label: '새 작업 만들기', icon: 'plus', keys: ['N'], group: '명령', run: () => setUi({ palette: false, quickAdd: true }) },
+      {
+        id: 'undo',
+        label: '실행 취소',
+        // What it would take back, so the palette answers "what does ⌘Z do now".
+        hint: history.undoLabel ?? '되돌릴 작업 없음',
+        icon: 'undo',
+        keys: [modKey(), 'Z'],
+        muted: !history.canUndo,
+        group: '명령',
+        run: () => (close(), void undo()),
+      },
+      {
+        id: 'redo',
+        label: '다시 실행',
+        hint: history.redoLabel ?? '다시 실행할 작업 없음',
+        icon: 'redo',
+        keys: isApple() ? ['⌘', '⇧', 'Z'] : ['Ctrl', 'Y'],
+        muted: !history.canRedo,
+        group: '명령',
+        run: () => (close(), void redo()),
+      },
       { id: 'shortcuts', label: '키보드 단축키 보기', icon: 'keyboard', keys: ['?'], group: '명령', run: () => setUi({ palette: false, shortcuts: true }) },
       { id: 'commit', label: '약속하기 전에 · 가능한 날짜 계산', hint: '언제까지 된다고 말할 수 있을까', icon: 'target', group: '명령', run: () => setUi({ palette: false, commit: {} }) },
       {
@@ -149,6 +172,7 @@ export function CommandPalette() {
       { id: 'forecast', label: '파급 예측', icon: 'ripple', keys: ['G', 'F'], group: '이동', run: go('/forecast') },
       { id: 'all', label: '전체 작업', icon: 'layers', keys: ['G', 'A'], group: '이동', run: go('/all') },
       { id: 'logbook', label: '완료 기록', icon: 'checkCircle', keys: ['G', 'L'], group: '이동', run: go('/logbook') },
+      { id: 'trash', label: '휴지통', hint: '지운 작업 되살리기', icon: 'trash', group: '이동', run: go('/trash') },
       { id: 'ai', label: 'AI 연결 (MCP · Skill)', icon: 'plug', group: '이동', run: go('/settings/ai') },
       { id: 'jev', label: 'Jev 설정', hint: '판단 모델 연결', icon: 'scale', group: '이동', run: go('/settings/jev') },
       { id: 'planning', label: '일정 계획 설정', hint: '근무 시간 · 집중 비율', icon: 'clock', group: '이동', run: go('/settings/planning') },
@@ -207,7 +231,7 @@ export function CommandPalette() {
           }))
       : [];
     return [...tasks, ...filtered];
-  }, [q, app, router]);
+  }, [q, app, router, history]);
 
   useEffect(() => {
     listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
@@ -358,7 +382,14 @@ interface ShortcutRow {
   seq?: boolean;
 }
 
-function shortcutSections(mod: string): { title: string; rows: ShortcutRow[] }[][] {
+/** Mouse actions written as words beside the keys, not drawn as keys. */
+const MOUSE = new Set(['클릭', '드래그', '우클릭']);
+
+function shortcutSections(): { title: string; rows: ShortcutRow[] }[][] {
+  const mod = modKey();
+  const apple = isApple();
+  const shift = apple ? '⇧' : 'Shift';
+  const del = apple ? '⌫' : 'Delete';
   return [
     [
       {
@@ -375,8 +406,40 @@ function shortcutSections(mod: string): { title: string; rows: ShortcutRow[] }[]
         title: '작업 목록',
         rows: [
           { label: '다음 · 이전 작업으로 이동', combos: [['J'], ['K']] },
+          { label: '처음 · 마지막 작업으로', combos: [['Home'], ['End']] },
           { label: '작업 열기', combos: [['Enter']] },
           { label: '완료 토글', combos: [['X'], ['Space']] },
+        ],
+      },
+      {
+        title: '선택',
+        rows: [
+          { label: '모두 선택', combos: [[mod, 'A']] },
+          { label: '하나씩 더하거나 빼기', combos: [[mod, '클릭']] },
+          { label: '사이를 모두 선택', combos: [[shift, '클릭']] },
+          { label: '끌어서 여러 개 선택', combos: [['드래그']] },
+          { label: '위아래로 넓히기', combos: [[shift, '↑'], [shift, '↓']] },
+          { label: '선택 해제', combos: [['Esc']] },
+        ],
+      },
+    ],
+    [
+      {
+        title: '편집',
+        rows: [
+          { label: '완료', combos: [[mod, 'Enter']] },
+          { label: '오늘로', combos: [['T']] },
+          { label: '하루 미루기', combos: [['P']] },
+          { label: '우선순위 높음 · 보통 · 낮음 · 없음', combos: [['1'], ['2'], ['3'], ['4']] },
+          { label: '제목 바꾸기', combos: [['E'], ['F2']] },
+          { label: '복제', combos: [[mod, 'D']] },
+          { label: '텍스트로 복사', combos: [[mod, 'C']] },
+          { label: '붙여넣어 작업 만들기', combos: [[mod, 'V']] },
+          { label: '휴지통으로 옮기기', combos: [[del]] },
+          { label: '실행 취소', combos: [[mod, 'Z']] },
+          { label: '다시 실행', combos: apple ? [['⌘', '⇧', 'Z']] : [['Ctrl', 'Shift', 'Z'], ['Ctrl', 'Y']] },
+          { label: '메뉴 열기', combos: [['우클릭']] },
+          { label: '사이드바로 끌어 옮기기', combos: [['드래그']] },
         ],
       },
     ],
@@ -400,14 +463,14 @@ function shortcutSections(mod: string): { title: string; rows: ShortcutRow[] }[]
 
 export function ShortcutsHelp() {
   const { shortcuts } = useUi();
-  const columns = shortcuts ? shortcutSections(modKey()) : [];
+  const columns = shortcuts ? shortcutSections() : [];
   return (
     <Modal
       open={shortcuts}
       onClose={() => setUi({ shortcuts: false })}
       title="키보드 단축키"
-      description="어디서든 키보드로 빠르게 움직일 수 있어요."
-      width={640}
+      description="편집 단축키는 고른 작업에 쓰여요. 고른 작업이 없으면 J/K로 옮겨 간 작업이나 열어 둔 작업에 쓰여요."
+      width={920}
     >
       <div className={s.shortcutCols}>
         {columns.map((sections, ci) => (
@@ -422,7 +485,7 @@ export function ShortcutsHelp() {
                       <span className={s.keys}>
                         {row.combos.map((combo, i) => (
                           <Fragment key={i}>
-                            {i > 0 && <span className={s.keysOr}>또는</span>}
+                            {i > 0 && <span className={s.keysOr}>{row.combos.length > 2 ? '·' : '또는'}</span>}
                             <span className={s.combo}>
                               {combo.map((k, j) => (
                                 <Fragment key={j}>
@@ -431,7 +494,7 @@ export function ShortcutsHelp() {
                                       →
                                     </span>
                                   )}
-                                  <kbd>{k}</kbd>
+                                  {MOUSE.has(k) ? <span className={s.mouse}>{k}</span> : <kbd>{k}</kbd>}
                                 </Fragment>
                               ))}
                             </span>

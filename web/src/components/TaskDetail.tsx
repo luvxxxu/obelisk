@@ -35,7 +35,6 @@ import {
   createProject,
   memberAvatar,
   memberName,
-  deleteTask,
   removeDependency,
   reschedule,
   selectTask,
@@ -43,11 +42,13 @@ import {
   updateTask,
   useApp,
 } from '@/lib/store';
+import { trashTasks } from '@/lib/task-actions';
 import { toast } from '@/lib/toast';
+import { isApple } from '@/lib/ui-helpers';
 import { DatePickerPanel, TimePickerPanel } from './DatePicker';
 import { Icon, type IconName } from './Icon';
 import { ImpactView } from './ImpactView';
-import { AutoTextarea, Avatar, Badge, ConfirmModal, isEnter, Popover, Separator, Switch, tip, ui, useDisclosure } from './primitives';
+import { AutoTextarea, Avatar, Badge, buttonClass, isEnter, Popover, Separator, Switch, tip, ui, useDisclosure } from './primitives';
 import { Checkbox, shiftSpan } from './TaskRow';
 import { JevMark } from './JevDialogs';
 import { EstimateField, OddsBadge, TimeSection } from './TimeTracking';
@@ -162,7 +163,11 @@ export function TaskDetail({ taskId }: { taskId: string }) {
             <Icon name="search" size={18} />
           </span>
           <div className={s.missingTitle}>작업을 찾을 수 없어요</div>
-          <div className={s.missingBody}>삭제되었을 수 있어요.</div>
+          <div className={s.missingBody}>휴지통으로 옮겨졌거나 볼 수 없는 작업일 수 있어요.</div>
+          <Link href="/trash" className={buttonClass({ variant: 'outline', size: 'sm', className: s.missingAction })} onClick={() => selectTask(null)}>
+            <Icon name="trash" size={15} />
+            휴지통에서 찾기
+          </Link>
         </div>
       </div>
     );
@@ -177,7 +182,6 @@ function TaskDetailInner({ task }: { task: Task }) {
   const org = app.workspace?.kind === 'org';
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes);
-  const del = useDisclosure();
   const more = useDisclosure();
   const moreRef = useRef<HTMLButtonElement>(null);
 
@@ -286,16 +290,18 @@ function TaskDetailInner({ task }: { task: Task }) {
             {task.status === 'canceled' ? '취소 해제' : '작업 취소 (보관)'}
           </button>
           <div className={ui.menuSep} />
+          {/* No question first: it waits in the trash with its links, and the toast's 실행 취소 (or ⌘Z) brings it back. */}
           <button
             className={ui.menuItem}
             data-tone="danger"
             onClick={() => {
               more.close();
-              del.setOpen(true);
+              trashTasks([task.id]);
             }}
           >
             <Icon name="trash" size={15} />
-            삭제
+            휴지통으로 옮기기
+            <span className={ui.menuHint}>{isApple() ? '⌫' : 'Del'}</span>
           </button>
         </Popover>
       </div>
@@ -460,18 +466,6 @@ function TaskDetailInner({ task }: { task: Task }) {
           )}
         </footer>
       </div>
-
-      <ConfirmModal
-        open={del.open}
-        onClose={del.close}
-        title="작업을 삭제할까요?"
-        body={
-          <>
-            “{task.title}”과(와) 연결된 의존 관계가 모두 삭제돼요. 되돌릴 수 없어요.
-          </>
-        }
-        onConfirm={() => void deleteTask(task.id)}
-      />
     </div>
   );
 }

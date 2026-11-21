@@ -29,6 +29,7 @@ import {
 import { AccessService, type Access } from '../workspace/access.service';
 import { ActivityService, diff } from '../workspace/activity.service';
 import { toProject } from './mappers';
+import { TasksService } from './tasks.service';
 
 const esc = (s: string) => s.replace(/[%_\\]/g, '\\$&');
 
@@ -38,6 +39,7 @@ export class ProjectsService {
     @InjectDb() private readonly db: Db,
     private readonly access: AccessService,
     private readonly activity: ActivityService,
+    private readonly taskService: TasksService,
   ) {}
 
   private out(a: Access, row: ProjectRow): Project {
@@ -153,13 +155,17 @@ export class ProjectsService {
     });
   }
 
-  /** Deletes the project. Its tasks move to the inbox unless `deleteTasks`. */
+  /**
+   * Deletes the project. Its tasks move to the inbox, or with `deleteTasks` to the trash, from where
+   * a restore puts them in the inbox (the project is gone). Only the project deletion is logged.
+   */
   async remove(a: Access, id: string, opts: { deleteTasks?: boolean } = {}) {
     const cur = await this.row(a, id);
     a.assertProject(id, 'manage', cur.name);
     await this.db.transaction(async (tx) => {
       if (opts.deleteTasks) {
-        await tx.delete(tasks).where(and(eq(tasks.projectId, id), eq(tasks.workspaceId, a.workspaceId)));
+        const rows = await tx.select().from(tasks).where(and(eq(tasks.projectId, id), eq(tasks.workspaceId, a.workspaceId)));
+        await this.taskService.moveToTrash(tx, a, rows);
       }
       await tx.delete(projects).where(and(eq(projects.id, id), eq(projects.workspaceId, a.workspaceId)));
       await this.activity.record(tx, a, {

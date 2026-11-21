@@ -40,6 +40,8 @@ export const taskStatus = z.enum(['todo', 'doing', 'done', 'canceled']);
 export const priority = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]);
 export const projectColor = z.enum(PROJECT_COLORS);
 export const uuid = z.uuid();
+/** A moment, ISO 8601 with Z or an offset (e.g. a task's completedAt as the API returned it). */
+export const isoDateTime = z.iso.datetime({ offset: true });
 
 const title = z.string().trim().min(1, '제목을 입력하세요').max(500);
 /** Minutes a task is expected to take. */
@@ -80,6 +82,11 @@ export const updateTaskInput = z.object({
   estimateMinutes: estimate.nullable().optional(),
   assigneeId: uuid.nullable().optional(),
   position: z.number().finite().optional(),
+  /**
+   * When the task ends up done: when it was finished, instead of now (an undo puts the old time
+   * back). Ignored for any other status; a time in the future counts as now.
+   */
+  completedAt: isoDateTime.nullable().optional(),
 });
 export type UpdateTaskInput = z.infer<typeof updateTaskInput>;
 
@@ -111,6 +118,14 @@ export type BulkCreateTasksInput = z.infer<typeof bulkCreateTasksInput>;
 
 export const dependencyInput = z.object({ dependsOnId: uuid });
 
+/**
+ * Several tasks at once: move to the trash, restore from it, or delete from it for good.
+ * Up to 5000 (a whole trash or list), done in one transaction.
+ */
+export const TASK_IDS_MAX = 5000;
+export const taskIdsInput = z.object({ ids: z.array(uuid).min(1).max(TASK_IDS_MAX) });
+export type TaskIdsInput = z.infer<typeof taskIdsInput>;
+
 /** Apply a precomputed set of date changes atomically (e.g. a cascade previewed in the browser). */
 export const rescheduleInput = z.object({
   rootId: uuid.optional(),
@@ -130,10 +145,20 @@ export const rescheduleInput = z.object({
 });
 export type RescheduleInput = z.infer<typeof rescheduleInput>;
 
-/** Move tasks on a board: new manual positions, optionally with a new status (one atomic write). */
+/**
+ * Move tasks on a board: new manual positions, optionally with a new status (one atomic write).
+ * `completedAt` goes with a status of done, as in updateTaskInput.
+ */
 export const reorderTasksInput = z.object({
   changes: z
-    .array(z.object({ taskId: uuid, position: z.number().finite(), status: taskStatus.optional() }))
+    .array(
+      z.object({
+        taskId: uuid,
+        position: z.number().finite(),
+        status: taskStatus.optional(),
+        completedAt: isoDateTime.nullable().optional(),
+      }),
+    )
     .min(1)
     .max(500),
 });

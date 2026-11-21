@@ -68,6 +68,7 @@ import {
   mdProjects,
   mdTaskDetail,
   mdTaskList,
+  mdTrash,
   mdWorkspaces,
   type ActivityOut,
   type BottleneckOut,
@@ -80,6 +81,7 @@ import {
   type MemberOut,
   type ProjectOut,
   type TaskOut,
+  type TrashOut,
   type WorkspaceOut,
   activityOut,
 } from './present';
@@ -137,6 +139,7 @@ Good habits
 - Use create_tasks (with keys + blockedBy) to turn a goal into an ordered plan in one call.
 - Refer to tasks as "#12 Title". Accept task refs as "#12", "12", an id, or a unique title fragment.
 - Confirm before delete_task/delete_project.
+- Deleted tasks wait in the trash (휴지통) for 30 days: list_trash shows them, restore_task brings one back with its number and dependency links.
 - In an organization, say which workspace you are working in when it isn't obvious.
 
 Jev hints (only when the user connected their own TypeSafe key in Obelisk → 설정 → Jev)
@@ -885,7 +888,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
     'delete_task',
     {
       title: 'Delete task',
-      description: 'Permanently delete a task and its dependency links. Confirm with the user first.',
+      description: 'Move a task to the trash (휴지통); it can be restored for 30 days. Confirm with the user first.',
       annotations: DESTRUCTIVE,
     },
     { ref },
@@ -894,7 +897,63 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       await deps.tasks.remove(c.a, t.id);
       return { deleted: `#${t.number} ${t.title}` };
     },
-    (r) => `🗑 ${r.deleted} — 삭제했습니다.`,
+    (r) => `🗑 ${r.deleted} — 휴지통으로 옮겼습니다.`,
+  );
+
+  tool(
+    'list_trash',
+    {
+      title: 'List trash',
+      description:
+        'Deleted tasks waiting in the trash (휴지통), newest first, with who deleted them and when each is removed for good (30 days after deletion). Restore one with restore_task.',
+      annotations: READ,
+    },
+    {},
+    async (_a, c) => {
+      const items = await deps.tasks.listTrash(c.a);
+      const org = c.a.kind === 'org';
+      const out = await Promise.all(
+        items.map(async (i): Promise<TrashOut> => ({
+          ref: `#${i.task.number}`,
+          id: i.task.id,
+          title: i.task.title,
+          status: i.task.status,
+          project: await c.projectName(i.task.projectId),
+          deletedAt: i.deletedAt,
+          ...(org ? { deletedBy: i.deletedByName } : {}),
+          purgeAt: i.purgeAt,
+          ...(i.canRestore ? {} : { readOnly: true as const }),
+        })),
+      );
+      return { workspace: c.workspaceName, timezone: c.a.user.timezone, items: out };
+    },
+    mdTrash,
+  );
+
+  tool(
+    'restore_task',
+    {
+      title: 'Restore task',
+      description:
+        'Bring a task back from the trash (휴지통) with its number, dates and the dependency links whose other task still exists. If its project was deleted it lands in the inbox.',
+      annotations: WRITE,
+    },
+    { ref: z.string().min(1).describe('#number or uuid of a trashed task (see list_trash); a unique part of its title also works') },
+    async ({ ref, workspace }, c0) => {
+      // A trashed task's id names its own workspace, like ctxForRef does for live tasks.
+      const trashedIn = !workspace && UUID_RE.test(ref.trim()) ? await deps.tasks.trashWorkspace([ref.trim()]) : null;
+      const c = trashedIn ? await deps.access.forWorkspace(auth, trashedIn).then((a) => new Ctx(a, deps), () => c0) : c0;
+      const item = await deps.tasks.resolveTrashed(c.a, ref);
+      const r = await deps.tasks.restore(c.a, [item.task.id]);
+      const t = r.tasks[0];
+      return {
+        restored: t ? `#${t.number} ${t.title}` : `#${item.task.number} ${item.task.title}`,
+        project: await c.projectName(t ? t.projectId : item.task.projectId),
+        relinked: r.dependencies.length,
+      };
+    },
+    (r) =>
+      `↺ ${r.restored} — 휴지통에서 되살렸습니다 · ${esc(r.project ?? '인박스')}${r.relinked ? ` · 선행 관계 ${r.relinked}개 다시 연결` : ''}.`,
   );
 
   // ───────────────────────────── delay impact
@@ -1253,17 +1312,18 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
     'delete_project',
     {
       title: 'Delete project',
-      description: 'Delete a project. Its tasks move to the inbox unless deleteTasks=true. Confirm with the user first.',
+      description:
+        'Delete a project. Its tasks move to the inbox, or with deleteTasks=true to the trash (restorable for 30 days, into the inbox). Confirm with the user first.',
       annotations: DESTRUCTIVE,
     },
     { project: projectRef, deleteTasks: z.boolean().default(false) },
     async (a, c) => {
       const p = await deps.projects.resolve(c.a, a.project);
       await deps.projects.remove(c.a, p.id, { deleteTasks: a.deleteTasks });
-      return { deleted: p.name, tasks: a.deleteTasks ? 'deleted' : 'moved to inbox' };
+      return { deleted: p.name, tasks: a.deleteTasks ? 'moved to trash' : 'moved to inbox' };
     },
     (r) =>
-      `🗑 **${esc(r.deleted)}** 프로젝트를 삭제했습니다. 작업은 ${r.tasks === 'deleted' ? '함께 삭제했습니다' : '인박스로 옮겼습니다'}.`,
+      `🗑 **${esc(r.deleted)}** 프로젝트를 삭제했습니다. 작업은 ${r.tasks === 'moved to trash' ? '휴지통으로 옮겼습니다' : '인박스로 옮겼습니다'}.`,
   );
 
   // ───────────────────────────── workspaces, members, activity

@@ -30,8 +30,9 @@ private struct TodayContent: View {
         let risk = fc.summary.delayedCount + fc.summary.conflictCount
         let planned = done.count + overdue.count + todays.count
         let jevConnected = store.user?.jev.connected ?? false
+        let rows = (overdue + todays).map(\.id) + router.selection.shown("오늘 완료", done, collapsedByDefault: done.count > 3)
 
-        List {
+        SelectableList(rows: rows) {
             ListsHeader(
                 "오늘",
                 description: "\(longDateKo(today)) · \(greeting), \(store.user?.name ?? "")님",

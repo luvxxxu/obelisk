@@ -131,6 +131,8 @@ export function describeActivity(e: Pick<ActivityEntry, 'action' | 'data' | 'sub
     }
     case 'task.deleted':
       return '작업을 삭제했습니다';
+    case 'task.restored':
+      return '작업을 휴지통에서 되살렸습니다';
     case 'dependency.added':
       return `선행 작업 연결 · ${String(d.blockedBy ?? '')}`;
     case 'dependency.removed':
