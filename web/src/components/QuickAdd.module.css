@@ -439,3 +439,24 @@ span.jevSpin {
 }
 
 
+
+/* "제때 72%": the chance to make the typed date (opens 약속하기 전에) */
+.oddsChip {
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.oddsChip[data-odds='ok'] {
+  background: var(--ok-soft);
+  color: var(--ok-text);
+}
+
+.oddsChip[data-odds='warn'] {
+  background: var(--warn-soft);
+  color: var(--warn-text);
+}
+
+.oddsChip[data-odds='danger'] {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}

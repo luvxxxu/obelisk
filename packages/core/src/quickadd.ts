@@ -7,17 +7,19 @@
  *   "Ship beta next friday #launch !2"   → due next Friday, project launch, medium
  *   "치과 내일 오후 3시"                   → due tomorrow 15:00
  *   "회의 금요일 10시~11시 반"              → Friday 10:00 – 11:30
+ *   "보고서 초안 금요일 ~2h"                 → due Friday, expected to take two hours
  */
 import { addDays, endOfMonth, fromDay, isISODate, startOfWeek, weekday, type ISODate, type ISOTime } from './dates';
+import { parseDuration } from './timeplan';
 import type { Priority } from './types';
 
-export type QuickAddKind = 'date' | 'time' | 'project' | 'priority' | 'fixed';
+export type QuickAddKind = 'date' | 'time' | 'project' | 'priority' | 'fixed' | 'estimate';
 
 export interface QuickAddToken {
   kind: QuickAddKind;
   /** Exactly as typed */
   text: string;
-  /** Normalised value: ISO date, "HH:MM" (or "HH:MM~HH:MM"), project name, priority digit, "true" */
+  /** Normalised value: ISO date, "HH:MM" (or "HH:MM~HH:MM"), project name, priority digit, "true", minutes */
   value: string;
 }
 
@@ -30,6 +32,8 @@ export interface QuickAddResult {
   projectName: string | null;
   priority: Priority | null;
   fixed: boolean;
+  /** "~1h30m", "~90분": minutes it should take. */
+  estimateMinutes: number | null;
   tokens: QuickAddToken[];
 }
 
@@ -287,7 +291,7 @@ export function parseDateTimePhrase(
   today: ISODate,
   nowMinutes?: number | null,
 ): { date: ISODate; time: ISOTime | null } | null {
-  const q = parseQuickAdd(raw, today, { disabled: ['project', 'priority', 'fixed'], nowMinutes });
+  const q = parseQuickAdd(raw, today, { disabled: ['project', 'priority', 'fixed', 'estimate'], nowMinutes });
   if (q.title || !q.dueDate || q.startDate) return null;
   return { date: q.dueDate, time: q.dueTime };
 }
@@ -362,9 +366,26 @@ export function parseQuickAdd(
   let projectName: string | null = null;
   let priority: Priority | null = null;
   let fixed = false;
+  let estimateMinutes: number | null = null;
 
   for (let i = 0; i < words.length; ) {
     const w = words[i]!;
+
+    // "~2h", "~1시간 30분", "~ 45분": how long it takes.
+    if (!disabled.has('estimate') && estimateMinutes === null && w.startsWith('~')) {
+      const head = w.slice(1);
+      const next = words[i + 1];
+      const one = head ? parseDuration(head) : null;
+      const two = next !== undefined ? parseDuration(`${head}${next}`) : null;
+      const len = two !== null && (one === null || /^\d/.test(next!)) ? 2 : one !== null ? 1 : 0;
+      if (len) {
+        estimateMinutes = len === 2 ? two! : one!;
+        const text = words.slice(i, i + len).join(' ');
+        tokens.push({ kind: 'estimate', text, value: String(estimateMinutes) });
+        i += len;
+        continue;
+      }
+    }
 
     if (!disabled.has('project') && projectName === null && /^#\S+/.test(w)) {
       projectName = w.slice(1).replace(/_/g, ' ');
@@ -473,6 +494,7 @@ export function parseQuickAdd(
     projectName,
     priority,
     fixed,
+    estimateMinutes,
     tokens,
   };
 }

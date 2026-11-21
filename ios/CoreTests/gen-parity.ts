@@ -104,18 +104,20 @@ const WORDS = [
   '정오', '자정', 'noon', 'midnight', 'at 5pm', '오전 15시', '25시', '3시 70분', '10시~11시 반', '오후 2시-4시', '10:00~11:30', '오전 11시-오후 1시', '9-10시', '14시까지', '3시부터',
   '#런칭', '#제품_런칭', '#', '!높음', '!!', '!!!', 'p1', 'p2', 'p3', 'p4', '!2', '!low', '!긴급', '!none', '!zz', '@고정', '@FIXED', '@fix', '@고정됨',
   '그냥', '메모', 'at', 'in', 'next', 'this', '다음', '이번',
+  '~2h', '~30m', '~1.5h', '~1h30m', '~90분', '~1시간', '~1시간 30분', '~ 45분', '~반나절', '~', '~3시', '30분', '~30', '~하루정도',
 ];
 for (let i = 0; i < 700; i++) {
   const n = int(1, 6);
   const input = Array.from({ length: n }, () => pick(WORDS)).join(pick([' ', ' ', '  ']));
   const today = pick(TODAYS);
   const nowMinutes = chance(0.4) ? int(0, 1439) : null;
-  const disabled = chance(0.15) ? [pick(['date', 'time', 'project', 'priority', 'fixed'] as const)] : [];
+  const disabled = chance(0.15) ? [pick(['date', 'time', 'project', 'priority', 'fixed', 'estimate'] as const)] : [];
   add('quickadd', { input, today, nowMinutes, disabled, out: core.parseQuickAdd(input, today, { disabled, nowMinutes }) });
 }
 for (const w of WORDS) {
   for (const today of TODAYS.slice(0, 4)) add('datePhrase', { raw: w, today, out: core.parseDatePhrase(w, today) });
   add('timePhrase', { raw: w, out: core.parseTimePhrase(w) });
+  add('duration', { raw: w.replace(/^~\s*/, ''), out: core.parseDuration(w.replace(/^~\s*/, '')) });
   const today = pick(TODAYS);
   const nowMinutes = chance(0.5) ? int(0, 1439) : null;
   add('dateTimePhrase', { raw: w, today, nowMinutes, out: core.parseDateTimePhrase(w, today, nowMinutes) });

@@ -16,6 +16,8 @@ export function toTask(r: TaskRow): Task {
     dueDate: r.dueDate,
     dueTime: r.dueDate ? r.dueTime : null,
     fixed: r.fixed,
+    estimateMinutes: r.estimateMinutes ?? null,
+    actualMinutes: r.actualMinutes ?? 0,
     position: r.position,
     postponedCount: r.postponedCount,
     assigneeId: r.assigneeId,

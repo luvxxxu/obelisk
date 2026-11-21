@@ -36,6 +36,14 @@ final class AppStore {
     private(set) var revision = 0
     /// A date edit waiting on the impact sheet (see AppStore+Reschedule.swift).
     var pendingChange: PendingChange?
+    /// The user's running clock (one across all spaces; see AppStore+Time.swift).
+    var running: RunningTimer?
+    /// Finish-date odds for the open workspace (GET /api/odds), loaded on demand.
+    var odds: OddsResponse?
+    /// Bumped when time entries change, so open task screens reload their list.
+    var timeRevision = 0
+    /// Opens the "실제 시간 고치기" sheet for a task (set by the shell, used by the completion toast).
+    var editActual: ((String) -> Void)?
     /// The user's wall clock (date + minutes in their zone), ticked once a minute by RootView.
     /// Read this instead of running a TimelineView per row: one tick re-renders only what reads it.
     private(set) var now: Clock = clockNow()
@@ -174,7 +182,9 @@ final class AppStore {
                 }
                 guard gen == self.generation else { return }
                 if self.status == .ready, self.localWrites != writes, self.workspace?.id == b.workspace.id { return }
+                let first = self.status != .ready
                 self.apply(b)
+                if first { Task { await self.refreshRunning() } }
             } catch {
                 guard gen == self.generation else { return }
                 if let e = error as? APIError, e.isUnauthorized {
@@ -272,6 +282,8 @@ final class AppStore {
         deps = []
         gate = nil
         server = .legacy
+        running = nil
+        odds = nil
         status = .unauthenticated
         SideEffects.signedOut()
     }
@@ -307,6 +319,7 @@ final class AppStore {
         inflight = nil
         Session.workspaceId = id
         status = .loading
+        odds = nil
         projects = []
         tasks = [:]
         deps = []
@@ -390,6 +403,11 @@ final class AppStore {
         do {
             let r: TaskResponse = try await API.shared.send(.patch, "/api/tasks/\(id)", json: patch.json)
             upsert([r.task])
+            // In progress starts the clock on the server; leaving it stops (and records) it.
+            if let s = patch.status, s != prev.status, s == .doing || prev.status == .doing {
+                timeRevision &+= 1
+                Task { await self.refreshRunning() }
+            }
             return r.task
         } catch {
             upsert([prev])
@@ -403,8 +421,20 @@ final class AppStore {
         let done = t.status != .done
         var patch = TaskPatch()
         patch.status = done ? .done : .todo
-        guard await updateTask(id, patch) != nil, done else { return }
+        let wasRunning = running?.task.id == id
+        guard let saved = await updateTask(id, patch) else { return }
+        if wasRunning { running = nil }
+        if t.status == .doing || saved.actual != t.actual { timeRevision &+= 1 }
+        guard done else { return }
         Haptics.success()
+        // Time was recorded: say how long it really took, with a way to correct it.
+        if saved.actual > 0 {
+            let estimate = saved.estimateMinutes.map { " (예상 \(formatDurationKo($0)))" } ?? ""
+            toasts.show("완료 · 실제 \(formatDurationKo(saved.actual))\(estimate)", action: .init(label: "고치기") { [weak self] in
+                self?.editActual?(id)
+            })
+            return
+        }
         let unblocked = dependents(of: id).filter(\.isActive).filter { x in
             blockers(of: x.id).allSatisfy { !$0.isActive }
         }
@@ -484,6 +514,7 @@ final class AppStore {
         do {
             let r: TasksResponse = try await API.shared.send(.post, "/api/tasks/reorder", json: json)
             upsert(r.tasks)
+            if changes.contains(where: { $0.status != nil }) { Task { await self.refreshRunning() } }
             return true
         } catch {
             upsert(prev)

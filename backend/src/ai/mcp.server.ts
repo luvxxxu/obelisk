@@ -18,6 +18,7 @@ import {
   isoTime,
   isOverdue,
   nowIn,
+  parseDuration,
   PRIORITY_LABEL_KO,
   PRIORITY_NAME,
   PROJECT_COLORS,
@@ -25,7 +26,11 @@ import {
   todayIn,
   VIEW_NAMES,
   type Clock,
+  type DayPlan,
+  type DayView,
   type Dependency,
+  type OverviewTask,
+  type WorkspaceSummary,
   type ImpactReport,
   type ImpactSummary,
   type Member,
@@ -38,6 +43,9 @@ import type { AuthContext } from '../auth/auth.service';
 import { config } from '../config';
 import type { JevService } from '../jev/jev.service';
 import type { ImpactService } from '../planner/impact.service';
+import type { OddsService } from '../planner/odds.service';
+import type { PlanService } from '../planner/plan.service';
+import type { TimeService } from '../planner/time.service';
 import type { ProjectsService } from '../planner/projects.service';
 import type { TasksService } from '../planner/tasks.service';
 import type { Access, AccessService } from '../workspace/access.service';
@@ -48,7 +56,10 @@ import {
   eulReul,
   impactPhrase,
   mdBottlenecks,
+  mdCommit,
   mdCompleted,
+  mdDayPlan,
+  mdOdds,
   mdActivity,
   mdCreatedMany,
   mdImpact,
@@ -60,6 +71,10 @@ import {
   mdWorkspaces,
   type ActivityOut,
   type BottleneckOut,
+  type CommitOptionOut,
+  type CommitOut,
+  type DayPlanOut,
+  type OddsOut,
   type ImpactOut,
   type LinkOut,
   type MemberOut,
@@ -88,6 +103,9 @@ export interface McpDeps {
   workspaces: WorkspacesService;
   activity: ActivityService;
   jev: JevService;
+  time: TimeService;
+  plan: PlanService;
+  odds: OddsService;
 }
 
 const INSTRUCTIONS = `Obelisk is the user's to-do and schedule planner — for themselves and for the organizations they belong to.
@@ -106,6 +124,13 @@ Signature feature: delay impact prediction
 - Before postponing anything that other tasks depend on, call simulate_delay and tell the user which tasks would slip, by how much, and which fixed dates would break. Then ask whether to cascade.
 - postpone_task applies the move. cascade=true also shifts every pushed task; cascade=false moves only that task (dependents may then start before it finishes).
 - get_forecast shows what is already slipping because overdue tasks can only finish today at the earliest. get_bottlenecks ranks the tasks the plan depends on most.
+
+Time planning (how long things take, when in the day, and how sure a date is)
+- Tasks can carry an estimate (estimate: minutes or "1h30m"). Time actually spent is recorded on its own while a task is in progress, or with track_time (start/stop a timer, log minutes, or set the total). Ask for an estimate when the user plans real work; leave it out for errands.
+- get_day_plan shows the user's own day across all their spaces: timed tasks, saved time blocks, and the day's work that has no block yet. plan_day packs that work into free time around meetings and breaks (preview first; apply=true saves it, keeping blocks the user placed by hand). Nobody else sees a day plan.
+- get_odds gives each task's chance to finish by its due date and P50/P85 finish dates per project, learned from the user's own history (how long estimates really run, how often first due dates are met, how much of the day goes to tasks). Mention the 85% date when someone asks "when will this be done?".
+- Before promising a date (a new request, "can you do it by Friday?"), call check_commitment: it returns the safe date (85% and nothing else gets riskier), the earliest date (and which tasks it would push), and the odds for a date asked about. Tell the user the trade-off, then create the task with the chosen due date.
+- Work hours, breaks and focus share are set in Obelisk → 설정 → 일정 계획.
 
 Good habits
 - Start with get_overview when the user asks about their day/week.
@@ -147,6 +172,15 @@ const workspaceArg = z
   .describe('Workspace name or id (see list_workspaces). Omit for the default workspace.');
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const nullableDate = isoDate.nullable();
+const estimateIn = z
+  .union([z.number().int().min(1).max(1440), z.string().min(1).max(40)])
+  .describe('How long it should take: minutes (90) or text such as "1h30m", "45m", "2시간"');
+function toEstimate(v: number | string | null | undefined): number | null | undefined {
+  if (v === undefined || v === null || typeof v === 'number') return v;
+  const m = parseDuration(v) ?? (/^\d+$/.test(v.trim()) ? Number(v.trim()) : null);
+  if (m === null || m < 1 || m > 1440) throw new ToolError(`Estimate "${v}" is not a duration. Use minutes (90) or text like "1h30m".`);
+  return m;
+}
 const timeIn = isoTime.describe('Time of day, HH:MM 24h in the user\'s timezone (e.g. "15:30"). Needs the matching date.');
 
 /** Per-workspace state for one MCP request: the caller's access plus small caches. */
@@ -281,6 +315,8 @@ class Ctx {
       dueDate: t.dueDate,
       dueTime: t.dueTime,
       fixed: t.fixed,
+      ...(t.estimateMinutes ? { estimateMinutes: t.estimateMinutes } : {}),
+      ...(t.actualMinutes ? { actualMinutes: t.actualMinutes } : {}),
     };
     if (t.assigneeId) out.assignee = (await this.memberName(t.assigneeId)) ?? '(전 멤버)';
     if (!canEditTask(t, this.a)) out.readOnly = true;
@@ -668,6 +704,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       dueDate: isoDate.optional(),
       dueTime: timeIn.optional(),
       fixed: z.boolean().optional(),
+      estimate: estimateIn.optional(),
       assignee: assigneeRef.optional(),
       blockedBy: z.array(ref).max(50).optional(),
     },
@@ -675,6 +712,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       const projectId = await c.resolveProject(a.project);
       const blockedBy = await Promise.all((a.blockedBy ?? []).map(async (r) => (await deps.tasks.resolve(c.a, r)).id));
       const t = await deps.tasks.create(c.a, {
+        estimateMinutes: toEstimate(a.estimate),
         title: a.title,
         notes: a.notes,
         projectId,
@@ -715,6 +753,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
             dueDate: isoDate.optional(),
             dueTime: timeIn.optional(),
             fixed: z.boolean().optional(),
+            estimate: estimateIn.optional(),
             assignee: assigneeRef.optional(),
             blockedBy: z.array(z.string().min(1)).optional().describe('Keys from this batch or existing task refs'),
           }),
@@ -725,8 +764,9 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
     async (a, c) => {
       const projectId = await c.resolveProject(a.project);
       const tasks = await Promise.all(
-        a.tasks.map(async ({ assignee, ...t }) => ({
+        a.tasks.map(async ({ assignee, estimate, ...t }) => ({
           ...t,
+          estimateMinutes: toEstimate(estimate),
           priority: t.priority ? PRIORITY_VALUE[t.priority] : undefined,
           assigneeId: await c.resolveAssignee(assignee),
         })),
@@ -765,6 +805,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
       dueDate: nullableDate.optional(),
       dueTime: timeIn.nullable().optional(),
       fixed: z.boolean().optional(),
+      estimate: estimateIn.nullable().optional().describe('How long it should take (null clears it)'),
       assignee: assigneeRef.nullable().optional(),
     },
     async (a, c) => {
@@ -789,6 +830,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
         dueDate: a.dueDate,
         dueTime: a.dueTime,
         fixed: a.fixed,
+        estimateMinutes: toEstimate(a.estimate),
         assigneeId: await c.resolveAssignee(a.assignee),
       });
       return {
@@ -1351,6 +1393,247 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
     },
   );
 
+  // ───────────────────────────── time planning
+
+  const dayDate = z
+    .union([isoDate, z.literal('today'), z.literal('tomorrow')])
+    .default('today')
+    .describe('YYYY-MM-DD, "today" or "tomorrow" (the user\'s timezone)');
+  const resolveDay = (d: string) => {
+    const today = todayIn(auth.user.timezone);
+    return d === 'today' ? today : d === 'tomorrow' ? addDays(today, 1) : d;
+  };
+  let spaceList: Promise<WorkspaceSummary[]> | undefined;
+  const spaceNames = async () => {
+    spaceList ??= deps.workspaces.listFor(auth.user.id);
+    const list = await spaceList;
+    return { many: list.length > 1, name: (id: string) => {
+      const w = list.find((x) => x.id === id);
+      return !w ? '' : w.kind === 'personal' ? '개인 공간' : w.name;
+    } };
+  };
+  const dayOut = async (
+    src: { date: string; today: string; workday: boolean; window: { start: string; end: string } },
+    blocks: { taskId: string; start: string; end: string; locked: boolean; kept?: boolean }[],
+    plan: Pick<DayPlan, 'events' | 'capacity'> & { pending: { taskId: string; minutes: number; reason: 'no_time' | 'blocked' | null }[]; late: { taskId: string; dueTime: string; end: string }[]; planned: number; needed: number },
+    tasks: OverviewTask[],
+    saved: boolean,
+    running: DayView['running'],
+  ): Promise<DayPlanOut> => {
+    const byId = new Map(tasks.map((t) => [t.id, t]));
+    const names = await spaceNames();
+    const label = (id: string) => {
+      const t = byId.get(id);
+      return { ref: t ? `#${t.number}` : '#?', title: t?.title ?? '(볼 수 없는 작업)', space: t && names.many ? names.name(t.workspaceId) : undefined };
+    };
+    return {
+      date: src.date,
+      today: src.today,
+      saved,
+      window: src.window,
+      workday: src.workday,
+      blocks: blocks.map((b) => {
+        const l = label(b.taskId);
+        return { ref: l.ref, title: l.title, start: b.start, end: b.end, ...(l.space ? { space: l.space } : {}), ...(b.locked ? { locked: true as const } : {}), ...(b.kept === false ? { new: true as const } : {}) };
+      }),
+      events: plan.events.map((e) => ({ ...label(e.taskId), start: e.start, end: e.end, fixed: e.fixed })),
+      pending: plan.pending.map((p) => ({ ...label(p.taskId), minutes: p.minutes, reason: p.reason })),
+      late: plan.late.map((l) => ({ ...label(l.taskId), dueTime: l.dueTime, end: l.end })),
+      capacityMinutes: plan.capacity,
+      plannedMinutes: plan.planned,
+      neededMinutes: plan.needed,
+      running: running ? { ...label(running.task.id), ref: `#${running.task.number}`, title: running.task.title, since: running.entry.startedAt } : null,
+    };
+  };
+  const viewOut = (v: DayView) =>
+    dayOut({ date: v.date, today: v.today, workday: v.workday, window: { start: v.hours.start, end: v.hours.end } }, v.blocks, v, v.tasks, true, v.running);
+
+  tool(
+    'get_day_plan',
+    {
+      title: 'Get day plan',
+      description:
+        "The user's own plan for one day across all their spaces: timed tasks (meetings), saved time blocks, the day's work that has no block yet (with minutes and why: no time left, or waiting on a blocker), and how the hours add up. Only the user sees their day plan.",
+      annotations: READ,
+      global: true,
+    },
+    { date: dayDate },
+    async ({ date }) => viewOut(await deps.plan.day(auth, resolveDay(date))),
+    (r) => mdDayPlan(r, '하루 계획'),
+  );
+
+  tool(
+    'plan_day',
+    {
+      title: 'Plan the day into time blocks',
+      description:
+        'Pack the day\'s work into time blocks around meetings, breaks and blocks the user placed by hand: overdue work and today\'s deadlines first, blockers before what waits on them, long work split across gaps, multi-day work as its daily share. Returns a preview; call again with apply=true (after the user agrees) to save it. fillAhead=true also fills spare time with work due within a week.',
+      annotations: WRITE,
+      global: true,
+    },
+    { date: dayDate, fillAhead: z.boolean().default(false), apply: z.boolean().default(false) },
+    async ({ date, fillAhead, apply }) => {
+      const d = resolveDay(date);
+      const r = await deps.plan.auto(auth, d, { fillAhead, apply });
+      if (r.view) return viewOut(r.view);
+      const view = await deps.plan.day(auth, d);
+      const p = r.plan;
+      const ahead = (b: { start: string; end: string }) => {
+        const [sh, sm] = b.start.split(':').map(Number);
+        const [eh, em] = b.end.split(':').map(Number);
+        return eh! * 60 + em! - (sh! * 60 + sm!);
+      };
+      return dayOut(
+        { date: d, today: view.today, workday: p.workday, window: p.window },
+        p.blocks,
+        { events: p.events, capacity: p.capacity, pending: p.unplaced, late: p.late, planned: p.blocks.filter((b) => !b.kept).reduce((n, b) => n + ahead(b), 0) + view.planned, needed: p.needed },
+        r.tasks,
+        false,
+        view.running,
+      );
+    },
+    (r) => mdDayPlan(r, r.saved ? '하루 계획을 저장했어요' : '하루 계획 미리보기 (저장 전)'),
+  );
+
+  tool(
+    'track_time',
+    {
+      title: 'Track time on a task',
+      description:
+        'Record time spent. action=start starts a timer (one runs at a time across all spaces: starting another stops it; a to-do task goes in progress), stop stops it, log adds minutes done earlier (optional date), set makes the user\'s total on the task exactly `minutes`. Putting a task in progress already records time on its own; use this when the user says what they did.',
+      annotations: WRITE,
+    },
+    {
+      ref,
+      action: z.enum(['start', 'stop', 'log', 'set']),
+      minutes: z.number().int().min(0).max(6000).optional().describe('For log (1+) and set (0+)'),
+      date: isoDate.optional().describe('For log: the day it was done (default today)'),
+    },
+    async ({ ref: r, action, minutes, date }, c) => {
+      const cur = await deps.tasks.resolve(c.a, r);
+      if (action === 'start' || action === 'stop') {
+        const res = await deps.time.timer(auth, cur.id, action);
+        if (res.startDoing) await deps.tasks.update(c.a, cur.id, { status: 'doing' });
+      } else if (action === 'log') {
+        if (!minutes) throw new ToolError('log needs minutes (1 or more).');
+        await deps.time.addManual(auth, cur.id, minutes, date);
+      } else {
+        if (minutes === undefined) throw new ToolError('set needs minutes (0 or more).');
+        await deps.time.setActual(auth, cur.id, minutes);
+      }
+      const running = await deps.time.running(auth);
+      return {
+        today: c.today,
+        task: await c.task(await deps.tasks.get(c.a, cur.id)),
+        running: running ? { ref: `#${running.task.number}`, title: running.task.title, since: running.entry.startedAt } : null,
+      };
+    },
+    (r) => {
+      const head = mdTaskDetail(r.task, r.today, '시간을 기록했어요');
+      return r.running ? `${head}\n\n⏱ 지금 \`${r.running.ref}\` ${r.running.title} 기록 중` : head;
+    },
+  );
+
+  tool(
+    'get_odds',
+    {
+      title: 'Get finish-date odds',
+      description:
+        "Chance each task finishes by its due date and P50/P85 finish dates per project, simulated from the user's own history (how long estimates really run, how often first due dates were met, focus hours) and everyone's load, including the user's work in other spaces. Lists tasks unlikely to make their date and fixed dates at risk.",
+      annotations: READ,
+    },
+    { project: projectRef.optional().describe('Only this project') },
+    async ({ project }, c) => {
+      const projectId = project ? await c.resolveProject(project) : undefined;
+      const r = await deps.odds.forecast(auth, c.a);
+      const active = new Map((await deps.tasks.listActive(c.a)).map((t) => [t.id, t]));
+      const projects = await c.projects();
+      const rows = r.report.tasks
+        .map((o) => ({ o, t: active.get(o.taskId) }))
+        .filter((x): x is { o: (typeof r.report.tasks)[number]; t: Task } => !!x.t && (projectId === undefined || x.t.projectId === projectId));
+      const out = (x: (typeof rows)[number]) => ({ ref: `#${x.t.number}`, title: x.t.title, dueDate: x.t.dueDate, onTime: x.o.onTime, conflict: x.o.conflict, p50: x.o.p50, p85: x.o.p85 });
+      const c2 = r.calibration;
+      const result: OddsOut = {
+        today: r.today,
+        overall: projectId === undefined ? r.report.overall : null,
+        projects: r.report.projects
+          .filter((p) => projectId === undefined || p.projectId === projectId)
+          .map((p) => ({ project: p.projectId ? (projects.get(p.projectId)?.name ?? '?') : '인박스', tasks: p.tasks, p50: p.p50, p85: p.p85 })),
+        atRisk: rows.filter((x) => x.o.onTime !== null && x.o.onTime < 0.6).sort((a, b) => a.o.onTime! - b.o.onTime!).slice(0, 15).map(out),
+        fixedAtRisk: rows.filter((x) => (x.o.conflict ?? 0) >= 0.15).sort((a, b) => b.o.conflict! - a.o.conflict!).slice(0, 10).map(out),
+        calibration: {
+          medianRatio: c2.medianRatio,
+          ratioSamples: c2.ratioSamples,
+          onTimeRate: c2.onTimeRate,
+          slipSamples: c2.slipSamples,
+          focusPercent: Math.round(c2.focus * 100),
+          focusSource: c2.focusSource,
+          defaultEstimateMinutes: c2.defaultEstimate,
+        },
+        externalTasks: r.external,
+      };
+      return result;
+    },
+    mdOdds,
+  );
+
+  tool(
+    'check_commitment',
+    {
+      title: 'Check a date before promising it',
+      description:
+        'Before promising when something will be done: the safe date (85% likely and no other work gets riskier), the earliest date reaching 85% (and which tasks it would push), the natural finish if it just waits its turn, and the odds for `date` if given. For new work give title + estimate (+ project, blockedBy); for an existing task give ref. Then create or update the task with the date the user picks.',
+      annotations: READ,
+    },
+    {
+      ref: ref.optional().describe('An existing task to date'),
+      title: z.string().max(500).optional(),
+      estimate: estimateIn.optional(),
+      project: projectRef.optional(),
+      blockedBy: z.array(ref).max(50).optional(),
+      assignee: assigneeRef.optional(),
+      date: isoDate.optional().describe('A date to check'),
+      confidence: z.number().min(0.5).max(0.99).default(0.85),
+    },
+    async (a, c) => {
+      const existing = a.ref ? await deps.tasks.resolve(c.a, a.ref) : undefined;
+      const blockedBy = await Promise.all((a.blockedBy ?? []).map(async (r) => (await deps.tasks.resolve(c.a, r)).id));
+      const r = await deps.odds.commit(auth, c.a, {
+        taskId: existing?.id,
+        title: a.title,
+        estimateMinutes: a.estimate !== undefined ? toEstimate(a.estimate) : undefined,
+        projectId: (await c.resolveProject(a.project)) ?? undefined,
+        assigneeId: (await c.resolveAssignee(a.assignee)) ?? undefined,
+        blockedBy,
+        date: a.date,
+        confidence: a.confidence,
+      });
+      const active = new Map((await deps.tasks.listActive(c.a)).map((t) => [t.id, t]));
+      const opt = (o: (typeof r.report)['safe']): CommitOptionOut | null =>
+        o && {
+          date: o.date,
+          probability: o.probability,
+          hurts: o.harmed.map((h) => {
+            const t = active.get(h.taskId);
+            return { ref: t ? `#${t.number}` : '#?', title: t?.title ?? '?', kind: h.kind, before: h.before, after: h.after };
+          }),
+        };
+      const out: CommitOut = {
+        today: r.today,
+        subject: existing ? `#${existing.number} ${existing.title}` : a.title?.trim() || '새 작업',
+        minutes: r.minutes,
+        estimated: r.estimated,
+        confidence: r.report.confidence,
+        natural: { p50: r.report.natural.p50, p85: r.report.natural.p85 },
+        safe: opt(r.report.safe),
+        earliest: opt(r.report.earliest),
+        proposed: opt(r.report.proposed),
+      };
+      return out;
+    },
+    mdCommit,
+  );
+
   // ───────────────────────────── prompts
 
   server.registerPrompt(
@@ -1362,7 +1645,7 @@ export function buildMcpServer(auth: AuthContext, deps: McpDeps, opts: McpOption
           role: 'user',
           content: {
             type: 'text',
-            text: 'Use Obelisk to plan my day. Call get_overview first. Then give me: (1) the 3 most important things to do today and why, (2) overdue items with a suggestion each (do today / postpone / drop) — run simulate_delay before suggesting any postponement that has dependents, (3) any fixed dates at risk. Keep it short. Ask before changing anything.',
+            text: 'Use Obelisk to plan my day. Call get_overview first, then plan_day (preview) to see how today\'s work fits into my hours. Then give me: (1) the 3 most important things to do today and why, (2) overdue items with a suggestion each (do today / postpone / drop) — run simulate_delay before suggesting any postponement that has dependents, (3) any fixed dates at risk, (4) whether the day overflows and by how much. Keep it short. Ask before changing anything; if I agree to the time blocks, save them with plan_day apply=true.',
           },
         },
       ],

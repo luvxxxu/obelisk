@@ -28,6 +28,9 @@ import { rateLimiter } from '../common/rate-limit';
 import { parse } from '../common/validation';
 import { config } from '../config';
 import { InjectDb, type Db } from '../db/db.module';
+import { OddsService } from '../planner/odds.service';
+import { PlanService } from '../planner/plan.service';
+import { TimeService } from '../planner/time.service';
 import { ImpactService } from '../planner/impact.service';
 import { ProjectsService } from '../planner/projects.service';
 import { TasksService } from '../planner/tasks.service';
@@ -54,6 +57,9 @@ export class McpController {
     private readonly workspaces: WorkspacesService,
     private readonly activity: ActivityService,
     private readonly jev: JevService,
+    private readonly time: TimeService,
+    private readonly plan: PlanService,
+    private readonly odds: OddsService,
   ) {}
 
   /** RFC 6750 §3.1: no error code when the request carried no credentials at all. */
@@ -87,6 +93,9 @@ export class McpController {
         workspaces: this.workspaces,
         activity: this.activity,
         jev: this.jev,
+        time: this.time,
+        plan: this.plan,
+        odds: this.odds,
       },
       { ui },
     );

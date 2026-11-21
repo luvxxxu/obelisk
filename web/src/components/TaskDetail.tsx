@@ -50,6 +50,9 @@ import { ImpactView } from './ImpactView';
 import { AutoTextarea, Avatar, Badge, ConfirmModal, isEnter, Popover, Separator, Switch, tip, ui, useDisclosure } from './primitives';
 import { Checkbox, shiftSpan } from './TaskRow';
 import { JevMark } from './JevDialogs';
+import { EstimateField, OddsBadge, TimeSection } from './TimeTracking';
+import { useOdds } from '@/lib/timeplan';
+import { setUi } from '@/lib/ui-state';
 import js from './Jev.module.css';
 import s from './TaskDetail.module.css';
 
@@ -216,6 +219,7 @@ function TaskDetailInner({ task }: { task: Task }) {
 
   // A due time makes "overdue" and "due soon" minute-precise, so only then does the panel tick.
   const now = useClock(!!task.dueTime);
+  const odds = useOdds(active).byTask.get(task.id);
   const dueOverdue = active && dateTone(task, today, now) === 'overdue' && !!task.dueDate;
   const dueSoon = active && !dueOverdue && now.date === today ? dueSoonLabel(task, now) : null;
   const sameDay = !!task.startDate && task.startDate === task.dueDate;
@@ -372,6 +376,16 @@ function TaskDetailInner({ task }: { task: Task }) {
             )}
             {dueOverdue && task.dueDate && <Badge tone="danger">{overdueLabel(task.dueDate, today, task.dueTime, now)}</Badge>}
             {dueSoon && <Badge tone="warn">{dueSoon}</Badge>}
+            {active && !dueOverdue && <OddsBadge odds={odds} />}
+            {active && !readOnly && (
+              <button type="button" className={s.inlineLink} onClick={() => setUi({ commit: { taskId: task.id } })}>
+                가능한 날짜
+              </button>
+            )}
+          </Prop>
+
+          <Prop icon="timer" label="예상 시간" hint="얼마나 걸릴지 적어 두면 하루 계획과 완료 확률이 정확해져요. 실제 걸린 시간과 비교해 다음 예측을 보정해요.">
+            <EstimateField task={task} />
           </Prop>
 
           <Prop icon="folder" label="프로젝트">
@@ -408,6 +422,8 @@ function TaskDetailInner({ task }: { task: Task }) {
             />
           </div>
         </section>
+
+        <TimeSection task={task} readOnly={readOnly} />
 
         <DependencySection
           title="먼저 끝나야 하는 작업"

@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { isValidTimeZone } from './dates';
 import { homeLayoutInput, isoDate, isoTime } from './schemas';
 import { PROJECT_COLORS, type WorkspaceRole } from './types';
+import { workHoursInput } from './timeplan';
 import { WEBHOOK_EVENT_KEYS, WEBHOOK_FORMATS } from './webhooks';
 
 export const MIGRATION_FORMAT = 'obelisk-export';
@@ -220,6 +221,10 @@ const task = z
     startTime: isoTime.nullable(),
     dueTime: isoTime.nullable(),
     fixed: z.boolean(),
+    // Added with time planning; older files have none.
+    estimateMinutes: z.number().int().min(1).max(1440).nullable().default(null),
+    actualMinutes: z.number().int().min(0).max(100_000_000).default(0),
+    firstDueDate: isoDate.nullable().default(null),
     position: z.number().finite(),
     postponedCount: z.number().int().min(0).max(1_000_000),
     completedAt: when.nullable(),
@@ -298,6 +303,25 @@ export const migrationBundle = z
       .max(20_000),
     tasks: z.array(task).max(500_000),
     dependencies: z.array(z.object({ task: ref, dependsOn: ref })).max(1_000_000),
+    /** Finished time entries (older files have none). */
+    timeEntries: z
+      .array(
+        z.object({
+          task: ref,
+          user: ref.nullable(),
+          source: z.enum(['auto', 'timer', 'manual']),
+          startedAt: when,
+          endedAt: when,
+          minutes: z.number().int().min(0).max(100_000),
+        }),
+      )
+      .max(2_000_000)
+      .default([]),
+    /** The exporter's own day plans (personal spaces only). */
+    blocks: z
+      .array(z.object({ task: ref, date: isoDate, start: isoTime, end: isoTime, locked: z.boolean() }).refine((b) => b.start < b.end))
+      .max(200_000)
+      .default([]),
     activity: z
       .array(
         z.object({
@@ -357,6 +381,7 @@ export const migrationBundle = z
         timezone: zone,
         // A layout this server can't read resets to the default instead of failing the import.
         homeLayout: homeLayoutInput.nullable().catch(null),
+        workHours: workHoursInput.nullable().catch(null).default(null),
         photo: migrationPhoto.nullable(),
         wasDefault: z.boolean(),
         jev: z.object({

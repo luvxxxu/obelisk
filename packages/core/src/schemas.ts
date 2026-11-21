@@ -42,6 +42,8 @@ export const projectColor = z.enum(PROJECT_COLORS);
 export const uuid = z.uuid();
 
 const title = z.string().trim().min(1, '제목을 입력하세요').max(500);
+/** Minutes a task is expected to take. */
+const estimate = z.number().int().min(1, '예상 시간은 1분 이상이어야 해요').max(24 * 60, '예상 시간은 24시간까지 적을 수 있어요');
 const notes = z.string().max(20_000);
 
 export const createTaskInput = z
@@ -56,6 +58,7 @@ export const createTaskInput = z
     dueDate: isoDate.nullable().optional(),
     dueTime: isoTime.nullable().optional(),
     fixed: z.boolean().optional(),
+    estimateMinutes: estimate.nullable().optional(),
     assigneeId: uuid.nullable().optional(),
     blockedBy: z.array(uuid).max(50).optional(),
   })
@@ -74,6 +77,7 @@ export const updateTaskInput = z.object({
   dueDate: isoDate.nullable().optional(),
   dueTime: isoTime.nullable().optional(),
   fixed: z.boolean().optional(),
+  estimateMinutes: estimate.nullable().optional(),
   assigneeId: uuid.nullable().optional(),
   position: z.number().finite().optional(),
 });
@@ -94,6 +98,7 @@ export const bulkCreateTasksInput = z.object({
         dueDate: isoDate.nullable().optional(),
         dueTime: isoTime.nullable().optional(),
         fixed: z.boolean().optional(),
+        estimateMinutes: estimate.nullable().optional(),
         assigneeId: uuid.nullable().optional(),
         /** keys of tasks in this batch, or ids / #numbers of existing tasks */
         blockedBy: z.array(z.string().min(1)).max(50).optional(),

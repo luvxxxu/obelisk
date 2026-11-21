@@ -115,8 +115,12 @@ struct User: Codable, Hashable, Identifiable, Sendable {
     /// The address was confirmed by a link mailed to it. nil = a server from before 서버 관리.
     var emailVerified: Bool?
     var createdAt: String
+    /// Work days, hours, breaks, focus share. nil = a server from before time planning.
+    var workHours: WorkHours? = nil
 
     var isAdmin: Bool { admin == true }
+    /// Work hours with the defaults filled in.
+    var hours: WorkHours { workHours ?? .standard }
 }
 
 /// Home dashboard arrangement, saved per user. iOS uses the `mobile` part (a single column: order + hidden).
@@ -305,8 +309,14 @@ struct TaskItem: Codable, Hashable, Identifiable, Sendable {
     var completedAt: String?
     var createdAt: String
     var updatedAt: String
+    /// Minutes it is expected to take; nil = not estimated.
+    var estimateMinutes: Int? = nil
+    /// Minutes tracked on it so far (finished time entries, everyone's). nil = a server from before time planning.
+    var actualMinutes: Int? = nil
 
     var isActive: Bool { status.isActive }
+    /// Tracked minutes (0 when none).
+    var actual: Int { actualMinutes ?? 0 }
 }
 
 /// `taskId` cannot start until `dependsOnId` is finished.

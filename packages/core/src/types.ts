@@ -1,6 +1,7 @@
 import type { ISODate, ISOTime } from './dates';
 import type { ServerInfo } from './admin';
 import type { JevStatus } from './jev';
+import type { WorkHours } from './timeplan';
 
 export type TaskStatus = 'todo' | 'doing' | 'done' | 'canceled';
 /** 0 = none, 1 = low, 2 = medium, 3 = high */
@@ -23,6 +24,8 @@ export interface User {
   admin: boolean;
   /** The address was confirmed by a link mailed to it. */
   emailVerified: boolean;
+  /** When they work and how much of it goes to tasks: day plans and finish-date odds read this. */
+  workHours: WorkHours;
   createdAt: string;
 }
 
@@ -191,6 +194,10 @@ export interface Task {
   dueTime: ISOTime | null;
   /** Fixed tasks (meetings, hard deadlines) never move when something upstream slips. */
   fixed: boolean;
+  /** Minutes it is expected to take; null = not estimated. */
+  estimateMinutes: number | null;
+  /** Minutes tracked on it so far (finished time entries, everyone's). */
+  actualMinutes: number;
   position: number;
   postponedCount: number;
   assigneeId: string | null;

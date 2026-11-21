@@ -32,13 +32,14 @@ import { projects, taskDependencies, tasks, users, workspaces, type TaskRow } fr
 import { AccessService, type Access, type Conn } from '../workspace/access.service';
 import { ActivityService } from '../workspace/activity.service';
 import { toTask } from './mappers';
+import { TimeService } from './time.service';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ACTIVE: TaskStatus[] = ['todo', 'doing'];
 /** Fields whose before → after is kept in the activity log. Notes are only flagged as changed. */
-const LOGGED = ['title', 'status', 'priority', 'startDate', 'startTime', 'dueDate', 'dueTime', 'fixed'] as const;
+const LOGGED = ['title', 'status', 'priority', 'startDate', 'startTime', 'dueDate', 'dueTime', 'fixed', 'estimateMinutes'] as const;
 
 export interface TaskFilter {
   view?: ViewName;
@@ -69,6 +70,7 @@ export class TasksService {
     @InjectDb() private readonly db: Db,
     private readonly access: AccessService,
     private readonly activity: ActivityService,
+    private readonly time: TimeService,
   ) {}
 
   // ───────────────────────────── reads
@@ -311,10 +313,13 @@ export class TasksService {
         dueDate: input.dueDate ?? null,
         dueTime: input.dueDate ? (input.dueTime ?? null) : null,
         fixed: input.fixed ?? false,
+        estimateMinutes: input.estimateMinutes ?? null,
+        firstDueDate: input.dueDate ?? null,
         position: Date.now() / 1000,
         completedAt: status === 'done' ? new Date() : null,
       })
       .returning();
+    if (status === 'doing') await this.time.onStatus(tx, a, row!, 'todo');
     await this.activity.record(tx, a, {
       action: 'task.created',
       taskId: row!.id,
@@ -421,14 +426,19 @@ export class TasksService {
       set.completedAt = patch.status === 'done' ? new Date() : null;
     }
     if (cur.dueDate && due && due > cur.dueDate) set.postponedCount = cur.postponedCount + 1;
+    if (!cur.firstDueDate && due) set.firstDueDate = due;
     const onlyPosition = Object.keys(patch).every((k) => k === 'position');
     if (onlyPosition) delete set.updatedAt;
 
-    const [row] = await conn
+    let [row] = await conn
       .update(tasks)
       .set(set)
       .where(and(eq(tasks.id, id), eq(tasks.workspaceId, a.workspaceId)))
       .returning();
+    // Starting work starts its clock; stopping it records the time (and the task's total).
+    if (row!.status !== cur.status && (await this.time.onStatus(conn, a, row!, cur.status))) {
+      row = (await conn.query.tasks.findFirst({ where: eq(tasks.id, id) })) ?? row;
+    }
     const changes = await this.changes(conn, cur, row!);
     if (Object.keys(changes).length) {
       await this.activity.record(conn, a, {
@@ -462,6 +472,7 @@ export class TasksService {
             startTime,
             dueDate: c.dueDate,
             dueTime,
+            firstDueDate: cur.firstDueDate ?? c.dueDate,
             updatedAt: new Date(),
             ...(later && c.taskId === input.rootId ? { postponedCount: cur.postponedCount + 1 } : {}),
           })

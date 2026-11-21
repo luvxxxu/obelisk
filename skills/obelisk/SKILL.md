@@ -1,11 +1,11 @@
 ---
 name: obelisk
-description: Manage the user's Obelisk to-do list and schedule — capture, update, complete and postpone tasks, plan projects as ordered task chains with dependencies, and predict which other tasks and fixed deadlines slip when something is delayed. Use whenever the user talks about their tasks, to-dos, deadlines, schedule, plans or Obelisk, or asks things like "what should I do today?", "what happens if I push X to next week?", "plan this project for me", "할 일", "일정", "미루면".
+description: Manage the user's Obelisk to-do list and schedule — capture, update, complete and postpone tasks, plan projects as ordered task chains with dependencies, predict which other tasks and fixed deadlines slip when something is delayed, plan the day into time blocks, track time, and give finish-date odds and safe promise dates. Use whenever the user talks about their tasks, to-dos, deadlines, schedule, plans, time or Obelisk, or asks things like "what should I do today?", "what happens if I push X to next week?", "can I promise this by Friday?", "when will this be done?", "plan this project for me", "할 일", "일정", "미루면", "언제까지 돼?", "시간표".
 ---
 
 # Obelisk
 
-Obelisk is the user's task and schedule planner — for themselves and for the organizations they belong to. It is deliberately simple — tasks, projects, dates, dependencies — and has one signature feature: **delay impact prediction** (if this slips, what else slips?).
+Obelisk is the user's task and schedule planner — for themselves and for the organizations they belong to. It is deliberately simple — tasks, projects, dates, dependencies — and has one signature feature: **delay impact prediction** (if this slips, what else slips?). It extends that to time: how long work takes, when in the day it happens, and **how likely a date is before anyone promises it**.
 
 Server: `{{OBELISK_URL}}`
 
@@ -34,6 +34,9 @@ Server: `{{OBELISK_URL}}`
 | Times | Optional `startTime` / `dueTime` as `HH:MM` (24h, same timezone) on those dates: "3pm meeting" → `dueDate` + `dueTime: "15:00"`, a slot → `startTime`–`dueTime` on one day. Leave them out for all-day work. A time needs its date; clearing a date clears its time; postponing keeps it. Delay prediction still counts whole days, but a due time that has passed today already counts as overdue. |
 | Blocked by | Finish-to-start dependency: a task can't start before its blockers are due. |
 | Fixed | Immovable commitment (meeting, launch, hard deadline). Never shifts; a delay reaching it is a **conflict**. |
+| Estimate | `estimate`: how long a task should take (minutes, or `"1h30m"`, `"45m"`, `"2시간"`). Actual time (`actualMinutes`) is recorded on its own while a task is in progress, or with `track_time`. |
+| Day plan | The user's own time blocks for a day, across all their spaces, packed around timed tasks (meetings) and breaks. Private to the user. |
+| Odds | Chance a task finishes by its due date and P50/P85 finish dates, simulated from the user's own history: how long their estimates really run, how often first due dates were met, how much of the day goes to tasks. |
 
 How delays propagate (needed to explain predictions): [references/delay-model.md](references/delay-model.md).
 
@@ -72,13 +75,29 @@ If the user connected their own Jev key (Obelisk → 설정 → Jev — TypeSafe
 - After `create_tasks` or for a task with no links → `suggest_dependencies`: likely "must finish first" / "waits for this" links; add accepted ones with `add_dependency`. More links make delay prediction better.
 - A "Jev가 연결되어 있지 않아요" error means no key: tell the user where to add it, then continue with your own judgment.
 
+### "Can I promise this by Friday?" / "When will this be done?"
+1. New work → `check_commitment` with `title`, `estimate` (ask for one if the user can say; otherwise the user's usual length is assumed), `project`, `blockedBy`, and `date` if they named one. An existing task → `check_commitment` with `ref`.
+2. Tell the user: the **safe date** (85% likely and nothing else gets riskier), the **earliest date** and exactly which tasks it would push (with their odds before → after), and the odds for the date they asked about.
+3. Create or update the task with the date they choose. Promises to other people are often `fixed: true`.
+- "When will the project be done?" → `get_odds` (project filter): quote the 85% date, mention the 50% date, and name the tasks unlikely to make their dates. Say the numbers come from their own history.
+
+### Planning the day in hours
+1. `plan_day` (preview): today's work packed into free time around meetings and breaks — overdue and today's deadlines first, blockers before what waits on them, long work split, multi-day work as its daily share. It reports what doesn't fit and deadlines a block would miss.
+2. Discuss what doesn't fit (postpone with `simulate_delay` first, split, or drop). Save with `plan_day` `apply: true` once the user agrees; blocks they placed by hand stay.
+3. `get_day_plan` shows the saved day. `fillAhead: true` fills spare time with work due within a week.
+
+### Tracking time
+- "I spent 40 minutes on #12" → `track_time` `action: log`. "It took 2 hours in total" → `action: set`. "Start a timer on #12" → `action: start` (one timer runs at a time across spaces; a to-do task goes in progress). Putting a task in progress already records time on its own.
+- Recorded time is what teaches the odds how long the user's estimates really run, so offer to correct an obviously wrong total.
+
 ### Planning a goal / project
 1. `get_overview` for today's date and current load.
-2. Propose 3–12 concrete tasks with dates and `blockedBy` links (give each a `key`). Show the plan briefly and get confirmation.
+2. Propose 3–12 concrete tasks with dates, `estimate`s and `blockedBy` links (give each a `key`). Show the plan briefly and get confirmation.
 3. Create everything with one `create_tasks` call. Then run `get_bottlenecks` and point out the critical tasks (zero slack).
 
 ### Risk check / weekly review
 - `get_forecast`: what is already slipping because overdue tasks can only finish today.
+- `get_odds`: what is *likely* to slip even though nothing is late yet (low on-time odds, fixed dates at risk).
 - `get_bottlenecks`: tasks with the most downstream work and least slack.
 - `list_tasks view=done` for wins. Tasks with `postponedCount ≥ 2` deserve a conversation (split, delegate, drop?).
 

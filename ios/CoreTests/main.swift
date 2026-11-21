@@ -4,6 +4,7 @@ import Foundation
 
 runImpactTests()
 runQuickAddTests()
+runTimePlanTests()
 runTimesTests()
 runAccessTests()
 runOverviewTests()

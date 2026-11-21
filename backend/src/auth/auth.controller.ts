@@ -9,6 +9,7 @@ import {
   passwordResetRequestInput,
   signupInput,
   updateMeInput,
+  workHoursInput,
 } from '@obelisk/core';
 import type { Request, Response } from 'express';
 import { config, SESSION_COOKIE } from '../config';
@@ -147,6 +148,14 @@ export class AuthController {
   @UseGuards(AuthGuard)
   async updateMe(@Auth() auth: AuthContext, @Body() body: unknown) {
     const row = await this.auth.updateMe(auth.user.id, parse(updateMeInput, body));
+    return { user: toUser(row) };
+  }
+
+  /** Work days, hours, breaks and focus share: day plans and finish-date odds read these. */
+  @Put('me/work-hours')
+  @UseGuards(AuthGuard)
+  async setWorkHours(@Auth() auth: AuthContext, @Body() body: unknown) {
+    const row = await this.auth.updateMe(auth.user.id, { workHours: parse(workHoursInput, body) });
     return { user: toUser(row) };
   }
 

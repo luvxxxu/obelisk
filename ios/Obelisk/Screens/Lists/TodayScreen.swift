@@ -3,13 +3,19 @@ import SwiftUI
 /// 오늘 (web app/(app)/today/page.tsx): greeting, progress, the forecast callout, 기한 지남 / 오늘,
 /// and what was finished today. Tasks due at a time move to 기한 지남 the minute it passes.
 struct TodayScreen: View {
+    @AppStorage("today.mode", store: AppGroup.defaults) private var mode: TodayMode = .list
+
     var body: some View {
-        ListsMinuteClock { now in TodayContent(now: now) }
+        switch mode {
+        case .list: ListsMinuteClock { now in TodayContent(now: now, mode: $mode) }
+        case .schedule: TodaySchedule(mode: $mode)
+        }
     }
 }
 
 private struct TodayContent: View {
     var now: Clock
+    @Binding var mode: TodayMode
     @Environment(AppStore.self) private var store
     @Environment(Router.self) private var router
 
@@ -34,6 +40,11 @@ private struct TodayContent: View {
                 }
             )
             .listsPlainRow()
+
+            TodayModePicker(mode: $mode)
+                .padding(.horizontal, ObSpace.page)
+                .padding(.bottom, ObSpace.md)
+                .listsPlainRow()
 
             // On a phone the title row has no room for a second control: Jev gets its own line.
             if jevConnected, overdue.count + todays.count > 0 {

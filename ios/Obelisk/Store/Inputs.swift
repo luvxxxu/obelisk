@@ -15,6 +15,8 @@ struct NewTask: Hashable, Sendable {
     var assigneeId: String? = nil
     /// Tasks that must finish first (ids).
     var blockedBy: [String] = []
+    /// Minutes it should take.
+    var estimateMinutes: Int? = nil
 
     var json: JSONValue {
         var o: [String: JSONValue] = ["title": .string(title.trimmingCharacters(in: .whitespacesAndNewlines))]
@@ -29,6 +31,7 @@ struct NewTask: Hashable, Sendable {
         if fixed { o["fixed"] = .bool(true) }
         if let assigneeId { o["assigneeId"] = .string(assigneeId) }
         if !blockedBy.isEmpty { o["blockedBy"] = .array(blockedBy.map(JSONValue.string)) }
+        if let estimateMinutes { o["estimateMinutes"] = .number(Double(estimateMinutes)) }
         return .object(o)
     }
 }
@@ -50,6 +53,8 @@ struct TaskPatch: Hashable, Sendable {
     var fixed: Bool?
     var assigneeId: String??
     var position: Double?
+    /// Minutes it should take (`.some(nil)` clears it).
+    var estimateMinutes: Int??
 
     init() {}
 
@@ -69,6 +74,7 @@ struct TaskPatch: Hashable, Sendable {
         if let fixed { o["fixed"] = .bool(fixed) }
         if let assigneeId { o["assigneeId"] = .orNull(assigneeId) }
         if let position { o["position"] = .number(position) }
+        if let estimateMinutes { o["estimateMinutes"] = estimateMinutes.map { .number(Double($0)) } ?? .null }
         return .object(o)
     }
 
@@ -90,6 +96,7 @@ struct TaskPatch: Hashable, Sendable {
         if let fixed { t.fixed = fixed }
         if let assigneeId { t.assigneeId = assigneeId }
         if let position { t.position = position }
+        if let estimateMinutes { t.estimateMinutes = estimateMinutes }
         // A time goes with its date.
         if t.startDate == nil { t.startTime = nil }
         if t.dueDate == nil { t.dueTime = nil }

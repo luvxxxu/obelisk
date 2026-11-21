@@ -6,6 +6,7 @@ import {
   type MigrationBundleInput,
   type MigrationPhoto,
   type MigrationSecrets,
+  workHoursOf,
 } from '@obelisk/core';
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
@@ -23,6 +24,8 @@ import {
   projectTeams,
   taskDependencies,
   tasks,
+  timeBlocks,
+  timeEntries,
   teamMembers,
   teams,
   users,
@@ -122,6 +125,11 @@ export class ExportService {
       db.select().from(webhooks).where(eq(webhooks.workspaceId, ws.id)).orderBy(asc(webhooks.createdAt)),
       db.select().from(incomingWebhooks).where(eq(incomingWebhooks.workspaceId, ws.id)).orderBy(asc(incomingWebhooks.createdAt)),
     ]);
+    const [entryRows, blockRows] = await Promise.all([
+      db.select().from(timeEntries).where(eq(timeEntries.workspaceId, ws.id)).orderBy(asc(timeEntries.startedAt)),
+      // Day plans are personal: only a personal space carries its owner's.
+      personal ? db.select().from(timeBlocks).where(and(eq(timeBlocks.workspaceId, ws.id), eq(timeBlocks.userId, user.id))) : [],
+    ]);
     const teamIds = teamRows.map((t) => t.id);
     const projectIds = projectRows.map((p) => p.id);
     const [teamLinks, memberGrants, teamGrants, reservations] = await Promise.all([
@@ -206,6 +214,7 @@ export class ExportService {
       account = {
         timezone: user.timezone,
         homeLayout: user.homeLayout ?? null,
+        workHours: user.workHours ? workHoursOf(user.workHours) : null,
         photo: await this.photo(user.avatarId),
         wasDefault: user.defaultWorkspaceId === ws.id,
         jev: {
@@ -282,6 +291,9 @@ export class ExportService {
         startTime: t.startDate ? t.startTime : null,
         dueTime: t.dueDate ? t.dueTime : null,
         fixed: t.fixed,
+        estimateMinutes: t.estimateMinutes,
+        actualMinutes: t.actualMinutes,
+        firstDueDate: t.firstDueDate,
         position: t.position,
         postponedCount: t.postponedCount,
         completedAt: isoOrNull(t.completedAt),
@@ -291,6 +303,10 @@ export class ExportService {
         assignee: t.assigneeId ?? extra.assignee.get(t.id) ?? null,
       })),
       dependencies: depRows.map((d) => ({ task: d.taskId, dependsOn: d.dependsOnId })),
+      timeEntries: entryRows
+        .filter((e) => e.endedAt && e.minutes != null)
+        .map((e) => ({ task: e.taskId, user: e.userId, source: e.source, startedAt: iso(e.startedAt), endedAt: iso(e.endedAt!), minutes: e.minutes! })),
+      blocks: blockRows.map((b) => ({ task: b.taskId, date: b.date, start: b.start, end: b.end, locked: b.locked })),
       activity: activityRows.map((r) => ({
         actor: r.actorId ?? extra.actor.get(r.id) ?? null,
         actorName: r.actorName,

@@ -43,6 +43,7 @@ import d from './_home/dashboard.module.css';
 import { clampItem, defaultLayout, firstFit, MOBILE_MAX, normalize, sameLayout, settle, type WidgetDef } from './_home/layout';
 import { stagger } from './_home/motion';
 import { OtherSpaces } from './_home/OtherSpaces';
+import { DayPlanWidget, OddsWidget } from './_home/TimeWidgets';
 import { UrgentBoard } from './_home/UrgentBoard';
 import { useHomeData, type HomeData, type ProjectRow, type RootRisk } from './_home/useHomeData';
 import s from './home.module.css';
@@ -87,6 +88,8 @@ const WIDGETS: WidgetDef[] = [
     desktop: { x: 0, y: 15, w: 8, h: 20 },
   },
   { id: 'watch', name: '주의할 작업', icon: 'target', chrome: 'bare', min: { w: 3, h: 6 }, desktop: { x: 8, y: 15, w: 4, h: 20 } },
+  { id: 'dayplan', name: '오늘 시간표', icon: 'clock', chrome: 'section', min: { w: 4, h: 8 }, desktop: { x: 0, y: 35, w: 6, h: 14 } },
+  { id: 'odds', name: '완료 확률', icon: 'target', chrome: 'section', min: { w: 4, h: 8 }, desktop: { x: 6, y: 35, w: 6, h: 14 } },
   {
     id: 'spaces',
     name: '다른 공간',
@@ -94,11 +97,11 @@ const WIDGETS: WidgetDef[] = [
     chrome: 'section',
     lead: '지금 열지 않은 공간에서 기다리는 일이에요. 개인 공간은 전부, 조직은 나에게 배정된 일만 세요.',
     min: { w: 4, h: 6 },
-    desktop: { x: 0, y: 35, w: 12, h: 10 },
+    desktop: { x: 0, y: 49, w: 12, h: 10 },
   },
-  { id: 'urgent', name: '급한 업무', icon: 'bolt', chrome: 'section', min: { w: 4, h: 10 }, desktop: { x: 0, y: 45, w: 6, h: 22 } },
-  { id: 'upcoming', name: '다가오는 일정', icon: 'calendar', chrome: 'section', min: { w: 3, h: 8 }, desktop: { x: 6, y: 45, w: 6, h: 22 } },
-  { id: 'projects', name: '진행 상황', icon: 'folder', chrome: 'section', min: { w: 4, h: 10 }, desktop: { x: 0, y: 67, w: 12, h: 20 } },
+  { id: 'urgent', name: '급한 업무', icon: 'bolt', chrome: 'section', min: { w: 4, h: 10 }, desktop: { x: 0, y: 59, w: 6, h: 22 } },
+  { id: 'upcoming', name: '다가오는 일정', icon: 'calendar', chrome: 'section', min: { w: 3, h: 8 }, desktop: { x: 6, y: 59, w: 6, h: 22 } },
+  { id: 'projects', name: '진행 상황', icon: 'folder', chrome: 'section', min: { w: 4, h: 10 }, desktop: { x: 0, y: 81, w: 12, h: 20 } },
 ];
 const DEFAULT_LAYOUT = defaultLayout(WIDGETS);
 
@@ -231,6 +234,10 @@ export default function HomePage() {
         return <WatchList data={data} chronic={chronic} />;
       case 'spaces':
         return <OtherSpaces />;
+      case 'dayplan':
+        return <DayPlanWidget />;
+      case 'odds':
+        return <OddsWidget />;
       case 'urgent':
         return <UrgentBoard today={today} doneToday={data.doneToday} onNew={newTask} />;
       case 'upcoming':

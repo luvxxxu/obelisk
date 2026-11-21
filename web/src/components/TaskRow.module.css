@@ -409,3 +409,17 @@ span.assigneeAvatar {
   opacity: 0.45;
   border-style: dashed;
 }
+
+/* a clock is running on this task */
+.item[data-tone='running'] {
+  color: var(--info-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.liveDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--info);
+  flex-shrink: 0;
+}

@@ -35,6 +35,8 @@ struct ForecastScreen: View {
                         rootsSection(roots)
                             .padding(.bottom, 40)
                     }
+                    ForecastOddsSection()
+                        .padding(.bottom, 40)
                     keySection(bottlenecks, hasLinks: !lev.isEmpty)
                         .padding(.bottom, 40)
                     if !chronic.isEmpty {

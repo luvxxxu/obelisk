@@ -16,6 +16,7 @@ let FIELD_KO: [String: String] = [
     "startTime": "시작 시각",
     "dueTime": "마감 시각",
     "fixed": "고정",
+    "estimateMinutes": "예상 시간",
     "project": "프로젝트",
     "assignee": "담당자",
     "name": "이름",
@@ -58,6 +59,9 @@ private func val(_ field: String, _ v: JSONValue?) -> String {
         return formatShortKo(JS.string(v))
     case "startTime", "dueTime":
         if case let .string(s)? = v, isISOTime(s) { return formatTimeKo(s) }
+        return JS.string(v)
+    case "estimateMinutes":
+        if case let .number(n)? = v { return formatDurationKo(Int(n)) }
         return JS.string(v)
     case "fixed", "membersCanCreateProjects":
         return JS.truthy(v) ? "켬" : "끔"

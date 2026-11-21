@@ -1,12 +1,13 @@
 'use client';
 
-import { addDays, diffDays, startOfWeek, type ISODate, type Task } from '@obelisk/core';
+import { addDays, diffDays, formatDurationKo, startOfWeek, type ISODate, type Task } from '@obelisk/core';
 import { memo, useMemo, useRef, useState } from 'react';
 import { useClock } from '@/lib/clock';
 import { cx, dateTone, dueSoonLabel, overdueLabel, spanLabel, timeLabel } from '@/lib/format';
 import { previewFor, requestDateChange } from '@/lib/reschedule';
 import { clearPicks, getPicked, pickRange, togglePick, useIsPicked, visibleRowIds } from '@/lib/selection';
 import { canEdit, memberAvatar, memberName, selectTask, toggleDone, useApp } from '@/lib/store';
+import { useElapsed, useRunning } from '@/lib/timeplan';
 import { DatePickerPanel } from './DatePicker';
 import { Icon } from './Icon';
 import { Avatar, Popover, tip, ui } from './primitives';
@@ -170,6 +171,8 @@ export const TaskRow = memo(function TaskRow({
   const soon = label && tone !== 'overdue' && now.date === today ? dueSoonLabel(task, now) : null;
   const done = task.status === 'done' || completing;
   const active = task.status === 'todo' || task.status === 'doing';
+  const running = useRunning();
+  const elapsed = useElapsed(running?.task.id === task.id ? running.entry.startedAt : null);
   const editable = canEdit(task, app);
   const canPostpone = editable && active && !!(task.dueDate || task.startDate);
   const org = app.workspace?.kind === 'org';
@@ -183,7 +186,8 @@ export const TaskRow = memo(function TaskRow({
     }, 380);
   };
 
-  const hasMeta = !!(label || project || assignee || waitingOn > 0 || blocking > 0 || task.fixed || task.postponedCount > 1);
+  const runningHere = running?.task.id === task.id;
+  const hasMeta = !!(label || project || assignee || waitingOn > 0 || blocking > 0 || task.fixed || task.postponedCount > 1 || task.estimateMinutes || runningHere);
 
   return (
     <div
@@ -254,6 +258,22 @@ export const TaskRow = memo(function TaskRow({
                 <span className={s.item} {...tip(`이 작업을 기다리는 작업 ${blocking}개`, { side: 'top' })}>
                   <Icon name="link" size={13} /> 후속 {blocking}
                 </span>
+              )}
+              {runningHere ? (
+                <span className={s.item} data-tone="running" {...tip('기록 중', { side: 'top' })}>
+                  <span className={s.liveDot} aria-hidden="true" />
+                  {formatDurationKo(task.actualMinutes + Math.floor(elapsed / 60) || 1)}
+                  {task.estimateMinutes ? ` / ${formatDurationKo(task.estimateMinutes)}` : ''}
+                </span>
+              ) : (
+                task.estimateMinutes &&
+                active && (
+                  <span className={s.item} {...tip(task.actualMinutes ? `예상 ${formatDurationKo(task.estimateMinutes)} · 지금까지 ${formatDurationKo(task.actualMinutes)}` : '예상 시간', { side: 'top' })}>
+                    <Icon name="timer" size={13} />
+                    {task.actualMinutes ? `${formatDurationKo(task.actualMinutes)} / ` : ''}
+                    {formatDurationKo(task.estimateMinutes)}
+                  </span>
+                )
               )}
               {task.postponedCount > 1 && active && (
                 <span className={s.item} data-tone="warn" {...tip(`${task.postponedCount}번 미뤘어요`, { side: 'top' })}>

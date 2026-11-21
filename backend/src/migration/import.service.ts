@@ -33,6 +33,8 @@ import {
   projects,
   projectTeams,
   taskDependencies,
+  timeBlocks,
+  timeEntries,
   tasks,
   teamMembers,
   teams,
@@ -587,6 +589,9 @@ export class ImportService implements OnModuleDestroy {
               startTime: t.startTime,
               dueTime: t.dueTime,
               fixed: t.fixed,
+              estimateMinutes: t.estimateMinutes,
+              actualMinutes: t.actualMinutes,
+              firstDueDate: t.firstDueDate,
               position: t.position,
               postponedCount: t.postponedCount,
               completedAt: dateOrNull(t.completedAt),
@@ -617,6 +622,22 @@ export class ImportService implements OnModuleDestroy {
       for (const part of chunked(links)) {
         await tx.insert(taskDependencies).values(part).onConflictDoNothing();
         counts.dependencies += part.length;
+      }
+
+      // ── tracked time. Someone who isn't here yet keeps their minutes on the task, without a name.
+      const entries = b.timeEntries.flatMap((e) => {
+        const taskId = taskIds.get(e.task);
+        if (!taskId) return [];
+        return [{ workspaceId, taskId, userId: mapUser(e.user), source: e.source, startedAt: date(e.startedAt), endedAt: date(e.endedAt), minutes: e.minutes }];
+      });
+      for (const part of chunked(entries)) await tx.insert(timeEntries).values(part);
+      // ── the exporter's day plans become the importer's (personal spaces only).
+      if (personal) {
+        const plans = b.blocks.flatMap((x) => {
+          const taskId = taskIds.get(x.task);
+          return taskId ? [{ userId: user.id, workspaceId, taskId, date: x.date, start: x.start, end: x.end, locked: x.locked }] : [];
+        });
+        for (const part of chunked(plans)) await tx.insert(timeBlocks).values(part);
       }
 
       // ── history, straight into the table (recording would send webhooks for every old entry).
@@ -760,6 +781,7 @@ export class ImportService implements OnModuleDestroy {
       if (b.account && input.applySettings) {
         const acc = b.account;
         const patch: Partial<UserRow> = { timezone: acc.timezone, homeLayout: acc.homeLayout ?? null };
+        if (acc.workHours) patch.workHours = acc.workHours;
         if (plan.jevOk) {
           const key = acc.jev.hasKey ? (secrets?.jevKey ?? null) : null;
           patch.jevAutoApply = acc.jev.autoApply;

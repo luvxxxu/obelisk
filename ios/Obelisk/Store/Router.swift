@@ -66,11 +66,12 @@ enum Page: Hashable, Sendable {
 
 enum SettingsPage: String, Hashable, CaseIterable, Sendable {
     /// `admin` is 서버 관리 (operators only), listed apart from the rest.
-    case general, notifications, org, ai, jev, webhooks, admin
+    case general, planning, notifications, org, ai, jev, webhooks, admin
 
     var label: String {
         switch self {
         case .general: "일반"
+        case .planning: "일정 계획"
         case .notifications: "알림"
         case .org: "조직"
         case .ai: "AI 연결"
@@ -83,6 +84,7 @@ enum SettingsPage: String, Hashable, CaseIterable, Sendable {
     var symbol: String {
         switch self {
         case .general: "gearshape"
+        case .planning: "clock"
         case .notifications: "bell"
         case .org: "building.2"
         case .ai: "powerplug"

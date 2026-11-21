@@ -1,4 +1,4 @@
-import type { HomeLayout, WebhookPayload } from '@obelisk/core';
+import type { HomeLayout, WebhookPayload, WorkHours } from '@obelisk/core';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -48,6 +48,8 @@ export const users = pgTable('users', {
   jevAutoApply: boolean('jev_auto_apply').notNull().default(false),
   /** Home dashboard arrangement (core HomeLayout); null = default layout. */
   homeLayout: jsonb('home_layout').$type<HomeLayout>(),
+  /** Work days, hours, breaks, focus share (core WorkHours); null = the defaults. */
+  workHours: jsonb('work_hours').$type<Partial<WorkHours>>(),
   /** Profile photo (avatars row); null = the initial is shown. */
   avatarId: uuid('avatar_id').references((): AnyPgColumn => avatars.id, { onDelete: 'set null' }),
   /** Runs this server: 서버 관리 (users, sign-up, settings). Never sees what people wrote. */
@@ -272,6 +274,12 @@ export const tasks = pgTable(
     startTime: text('start_time'),
     dueTime: text('due_time'),
     fixed: boolean('fixed').notNull().default(false),
+    /** Minutes it is expected to take; null = not estimated. */
+    estimateMinutes: integer('estimate_minutes'),
+    /** Sum of the finished time entries' minutes (kept in step by TimeService). */
+    actualMinutes: integer('actual_minutes').notNull().default(0),
+    /** The first due date it ever had: postponing doesn't move it, so finish-date odds can learn how dates slip. */
+    firstDueDate: date('first_due_date', { mode: 'string' }),
     position: doublePrecision('position').notNull().default(0),
     postponedCount: integer('postponed_count').notNull().default(0),
     completedAt: ts('completed_at'),
@@ -285,6 +293,7 @@ export const tasks = pgTable(
     index('tasks_assignee_idx').on(t.assigneeId),
     // A time is "HH:MM" and only exists with its date.
     check('tasks_start_time_check', sql`${t.startTime} is null or (${t.startTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' and ${t.startDate} is not null)`),
+    check('tasks_estimate_check', sql`${t.estimateMinutes} is null or ${t.estimateMinutes} between 1 and 1440`),
     check('tasks_due_time_check', sql`${t.dueTime} is null or (${t.dueTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' and ${t.dueDate} is not null)`),
   ],
 );
@@ -337,6 +346,69 @@ export const activity = pgTable(
     index('activity_workspace_idx').on(t.workspaceId, t.createdAt),
     index('activity_task_idx').on(t.taskId, t.createdAt),
     index('activity_project_idx').on(t.projectId, t.createdAt),
+  ],
+);
+
+// ───────────────────────────── time tracking and day plans
+
+/**
+ * Time spent on a task. `auto` runs while the task is in progress, `timer` was started/stopped by
+ * hand, `manual` was typed in. One entry at most runs per user (ended_at null).
+ */
+export const timeEntries = pgTable(
+  'time_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    taskId: uuid('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    /** null: the person left (deleted account) or hasn't joined this server yet; their time stays on the task. */
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    source: text('source', { enum: ['auto', 'timer', 'manual'] }).notNull(),
+    startedAt: ts('started_at').notNull(),
+    endedAt: ts('ended_at'),
+    /** Counted minutes once it stops (auto time beyond a few hours counts working hours only). */
+    minutes: integer('minutes'),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('time_entries_task_idx').on(t.taskId),
+    index('time_entries_user_idx').on(t.userId, t.startedAt),
+    uniqueIndex('time_entries_one_running_idx').on(t.userId).where(sql`${t.endedAt} is null`),
+    check('time_entries_minutes_check', sql`${t.minutes} is null or ${t.minutes} >= 0`),
+  ],
+);
+
+/** A user's own plan for a day: time held for a task. Nobody else sees it. */
+export const timeBlocks = pgTable(
+  'time_blocks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    taskId: uuid('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    date: date('date', { mode: 'string' }).notNull(),
+    /** "HH:MM" in the user's time zone. */
+    start: text('start_time').notNull(),
+    end: text('end_time').notNull(),
+    /** Placed or moved by hand: re-planning works around it. */
+    locked: boolean('locked').notNull().default(false),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('time_blocks_user_date_idx').on(t.userId, t.date),
+    index('time_blocks_task_idx').on(t.taskId),
+    check('time_blocks_span_check', sql`${t.start} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' and ${t.end} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' and ${t.start} < ${t.end}`),
   ],
 );
 
@@ -673,6 +745,8 @@ export type WebhookRow = typeof webhooks.$inferSelect;
 export type WebhookDeliveryRow = typeof webhookDeliveries.$inferSelect;
 export type IncomingWebhookRow = typeof incomingWebhooks.$inferSelect;
 export type MemberReservationRow = typeof memberReservations.$inferSelect;
+export type TimeEntryRow = typeof timeEntries.$inferSelect;
+export type TimeBlockRow = typeof timeBlocks.$inferSelect;
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
 export type AccessLevel = (typeof ACCESS_LEVELS)[number];
 export type MemberAccess = (typeof MEMBER_ACCESS)[number];

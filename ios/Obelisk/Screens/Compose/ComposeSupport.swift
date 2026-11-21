@@ -145,6 +145,8 @@ enum ComposeParse {
                 )
             case .fixed:
                 return ComposeChipModel(id: id, kind: .fixed, symbol: "pin", text: "고정 일정", tone: .outline)
+            case .estimate:
+                return ComposeChipModel(id: id, kind: .estimate, symbol: "hourglass", text: "예상 \(formatDurationKo(Int(t.value) ?? 0))", tone: .outline)
             }
         }
     }
@@ -421,6 +423,7 @@ struct ComposeSyntaxHelp: View {
         Row(symbol: "number", label: "프로젝트", codes: ["#업무"], note: "없는 이름이면 새로 만들어요"),
         Row(symbol: "flag", label: "우선순위", codes: ["!높음", "!보통", "!낮음"]),
         Row(symbol: "pin", label: "고정 일정", codes: ["@고정"], note: "움직이지 않는 약속·마감"),
+        Row(symbol: "hourglass", label: "예상 시간", codes: ["~30분", "~1h", "~1시간 30분"], note: "하루 계획과 완료 확률에 쓰여요"),
     ]
 
     var body: some View {

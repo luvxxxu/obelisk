@@ -23,6 +23,7 @@ import {
   type WorkspaceKind,
   type WorkspaceRole,
   formatDaysKo,
+  formatDurationKo,
   formatRelativeKo,
   formatShortKo,
   formatTimeKo,
@@ -57,6 +58,10 @@ export interface TaskOut {
   dueDate: ISODate | null;
   dueTime: ISOTime | null;
   fixed: boolean;
+  /** Minutes it should take. */
+  estimateMinutes?: number;
+  /** Minutes tracked on it so far. */
+  actualMinutes?: number;
   /** Assignee's name. */
   assignee?: string;
   /** The caller can see but not change this task. */
@@ -225,6 +230,7 @@ export function taskLine(t: TaskOut, today: ISODate, opts: { project?: boolean }
   if (t.overdue && t.dueDate) meta.push(`**${lateLabel(t, today)}**`);
   if (t.assignee) meta.push(`@${esc(t.assignee)}`);
   if (t.fixed) meta.push('🔒 고정');
+  if (t.estimateMinutes) meta.push(`⏱ ${formatDurationKo(t.estimateMinutes)}`);
   if ((t.postponedCount ?? 0) >= 2) meta.push(`↻ ${t.postponedCount}회 미룸`);
   if (t.readOnly) meta.push('👁 보기 전용');
   return `${STATUS_GLYPH[t.status]} ${code(t.ref)} ${esc(t.title)}${meta.length ? ` · ${meta.join(' · ')}` : ''}`;
@@ -356,6 +362,10 @@ export function mdTaskDetail(t: TaskOut, today: ISODate, heading?: string): stri
   if (t.overdue && t.dueDate) meta.push(`**${lateLabel(t, today)}**`);
   if (t.assignee) meta.push(`담당 ${esc(t.assignee)}`);
   if (t.fixed) meta.push('🔒 고정 일정');
+  if (t.estimateMinutes || t.actualMinutes) {
+    const parts = [t.estimateMinutes ? `예상 ${formatDurationKo(t.estimateMinutes)}` : '', t.actualMinutes ? `실제 ${formatDurationKo(t.actualMinutes)}` : ''];
+    meta.push(`⏱ ${parts.filter(Boolean).join(' / ')}`);
+  }
   if (t.postponedCount) meta.push(`↻ ${t.postponedCount}회 미룸`);
   if (t.readOnly) meta.push('👁 보기 전용');
   const notes = t.notes
@@ -512,3 +522,133 @@ export function mdActivity(o: { title: string; timezone: string; activity: Activ
 }
 
 export const levelKo = (l: AccessLevel) => LEVEL_LABEL_KO[l];
+
+// ───────────────────────────── time planning
+
+export interface DayBlockOut {
+  ref: string;
+  title: string;
+  start: ISOTime;
+  end: ISOTime;
+  /** Placed by hand: re-planning leaves it. */
+  locked?: true;
+  /** Proposed now (not saved yet). */
+  new?: true;
+  space?: string;
+}
+
+export type DayPlanOut = {
+  date: ISODate;
+  today: ISODate;
+  saved: boolean;
+  window: { start: ISOTime; end: ISOTime };
+  workday: boolean;
+  blocks: DayBlockOut[];
+  events: { ref: string; title: string; start: ISOTime; end: ISOTime; fixed: boolean }[];
+  pending: { ref: string; title: string; minutes: number; reason: 'no_time' | 'blocked' | null }[];
+  late: { ref: string; title: string; dueTime: ISOTime; end: ISOTime }[];
+  capacityMinutes: number;
+  plannedMinutes: number;
+  neededMinutes: number;
+  running: { ref: string; title: string; since: string } | null;
+};
+
+export function mdDayPlan(o: DayPlanOut, heading: string): string {
+  const head = `### ${heading} · ${formatRelativeKo(o.date, o.today)} (${formatShortKo(o.date)})`;
+  const over = o.neededMinutes - o.capacityMinutes;
+  const load = `일할 수 있는 시간 ${formatDurationKo(o.capacityMinutes)} · 계획 ${formatDurationKo(o.plannedMinutes)} · 필요한 시간 ${formatDurationKo(o.neededMinutes)}${over > 0 ? ` · **${formatDurationKo(over)} 넘침**` : ''}${o.workday ? '' : ' · 쉬는 날'}`;
+  type Row = { start: ISOTime; line: string };
+  const rows: Row[] = [
+    ...o.events.map((e) => ({ start: e.start, line: `- ${formatTimeRangeKo(e.start, e.end)} · ${e.fixed ? '🔒 ' : ''}${code(e.ref)} ${esc(e.title)}` })),
+    ...o.blocks.map((b) => ({
+      start: b.start,
+      line: `- ${formatTimeRangeKo(b.start, b.end)} · ${code(b.ref)} ${esc(b.title)}${b.space ? ` · ${esc(b.space)}` : ''}${b.locked ? ' · 📌' : ''}${b.new ? ' · 새로' : ''}`,
+    })),
+  ].sort((a, b) => a.start.localeCompare(b.start));
+  const plan = rows.length ? rows.map((r) => r.line).join('\n') : '_아직 계획된 블록이 없어요._';
+  const pending = o.pending.length
+    ? `**계획에 없는 일**\n${o.pending
+        .map((p) => `- ${code(p.ref)} ${esc(p.title)} · ${formatDurationKo(p.minutes)}${p.reason === 'blocked' ? ' · 선행 작업 대기' : p.reason === 'no_time' ? ' · 시간 부족' : ''}`)
+        .join('\n')}`
+    : '';
+  const late = o.late.length ? `> ⚠️ 마감 시각을 넘기는 블록: ${o.late.map((l) => `${code(l.ref)} (마감 ${formatTimeKo(l.dueTime)}, 끝 ${formatTimeKo(l.end)})`).join(', ')}` : '';
+  const running = o.running ? `⏱ 지금 ${code(o.running.ref)} ${esc(o.running.title)} 기록 중` : '';
+  return join(head, load, running, plan, pending, late);
+}
+
+export interface OddsTaskOut {
+  ref: string;
+  title: string;
+  dueDate: ISODate | null;
+  onTime: number | null;
+  conflict: number | null;
+  p50: ISODate | null;
+  p85: ISODate | null;
+}
+
+export type OddsOut = {
+  today: ISODate;
+  overall: { p50: ISODate | null; p85: ISODate | null } | null;
+  projects: { project: string; tasks: number; p50: ISODate | null; p85: ISODate | null }[];
+  atRisk: OddsTaskOut[];
+  fixedAtRisk: OddsTaskOut[];
+  calibration: { medianRatio: number | null; ratioSamples: number; onTimeRate: number | null; slipSamples: number; focusPercent: number; focusSource: string; defaultEstimateMinutes: number };
+  externalTasks: number;
+};
+
+const pct = (p: number | null) => (p === null ? '–' : `${Math.round(p * 100)}%`);
+const day = (d: ISODate | null, today: ISODate) => (d ? formatRelativeKo(d, today) : '6개월 뒤 이후');
+
+export function mdOdds(o: OddsOut): string {
+  const head = `### 완료 확률${o.overall ? ` · 전체 85% ${day(o.overall.p85, o.today)} (50% ${day(o.overall.p50, o.today)})` : ''}`;
+  const projects = o.projects.length
+    ? `**프로젝트**\n${o.projects.map((p) => `- ${esc(p.project)} · ${p.tasks}개 · 50% ${day(p.p50, o.today)} · 85% ${day(p.p85, o.today)}`).join('\n')}`
+    : '';
+  const risk = o.atRisk.length
+    ? `**제때 끝내기 어려운 작업**\n${o.atRisk.map((t) => `- ${code(t.ref)} ${esc(t.title)} · 마감 ${t.dueDate ? formatRelativeKo(t.dueDate, o.today) : '–'} · 제때 ${pct(t.onTime)} · 85% ${day(t.p85, o.today)}`).join('\n')}`
+    : '_기한 안에 끝날 가능성이 낮은 작업은 없어요._';
+  const fixed = o.fixedAtRisk.length
+    ? `**위험한 고정 일정**\n${o.fixedAtRisk.map((t) => `- 🔒 ${code(t.ref)} ${esc(t.title)} · 충돌 ${pct(t.conflict)}`).join('\n')}`
+    : '';
+  const c = o.calibration;
+  const basis = `_근거: ${c.ratioSamples ? `예상보다 ${c.medianRatio!.toFixed(1)}배 걸림(${c.ratioSamples}개)` : '예상 대비 실제 기록 없음(기본 1.25배)'} · ${c.slipSamples ? `첫 마감 지킨 비율 ${pct(c.onTimeRate)}(${c.slipSamples}개)` : '마감 기록 없음'} · 하루 집중 ${c.focusPercent}% · 예상 없는 작업 ${formatDurationKo(c.defaultEstimateMinutes)}${o.externalTasks ? ` · 다른 공간 작업 ${o.externalTasks}개 포함` : ''}_`;
+  return join(head, projects, risk, fixed, basis);
+}
+
+export interface CommitOptionOut {
+  date: ISODate;
+  probability: number;
+  hurts: { ref: string; title: string; kind: 'late' | 'conflict'; before: number; after: number }[];
+}
+
+export type CommitOut = {
+  today: ISODate;
+  subject: string;
+  minutes: number;
+  estimated: boolean;
+  confidence: number;
+  natural: { p50: ISODate | null; p85: ISODate | null };
+  safe: CommitOptionOut | null;
+  earliest: CommitOptionOut | null;
+  proposed: CommitOptionOut | null;
+};
+
+function hurtLines(o: CommitOptionOut): string {
+  return o.hurts
+    .slice(0, 8)
+    .map((h) => `  - ${code(h.ref)} ${esc(h.title)} · ${h.kind === 'conflict' ? '충돌 위험' : '제때 끝낼 확률'} ${pct(h.before)} → ${pct(h.after)}`)
+    .join('\n');
+}
+
+export function mdCommit(o: CommitOut): string {
+  const head = `### 약속하기 전에 · ${esc(o.subject)} (${o.estimated ? '' : '예상 없음, '}${formatDurationKo(o.minutes)})`;
+  const opt = (label: string, x: CommitOptionOut | null) =>
+    x
+      ? `- **${label}** ${formatRelativeKo(x.date, o.today)} (${formatShortKo(x.date)}) · ${pct(x.probability)}${x.hurts.length ? ` · 밀리는 일 ${x.hurts.length}개\n${hurtLines(x)}` : ' · 다른 일정에 영향 없음'}`
+      : `- **${label}** 6개월 안에서는 찾지 못했어요`;
+  const lines = [opt('안전한 날', o.safe)];
+  if (o.earliest && o.safe && o.earliest.date !== o.safe.date) lines.push(opt('가장 빠른 날', o.earliest));
+  if (o.proposed) lines.push(opt('물어본 날', o.proposed));
+  const natural = `_끼워 넣지 않고 순서대로 하면: 50% ${day(o.natural.p50, o.today)}, 85% ${day(o.natural.p85, o.today)}. 기준 확률 ${pct(o.confidence)}._`;
+  return join(head, lines.join('\n'), natural);
+}

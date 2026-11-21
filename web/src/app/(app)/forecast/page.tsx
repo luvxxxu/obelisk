@@ -11,6 +11,7 @@ import {
 import { useMemo, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { ImpactView } from '@/components/ImpactView';
+import { OddsSection } from '@/components/OddsSection';
 import { Checkbox } from '@/components/TaskRow';
 import { Spinner, ui } from '@/components/primitives';
 import { EmptyState, Page, ViewHeader } from '@/components/View';
@@ -185,6 +186,8 @@ export default function ForecastPage() {
           </ul>
         </section>
       )}
+
+      <OddsSection />
 
       {/* ── leverage */}
       <section className={s.section} aria-labelledby="fc-key">

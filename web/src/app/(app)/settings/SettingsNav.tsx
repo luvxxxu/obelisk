@@ -14,6 +14,7 @@ export function SettingsNav() {
   const tabs: { href: string; label: string }[] = [
     { href: '/settings', label: '일반' },
     ...(workspace?.kind === 'org' ? [{ href: '/settings/org', label: '조직' }] : []),
+    { href: '/settings/planning', label: '일정 계획' },
     { href: '/settings/ai', label: 'AI 연결' },
     { href: '/settings/jev', label: 'Jev' },
     { href: '/settings/webhooks', label: '웹훅' },

@@ -13,7 +13,7 @@ Helper: `scripts/obelisk.sh METHOD PATH [JSON]`.
 | GET | `/api/bootstrap` | user, `today`, workspace (+ your role), workspaces, members, teams, projects (with your `access`), open + recent tasks, dependencies |
 | GET | `/api/tasks?view=&projectId=&status=&q=&from=&to=&limit=&assignee=` | `view`: today, upcoming, overdue, inbox, unscheduled, all, done. `projectId=inbox` for no project. `assignee`: `me`, a user id, or `none` |
 | GET | `/api/tasks/:ref` | ref = `12`, uuid, or unique title fragment (URL-encode `#` as `%23` or omit it) |
-| POST | `/api/tasks` | `{title, notes?, status?, priority?: 0-3, projectId?, startDate?, startTime?, dueDate?, dueTime?, fixed?, assigneeId?, blockedBy?: uuid[]}` — times are `HH:MM` (24h, the user's timezone) and need their date |
+| POST | `/api/tasks` | `{title, notes?, status?, priority?: 0-3, projectId?, startDate?, startTime?, dueDate?, dueTime?, fixed?, estimateMinutes?, assigneeId?, blockedBy?: uuid[]}` — times are `HH:MM` (24h, the user's timezone) and need their date; `estimateMinutes` 1–1440. Tasks carry `actualMinutes` (recorded time) |
 | POST | `/api/tasks/bulk` | `{projectId?, tasks: [{key?, title, …, blockedBy?: (key \| "#12" \| uuid)[]}]}` |
 | PATCH | `/api/tasks/:id` | any task field; `null` clears dates/times/project/assignee (clearing a date clears its time; a new date keeps the time) |
 | GET | `/api/tasks/:id/activity` | who changed what on this task |
@@ -33,6 +33,26 @@ Helper: `scripts/obelisk.sh METHOD PATH [JSON]`.
 | GET | `/api/workspaces` | your workspaces with your role |
 | GET | `/api/workspaces/:id` | workspace, members, teams |
 | GET | `/api/workspaces/:id/activity?before=&limit=&projectId=&actorId=` | activity you may see (admins: everything but others' private tasks) |
+
+### Time: estimates, tracking, day plans, odds
+
+| Method | Path | Notes |
+|---|---|---|
+| PUT | `/api/auth/me/work-hours` | `{days: [0-6], start, end, breaks: [{start,end}], focus: 0.1-1 \| null, defaultEstimate: minutes \| null}` (null = learn it) |
+| GET | `/api/time/running` | `{running: {entry, task} \| null}` — one clock per person, across spaces |
+| POST | `/api/time/timer` | `{taskId, action: "start" \| "stop"}` → `{running, task}`; starting puts a to-do task in progress and stops any other clock |
+| GET | `/api/tasks/:id/time` | `{entries: [{id, userId, userName, source: auto \| timer \| manual, startedAt, endedAt, minutes, mine}]}` |
+| POST | `/api/time/entries` | `{taskId, minutes, date?}` → `{task}` (time done earlier) |
+| DELETE | `/api/time/entries/:id` | your own entries only → `{task}` |
+| PUT | `/api/tasks/:id/actual` | `{minutes}` → your time on the task becomes exactly this |
+| GET | `/api/plan/day/:date` | `date` = `YYYY-MM-DD` or `today` → `{blocks, events, pending: [{taskId, minutes, reason}], late, capacity, planned, needed, tasks, projects, running, hours}` across all your spaces |
+| POST | `/api/plan/day/:date/auto` | `{fillAhead?, apply?}` → `{plan: {blocks: [{taskId, start, end, locked, kept}], unplaced, late, …}, tasks, view}` (`apply: true` saves; locked and past blocks stay) |
+| DELETE | `/api/plan/day/:date?unlocked=true` | clear the day (or only planner-placed blocks) |
+| GET / POST | `/api/plan/blocks?from=&to=` / `/api/plan/blocks` | list a range / place one `{taskId, date, start, end}` (locked) |
+| PATCH / DELETE | `/api/plan/blocks/:id` | `{date?, start?, end?, locked?}` (moving locks it) |
+| GET | `/api/odds` | `{today, report: {tasks: [{taskId, onTime, conflict, p50, p85, p95}], projects: [{projectId, tasks, p50, p85, p95}], overall}, calibration, external}` for the open space |
+| POST | `/api/odds/commit` | `{taskId? \| title?, estimateMinutes?, projectId?, assigneeId?, blockedBy?, startDate?, date?, confidence?}` → `{report: {safe, earliest, proposed: {date, probability, harmed: [{taskId, kind, before, after}]}, natural, days}, minutes, estimated}` |
+| GET | `/api/odds/calibration` | what the odds learned from your history |
 
 ### Jev hints (needs the user's own Jev key — TypeSafe or any System One service — set in the web app)
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { setPref } from '@/lib/hooks';
 import { formatRelativeKo } from '@obelisk/core';
 import { usePathname, useRouter } from 'next/navigation';
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -121,6 +122,18 @@ export function CommandPalette() {
     const base: Cmd[] = [
       { id: 'new', label: '새 작업 만들기', icon: 'plus', keys: ['N'], group: '명령', run: () => setUi({ palette: false, quickAdd: true }) },
       { id: 'shortcuts', label: '키보드 단축키 보기', icon: 'keyboard', keys: ['?'], group: '명령', run: () => setUi({ palette: false, shortcuts: true }) },
+      { id: 'commit', label: '약속하기 전에 · 가능한 날짜 계산', hint: '언제까지 된다고 말할 수 있을까', icon: 'target', group: '명령', run: () => setUi({ palette: false, commit: {} }) },
+      {
+        id: 'plan',
+        label: '오늘 시간표 열기',
+        hint: '할 일을 빈 시간에 배치',
+        icon: 'clock',
+        group: '명령',
+        run: () => {
+          setPref('today-mode', 'plan');
+          go('/today')();
+        },
+      },
       ...(app.user?.jev.connected
         ? [
             { id: 'jev-priority', label: 'Jev · 우선순위 정리', hint: '중요도와 마감으로 제안', icon: 'flag' as const, group: 'Jev', run: () => setUi({ palette: false, jev: { kind: 'priority' } }) },
@@ -138,6 +151,7 @@ export function CommandPalette() {
       { id: 'logbook', label: '완료 기록', icon: 'checkCircle', keys: ['G', 'L'], group: '이동', run: go('/logbook') },
       { id: 'ai', label: 'AI 연결 (MCP · Skill)', icon: 'plug', group: '이동', run: go('/settings/ai') },
       { id: 'jev', label: 'Jev 설정', hint: '판단 모델 연결', icon: 'scale', group: '이동', run: go('/settings/jev') },
+      { id: 'planning', label: '일정 계획 설정', hint: '근무 시간 · 집중 비율', icon: 'clock', group: '이동', run: go('/settings/planning') },
       { id: 'settings', label: '설정', icon: 'settings', group: '이동', run: go('/settings') },
       { id: 'migrate', label: '데이터 이전', hint: '다른 서버로 옮기기 · 가져오기', icon: 'upload', group: '이동', run: go('/settings/migrate') },
       ...(app.workspace?.kind === 'org'
@@ -456,6 +470,17 @@ export function Toaster() {
             </span>
           )}
           <span className={s.toastMsg}>{t.message}</span>
+          {t.secondary && (
+            <button
+              className={cx(ui.btn, ui.xs, ui.ghost, s.toastAction)}
+              onClick={() => {
+                t.secondary!.run();
+                dismiss(t.id);
+              }}
+            >
+              {t.secondary.label}
+            </button>
+          )}
           {t.action && (
             <button
               className={cx(ui.btn, ui.xs, ui.primary, s.toastAction)}

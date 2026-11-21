@@ -75,6 +75,9 @@ func runParityTests() {
         section(fixtures, "timePhrase") { c, i in
             same(parseTimePhrase(str(c["raw"])!) ?? "null", str(c["out"]) ?? "null", "#\(i) \(str(c["raw"])!)")
         }
+        section(fixtures, "duration") { c, i in
+            same(parseDuration(str(c["raw"])!).map { String($0) } ?? "null", c["out"]?.int.map { String($0) } ?? "null", "#\(i) \(str(c["raw"])!)")
+        }
         section(fixtures, "dateTimePhrase") { c, i in
             let r = parseDateTimePhrase(str(c["raw"])!, str(c["today"])!, c["nowMinutes"]?.int)
             same(json(r), expected(c["out"]), "#\(i) \(str(c["raw"])!)")

@@ -17,6 +17,8 @@ const task = (p: Partial<Task> = {}): Task => ({
   dueDate: null,
   dueTime: null,
   fixed: false,
+  estimateMinutes: null,
+  actualMinutes: 0,
   position: n,
   postponedCount: 0,
   assigneeId: null,

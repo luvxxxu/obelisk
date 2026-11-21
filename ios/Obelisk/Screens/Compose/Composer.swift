@@ -169,6 +169,17 @@ struct Composer: View {
                         .transition(.opacity)
                     }
                     if let d = m.defaultChip { ComposeChip(chip: d) }
+                    if !m.title.isEmpty {
+                        // 약속하기 전에: when could this really be done?
+                        Button {
+                            openCommit(m)
+                        } label: {
+                            ComposeChip(chip: ComposeChipModel(id: "commit", kind: nil, symbol: "calendar.badge.checkmark", text: "가능한 날짜", tone: .dashed))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("가능한 날짜 보기")
+                        .accessibilityHint("언제까지 끝낼 수 있는지 계산해요")
+                    }
                 }
                 .padding(.horizontal, 14)
                 .padding(.top, 12)
@@ -292,6 +303,7 @@ struct Composer: View {
         t.assigneeId = m.ctx.defaultAssigneeId
         if take(.priority, m), let live = m.live { t.priority = live.priority.value }
         if take(.fixed, m) { t.fixed = true }
+        t.estimateMinutes = m.parsed.estimateMinutes
         let kinds = disabled
         focused = false
         helpOpen = false
@@ -301,6 +313,19 @@ struct Composer: View {
                 disabled = []
                 jev.reset()
             }
+        })
+    }
+
+    /// 약속하기 전에 with what's typed (title, estimate, project, a typed due date to check).
+    private func openCommit(_ m: Model) {
+        var t = NewTask(title: m.title)
+        t.estimateMinutes = m.parsed.estimateMinutes
+        t.projectId = m.matched?.id ?? m.ctx.projectId.flatMap { $0 }
+        t.dueDate = m.parsed.dueDate
+        t.assigneeId = m.ctx.defaultAssigneeId
+        focused = false
+        router.present(.init(id: "commit-new", detents: [.large]) {
+            CommitSheet(prefill: t)
         })
     }
 
@@ -331,6 +356,7 @@ struct Composer: View {
         input.priority = m.parsed.priority ?? (take(.priority, m) ? m.live?.priority.value ?? 0 : 0)
         input.fixed = m.parsed.fixed || take(.fixed, m)
         input.assigneeId = m.ctx.defaultAssigneeId
+        input.estimateMinutes = m.parsed.estimateMinutes
         guard let created = await store.createTask(input) else { return }
         Haptics.tap()
         text = ""

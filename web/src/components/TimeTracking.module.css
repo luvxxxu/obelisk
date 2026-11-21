@@ -1,0 +1,463 @@
+/* Time tracking: estimate field, timer, entries, the running pill, on-time odds. */
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 8px;
+  margin-left: -9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.trigger:hover,
+.trigger[data-open='true'] {
+  background: var(--surface-2);
+}
+
+.trigger:focus-visible {
+  outline: none;
+  border-color: var(--ring-color);
+  box-shadow: var(--ring);
+}
+
+.trigger[data-empty='true'] {
+  color: var(--text-3);
+}
+
+.estimatePanel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.chip {
+  height: var(--control-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.chip:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.chip[data-on='true'] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.customRow {
+  display: flex;
+  gap: 6px;
+}
+
+.customRow > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.clear {
+  align-self: flex-start;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.clear:hover {
+  color: var(--danger-text);
+}
+
+/* ───────── timer button */
+
+.timerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-xs);
+  padding: 0 10px;
+  margin-left: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--text-2);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.timerBtn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.timerBtn[data-on='true'] {
+  border-color: var(--info);
+  color: var(--info-text);
+  background: var(--info-soft);
+}
+
+.timerCompact {
+  margin-left: 0;
+  padding: 0 8px;
+}
+
+.clock {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* ───────── section */
+
+.section {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: 10px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.title > svg {
+  color: var(--text-3);
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 20px;
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.figureLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.figureValue {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.figureValue[data-over='true'] {
+  color: var(--warn-text);
+}
+
+.figureValue[data-muted='true'] {
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.meter {
+  flex: 1 1 120px;
+  height: 4px;
+  margin-bottom: 7px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.meterFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--text-2);
+  transition: width var(--dur-mid) var(--ease);
+}
+
+.meterFill[data-over='true'] {
+  background: var(--warn);
+}
+
+.overNote {
+  flex-basis: 100%;
+  font-size: var(--fs-xs);
+  color: var(--warn-text);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.textBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+
+.textBtn:hover {
+  color: var(--text);
+}
+
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.addLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.entries {
+  display: flex;
+  flex-direction: column;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto auto 24px;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.entryWhen {
+  color: var(--text-3);
+}
+
+.entryWho {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entrySource {
+  color: var(--text-3);
+}
+
+.entryMinutes {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-align: right;
+}
+
+.entryRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.entry:hover .entryRemove,
+.entryRemove:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .entryRemove {
+    opacity: 1;
+  }
+}
+
+.entryRemove:hover {
+  background: var(--surface-2);
+  color: var(--danger-text);
+}
+
+.entryMore {
+  padding: 8px 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* ───────── running pill (top bar) */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: min(320px, 46vw);
+  height: var(--control-sm);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--bg);
+  margin-right: 6px;
+  animation: pillIn var(--dur-mid) var(--ease-out);
+}
+
+@keyframes pillIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.pillMain {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px 0 12px;
+  border-radius: var(--radius-full) 0 0 var(--radius-full);
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+.pillMain:not(:disabled):hover {
+  background: var(--surface-2);
+}
+
+.pillDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--info);
+  flex-shrink: 0;
+}
+
+.pillTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pillRef {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.pillStop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 100%;
+  border-radius: 0 var(--radius-full) var(--radius-full) 0;
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+.pillStop:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+@media (max-width: 520px) {
+  .pillTitle {
+    display: none;
+  }
+}
+
+/* ───────── actual-time dialog */
+
+.actualForm {
+  display: flex;
+  gap: 12px;
+}
+
+.actualField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.actualField > input {
+  width: 72px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.actualNote {
+  margin-top: 12px;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+/* ───────── odds */
+
+.odds {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.odds[data-tone='ok'] {
+  background: var(--ok-soft);
+  color: var(--ok-text);
+}
+
+.odds[data-tone='warn'] {
+  background: var(--warn-soft);
+  color: var(--warn-text);
+}
+
+.odds[data-tone='danger'] {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+
+.odds[data-tone='muted'] {
+  background: var(--surface-2);
+  color: var(--text-3);
+}

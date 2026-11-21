@@ -108,11 +108,17 @@ struct RootView: View {
         // Background sync while the app is in front (AI tools and the web edit the same data).
         .task(id: phase) {
             guard phase == .active else { return }
-            if store.status == .ready { await store.load(silent: true) }
+            if store.status == .ready {
+                await store.load(silent: true)
+                await store.refreshRunning()
+            }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(20))
                 if Task.isCancelled { break }
-                if store.status == .ready { await store.load(silent: true) }
+                if store.status == .ready {
+                    await store.load(silent: true)
+                    await store.refreshRunning()
+                }
             }
         }
     }

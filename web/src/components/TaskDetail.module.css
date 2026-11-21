@@ -888,3 +888,18 @@ span.activityAvatar {
 .fieldset:disabled textarea::placeholder {
   color: transparent;
 }
+
+/* a quiet text action inside a property row */
+.inlineLink {
+  height: 24px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.inlineLink:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}

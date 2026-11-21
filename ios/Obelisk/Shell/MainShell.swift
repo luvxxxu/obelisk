@@ -70,6 +70,10 @@ struct MainShell: View {
                 .navigationBarTitleDisplayMode(.inline)
         }
         .overlay(alignment: .bottom) { ToastOverlay(raised: router.path.isEmpty && router.page.showsComposer) }
+        // The completion toast's 고치기 opens the "실제 시간 고치기" sheet.
+        .onAppear {
+            store.editActual = { [router, store] id in router.presentActualEditor(store, taskId: id) }
+        }
         .modifier(PendingChangePresenter(active: router.sheet == nil))
         // Jev auto-pilot (web AppShell JevAutoPilot): applies confident priorities when the user opted in.
         .jevAutoPilot()
@@ -180,9 +184,15 @@ struct PageView: View {
             // Dragging a list down puts the keyboard away (composer, inline edits).
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if page.showsComposer, canCompose {
-                    Composer(page: page)
+                VStack(spacing: 0) {
+                    // The running clock floats above the composer (one across all spaces).
+                    RunningTimerPill()
+                        .padding(.bottom, page.showsComposer && canCompose ? 0 : ObSpace.md)
+                    if page.showsComposer, canCompose {
+                        Composer(page: page)
+                    }
                 }
+                .animation(ObMotion.mid, value: store.running?.entry.id)
             }
     }
 
@@ -228,6 +238,7 @@ struct DestinationView: View {
 struct ToastOverlay: View {
     var raised: Bool
     @Environment(Toasts.self) private var toasts
+    @Environment(AppStore.self) private var store
 
     var body: some View {
         ZStack {
@@ -254,7 +265,7 @@ struct ToastOverlay: View {
                 .frame(minHeight: 44)
                 .obGlass(in: Capsule())
                 .padding(.horizontal, ObSpace.lg)
-                .padding(.bottom, raised ? 84 : ObSpace.lg)
+                .padding(.bottom, raised ? 84 + (store.running != nil ? 52 : 0) : ObSpace.lg)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .gesture(DragGesture(minimumDistance: 10).onEnded { v in
                     if v.translation.height > 10 { toasts.dismiss() }

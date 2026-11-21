@@ -12,3 +12,5 @@ export * from './overview';
 export * from './webhooks';
 export * from './migration';
 export * from './admin';
+export * from './timeplan';
+export * from './odds';

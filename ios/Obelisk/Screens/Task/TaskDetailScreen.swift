@@ -98,7 +98,11 @@ struct TaskDetailContent: View {
                         header
                         if readOnly { readOnlyNote }
                     }
-                    TaskDetailProperties(task: task, readOnly: readOnly) { sheet = $0 }
+                    VStack(alignment: .leading, spacing: ObSpace.md) {
+                        TaskDetailProperties(task: task, readOnly: readOnly) { sheet = $0 }
+                        TaskOddsLine(task: task)
+                    }
+                    TaskTimeSection(task: task, readOnly: readOnly).id("time")
                     notesSection.id("notes")
                     TaskDetailDependencySection(mode: .blockedBy, task: task, readOnly: readOnly) { sheet = .addBlocker }
                         .id("blockers")

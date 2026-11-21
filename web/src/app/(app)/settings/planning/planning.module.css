@@ -1,0 +1,114 @@
+.days {
+  display: flex;
+  gap: 4px;
+}
+
+.day {
+  width: var(--control-sm);
+  height: var(--control-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.day:hover {
+  background: var(--surface-2);
+}
+
+.day[aria-pressed='true'] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dash {
+  color: var(--text-3);
+}
+
+.time {
+  width: 140px;
+  font-variant-numeric: tabular-nums;
+}
+
+.breaks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 240px;
+}
+
+.slider input {
+  flex: 1;
+  accent-color: var(--primary);
+}
+
+.sliderValue {
+  width: 40px;
+  text-align: right;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.select {
+  width: 140px;
+}
+
+.learned {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.learnedItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.learnedLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.learnedValue {
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.learnedNote {
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.error {
+  color: var(--danger-text);
+}
+
+.footerButtons {
+  display: flex;
+  gap: 8px;
+}

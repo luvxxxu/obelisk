@@ -2,6 +2,7 @@
 
 import {
   canEditTask,
+  formatDurationKo,
   type AccessView,
   type AccountGate,
   type Bootstrap,
@@ -26,6 +27,7 @@ import {
 import { useSyncExternalStore } from 'react';
 import { api, ApiError, setWorkspaceHeader } from './api';
 import { toast } from './toast';
+import { setUi } from './ui-state';
 
 export interface AppState {
   /** gated: signed in, but the account isn't let in yet (see `gate`). */
@@ -99,6 +101,19 @@ export function useApp(): AppState {
  * (a card dragged right after the window regained focus would jump back), so it is dropped.
  */
 let localWrites = 0;
+
+/** Tasks changed elsewhere (a timer, time entries): take them if they belong to the open space. */
+export function applyTasks(list: Task[]) {
+  const mine = list.filter((t) => t.workspaceId === state.workspace?.id);
+  if (mine.length) upsertTasks(mine);
+}
+
+/** Called after a task's status was saved (the time-tracking store follows its clock). */
+const statusListeners = new Set<(task: Task, prev: Task) => void>();
+export function onStatusSaved(fn: (task: Task, prev: Task) => void) {
+  statusListeners.add(fn);
+  return () => statusListeners.delete(fn);
+}
 
 function upsertTasks(list: Task[]) {
   localWrites++;
@@ -349,6 +364,7 @@ export async function updateTask(id: string, patch: UpdateTaskInput): Promise<Ta
   try {
     const { task } = await api<{ task: Task }>('PATCH', `/api/tasks/${id}`, patch);
     upsertTasks([task]);
+    if (task.status !== prev.status) statusListeners.forEach((fn) => fn(task, prev));
     return task;
   } catch (e) {
     upsertTasks([prev]);
@@ -375,9 +391,16 @@ export async function toggleDone(id: string) {
             return !b || b.status === 'done' || b.status === 'canceled';
           }),
       );
+    // Time was recorded: say how it compares to the estimate, and offer to fix it.
+    const spent = res.actualMinutes
+      ? ` · 실제 ${formatDurationKo(res.actualMinutes)}${res.estimateMinutes ? ` (예상 ${formatDurationKo(res.estimateMinutes)})` : ''}`
+      : '';
     toast.show(
-      unblocked.length ? `완료 · 이제 ${unblocked.length}개 작업을 시작할 수 있어요` : `“${t.title}” 완료`,
-      { action: { label: '실행 취소', run: () => void updateTask(id, { status: t.status }) } },
+      unblocked.length ? `완료 · 이제 ${unblocked.length}개 작업을 시작할 수 있어요${spent}` : `“${t.title}” 완료${spent}`,
+      {
+        action: { label: '실행 취소', run: () => void updateTask(id, { status: t.status }) },
+        ...(res.actualMinutes ? { secondary: { label: '시간 고치기', run: () => setUi({ actual: { taskId: id } }) } } : {}),
+      },
     );
   }
 }

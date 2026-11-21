@@ -77,6 +77,7 @@ struct SettingsScreen: View {
         Group {
             switch page {
             case .general: GeneralSettingsView()
+            case .planning: PlanningSettingsView()
             case .notifications: NotificationSettingsView()
             case .org: OrgSettingsView()
             case .ai: AISettingsView()

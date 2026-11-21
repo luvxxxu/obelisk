@@ -34,6 +34,8 @@ struct NewTaskSheet: View {
     @State private var dueDate: ISODate?
     @State private var dueTime: ISOTime?
     @State private var fixed = false
+    @State private var estimate: Int?
+    @State private var customEstimate = false
     @State private var assigneeId: String?
     @State private var blockedBy: [String] = []
     @State private var busy = false
@@ -183,6 +185,7 @@ struct NewTaskSheet: View {
         dueDate = prefill.dueDate
         dueTime = prefill.dueDate == nil ? nil : prefill.dueTime
         fixed = prefill.fixed
+        estimate = prefill.estimateMinutes
         assigneeId = prefill.assigneeId
         blockedBy = prefill.blockedBy
         // The page's defaults, like the web dialog: 오늘 → due today, 내 작업 → assigned to me.
@@ -396,6 +399,8 @@ struct NewTaskSheet: View {
                 .buttonStyle(.obRow)
             }
             rowDivider
+            estimateRow(parsed)
+            rowDivider
             fixedRow(parsed)
         }
         .obCard(padding: 0)
@@ -492,6 +497,32 @@ struct NewTaskSheet: View {
                 Image(systemName: "tray").font(.system(size: 13)).foregroundStyle(Ob.text3)
                 Text("인박스").foregroundStyle(Ob.text)
             }
+        }
+    }
+
+    /// 예상 시간: a "~1h" in the title wins until a value is picked here.
+    private func estimateRow(_ parsed: QuickAddResult) -> some View {
+        let value = parsed.estimateMinutes ?? estimate
+        return Menu {
+            EstimateMenuItems(current: value) { m in
+                absorb([.estimate])
+                estimate = m
+            } onCustom: {
+                customEstimate = true
+            }
+        } label: {
+            ComposeFormRow(symbol: "hourglass", label: "예상 시간", chevron: "chevron.up.chevron.down") {
+                Text(value.map(formatDurationKo) ?? "없음")
+                    .foregroundStyle(value == nil ? Ob.text3 : Ob.text)
+            }
+        }
+        .tint(Ob.text)
+        .sheet(isPresented: $customEstimate) {
+            MinutesEditorSheet(title: "예상 시간", initial: value ?? 60) { m in
+                absorb([.estimate])
+                estimate = m
+            }
+            .presentationDetents([.medium])
         }
     }
 
@@ -659,6 +690,7 @@ struct NewTaskSheet: View {
         input.dueDate = span.dueDate
         input.dueTime = span.dueTime
         input.fixed = parsed.fixed || fixed
+        input.estimateMinutes = parsed.estimateMinutes ?? estimate
         input.assigneeId = store.isOrg ? assigneeId : nil
         input.blockedBy = blockedBy
         guard let created = await store.createTask(input) else { return }

@@ -20,6 +20,9 @@ import { Icon, Logo } from './Icon';
 import { GateScreen } from './GateScreen';
 import { CommandPalette, QuickAddModal, ShortcutsHelp, Toaster } from './Overlays';
 import { JevDialogs } from './JevDialogs';
+import { CommitDialog } from './CommitDialog';
+import { ActualDialog, RunningPill } from './TimeTracking';
+import { watchRunning } from '@/lib/timeplan';
 import { PostponeDialog } from './PostponeDialog';
 import { tip, TooltipLayer, ui } from './primitives';
 import { Sidebar } from './Sidebar';
@@ -162,16 +165,19 @@ function TopBar({ desktop, collapsed, nav }: { desktop: boolean; collapsed: bool
         <WorkspaceSwitcher />
       </div>
 
-      {sidebarHidden && (
-        <div className={s.topRight}>
-          <button className={s.topBtn} onClick={() => setUi({ palette: true })} aria-label="검색" {...tip('검색', { side: 'bottom', kbd: modCombo('K') })}>
-            <Icon name="search" size={18} />
-          </button>
-          <button className={s.topBtn} onClick={() => setUi({ quickAdd: true })} aria-label="새 작업" {...tip('새 작업', { side: 'bottom', kbd: 'N' })}>
-            <Icon name="squarePen" size={18} />
-          </button>
-        </div>
-      )}
+      <div className={s.topRight}>
+        <RunningPill />
+        {sidebarHidden && (
+          <>
+            <button className={s.topBtn} onClick={() => setUi({ palette: true })} aria-label="검색" {...tip('검색', { side: 'bottom', kbd: modCombo('K') })}>
+              <Icon name="search" size={18} />
+            </button>
+            <button className={s.topBtn} onClick={() => setUi({ quickAdd: true })} aria-label="새 작업" {...tip('새 작업', { side: 'bottom', kbd: 'N' })}>
+              <Icon name="squarePen" size={18} />
+            </button>
+          </>
+        )}
+      </div>
     </header>
   );
 }
@@ -187,6 +193,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (getState().status === 'idle' || getState().status === 'unauthenticated') void load();
   }, []);
   useEffect(() => startSync(), []);
+  useEffect(() => (app.status === 'ready' ? watchRunning() : undefined), [app.status]);
   useEffect(() => restoreSidebar(), []);
   useEffect(() => {
     if (app.status === 'unauthenticated') router.replace(`/login?next=${encodeURIComponent(pathname)}`);
@@ -257,6 +264,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <ShortcutsHelp />
       <PostponeDialog />
       <JevDialogs />
+      <CommitDialog />
+      <ActualDialog />
       <JevAutoPilot />
       <Toaster />
       <TooltipLayer />

@@ -7,6 +7,8 @@ export interface Toast {
   message: string;
   tone: 'default' | 'error' | 'success';
   action?: { label: string; run: () => void };
+  /** A quieter second action (shown before the main one). */
+  secondary?: { label: string; run: () => void };
 }
 
 let toasts: Toast[] = [];
@@ -28,8 +30,8 @@ export function dismiss(id: number) {
 }
 
 export const toast = {
-  show: (message: string, opts: { action?: Toast['action'] } = {}) =>
-    push({ message, tone: 'default', action: opts.action }, opts.action ? 6000 : 3600),
+  show: (message: string, opts: { action?: Toast['action']; secondary?: Toast['secondary'] } = {}) =>
+    push({ message, tone: 'default', action: opts.action, secondary: opts.secondary }, opts.action ? 6000 : 3600),
   success: (message: string) => push({ message, tone: 'success' }),
   error: (message: string) => push({ message, tone: 'error' }, 6000),
 };

@@ -9,7 +9,8 @@ import { buttonClass, ui } from '@/components/primitives';
 import { QuickAdd } from '@/components/QuickAdd';
 import { EmptyState, Page, TaskGroup, ViewHeader } from '@/components/View';
 import { cx, longDateKo } from '@/lib/format';
-import { completedOn, useForecast, useTasks } from '@/lib/hooks';
+import { completedOn, useForecast, usePref, useTasks } from '@/lib/hooks';
+import { DayPlanView } from '@/components/DayPlan';
 import { useJev } from '@/lib/jev';
 import { useApp } from '@/lib/store';
 import { setUi } from '@/lib/ui-state';
@@ -32,6 +33,7 @@ export default function TodayPage() {
     };
   }, [tasks, today, user, now]);
 
+  const [mode, setMode] = usePref<'list' | 'plan'>('today-mode', 'list');
   const risk = fc.summary.delayedCount + fc.summary.conflictCount;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? '좋은 아침이에요' : hour < 18 ? '좋은 오후예요' : '좋은 저녁이에요';
@@ -50,13 +52,24 @@ export default function TodayPage() {
     ) : undefined;
 
   return (
-    <Page>
+    <Page wide={mode === 'plan'}>
       <ViewHeader
         title="오늘"
         description={`${longDateKo(today)} · ${greeting}, ${user?.name}님`}
         actions={
-          progress || jev.connected ? (
-            <div className={s.todayActions}>
+          <div className={s.todayActions}>
+            <div className={ui.segmented} data-size="sm" role="tablist" aria-label="보기">
+              <button type="button" role="tab" className={ui.segment} aria-selected={mode === 'list'} onClick={() => setMode('list')}>
+                <Icon name="list" size={14} />
+                목록
+              </button>
+              <button type="button" role="tab" className={ui.segment} aria-selected={mode === 'plan'} onClick={() => setMode('plan')}>
+                <Icon name="clock" size={14} />
+                시간표
+              </button>
+            </div>
+            {mode === 'list' && (progress || jev.connected) ? (
+            <>
               {progress}
               {jev.connected && overdue.length + todays.length > 0 && (
                 <button
@@ -68,10 +81,16 @@ export default function TodayPage() {
                   미룰 작업 고르기
                 </button>
               )}
-            </div>
-          ) : undefined
+            </>
+            ) : null}
+          </div>
         }
       />
+
+      {mode === 'plan' ? (
+        <DayPlanView />
+      ) : (
+      <>
 
       {risk > 0 && (
         <Link href="/forecast" className={cx(ui.alert, s.riskAlert)} data-tone={fc.summary.conflictCount ? 'danger' : 'warn'}>
@@ -120,6 +139,8 @@ export default function TodayPage() {
       )}
 
       <TaskGroup title="오늘 완료" tone="muted" tasks={done} collapsible defaultCollapsed={done.length > 3} />
+      </>
+      )}
     </Page>
   );
 }

@@ -8,16 +8,17 @@ import Foundation
 //   "Ship beta next friday #launch !2"   → due next Friday, project launch, medium
 //   "치과 내일 오후 3시"                   → due tomorrow 15:00
 //   "회의 금요일 10시~11시 반"              → Friday 10:00 – 11:30
+//   "보고서 초안 금요일 ~2h"                 → due Friday, expected to take two hours
 
 enum QuickAddKind: String, Codable, CaseIterable, Hashable, Sendable {
-    case date, time, project, priority, fixed
+    case date, time, project, priority, fixed, estimate
 }
 
 struct QuickAddToken: Codable, Hashable, Sendable {
     var kind: QuickAddKind
     /// Exactly as typed
     var text: String
-    /// Normalised value: ISO date, "HH:MM" (or "HH:MM~HH:MM"), project name, priority digit, "true"
+    /// Normalised value: ISO date, "HH:MM" (or "HH:MM~HH:MM"), project name, priority digit, "true", minutes
     var value: String
 }
 
@@ -30,6 +31,8 @@ struct QuickAddResult: Codable, Hashable, Sendable {
     var projectName: String?
     var priority: Priority?
     var fixed: Bool
+    /// "~1h30m", "~90분": minutes it should take.
+    var estimateMinutes: Int? = nil
     var tokens: [QuickAddToken]
 }
 
@@ -256,7 +259,7 @@ struct DateTimePhrase: Codable, Hashable, Sendable {
 
 /// A date with an optional time, as typed into a date field: "내일 오후 3시", "11/20 15:30", "금요일".
 func parseDateTimePhrase(_ raw: String, _ today: ISODate, _ nowMinutes: Int? = nil) -> DateTimePhrase? {
-    let q = parseQuickAdd(raw, today, disabled: [.project, .priority, .fixed], nowMinutes: nowMinutes)
+    let q = parseQuickAdd(raw, today, disabled: [.project, .priority, .fixed, .estimate], nowMinutes: nowMinutes)
     if !q.title.isEmpty || !q.dueDate.jsTruthy || q.startDate.jsTruthy { return nil }
     return DateTimePhrase(date: q.dueDate!, time: q.dueTime)
 }
@@ -288,6 +291,7 @@ private let RE_WS = JSRegex("\\s+")
 private let RE_PROJECT = JSRegex("^#\\S+")
 private let RE_UNDERSCORE = JSRegex("_")
 private let RE_FIXED = JSRegex("^@(고정|fixed|fix)$", ignoreCase: true)
+private let RE_LEADING_DIGIT = JSRegex("^\\d")
 
 /// Parse a quick-add line. `disabled` kinds stay in the title; with `nowMinutes` (minutes past midnight
 /// now), a time alone that has already passed today means tomorrow.
@@ -311,10 +315,27 @@ func parseQuickAdd(_ input: String, _ today: ISODate, disabled: [QuickAddKind] =
     var projectName: String? = nil
     var priority: Priority? = nil
     var fixed = false
+    var estimateMinutes: Int? = nil
 
     var i = 0
     while i < words.count {
         let w = words[i]
+
+        // "~2h", "~1시간 30분", "~ 45분": how long it takes.
+        if !off.contains(.estimate), estimateMinutes == nil, JS.startsWith(w, "~") {
+            let head = JS.slice(w, 1)
+            let next: String? = i + 1 < words.count ? words[i + 1] : nil
+            let one = head.isEmpty ? nil : parseDuration(head)
+            let two = next.flatMap { parseDuration("\(head)\($0)") }
+            let len = two != nil && (one == nil || RE_LEADING_DIGIT.test(next!)) ? 2 : one != nil ? 1 : 0
+            if len > 0 {
+                let minutes = len == 2 ? two! : one!
+                estimateMinutes = minutes
+                tokens.append(QuickAddToken(kind: .estimate, text: words[i ..< i + len].joined(separator: " "), value: String(minutes)))
+                i += len
+                continue
+            }
+        }
 
         if !off.contains(.project), projectName == nil, RE_PROJECT.test(w) {
             let name = RE_UNDERSCORE.replaceAll(JS.slice(w, 1), " ")
@@ -425,6 +446,7 @@ func parseQuickAdd(_ input: String, _ today: ISODate, disabled: [QuickAddKind] =
         projectName: projectName,
         priority: priority,
         fixed: fixed,
+        estimateMinutes: estimateMinutes,
         tokens: tokens
     )
 }

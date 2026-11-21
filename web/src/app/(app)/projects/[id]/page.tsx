@@ -16,6 +16,7 @@ import { useForecast, usePref, useTasks } from '@/lib/hooks';
 import { deleteProject, updateProject, useApp } from '@/lib/store';
 import { cx } from '@/lib/format';
 import { setUi } from '@/lib/ui-state';
+import { useOdds } from '@/lib/timeplan';
 import s from '../../views.module.css';
 
 export default function ProjectPage() {
@@ -28,6 +29,7 @@ export default function ProjectPage() {
   const move = useDisclosure();
   const tasks = useTasks();
   const fc = useForecast();
+  const projectOdds = useOdds().data?.report.projects.find((p) => p.projectId === id) ?? null;
   const [mode, setMode] = usePref<'list' | 'timeline'>(`project-mode`, 'list');
   const [name, setName] = useState(project?.name ?? '');
   const menuRef = useRef<HTMLButtonElement>(null);
@@ -215,9 +217,18 @@ export default function ProjectPage() {
             </span>
           )}
           {data.finish && (
-            <span className={s.statMeta}>
+            <span className={s.statMeta} {...tip('마감일 기준 마지막 날', { side: 'bottom' })}>
               <Icon name="flag" size={14} />
               예상 완료 {formatRelativeKo(data.finish, today)}
+            </span>
+          )}
+          {projectOdds && projectOdds.p85 && (
+            <span
+              className={s.statMeta}
+              {...tip(`내 기록으로 계산 · 50% ${projectOdds.p50 ? formatRelativeKo(projectOdds.p50, today) : '–'} · 95% ${projectOdds.p95 ? formatRelativeKo(projectOdds.p95, today) : '6개월 뒤 이후'}`, { side: 'bottom' })}
+            >
+              <Icon name="target" size={14} />
+              85% 확률로 {formatRelativeKo(projectOdds.p85, today)} 완료
             </span>
           )}
           {readOnly && (

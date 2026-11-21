@@ -1,5 +1,5 @@
 import { ConflictException, ForbiddenException, Injectable, UnauthorizedException, HttpException } from '@nestjs/common';
-import { emailDomainAllowed, type AccountGate, type HomeLayout, type SignupInput, type SignupStatus, type User } from '@obelisk/core';
+import { emailDomainAllowed, workHoursOf, type AccountGate, type HomeLayout, type SignupInput, type SignupStatus, type User, type WorkHours } from '@obelisk/core';
 import { and, eq, gt, isNull, count, sql } from 'drizzle-orm';
 import type { Request } from 'express';
 import { config, SESSION_COOKIE } from '../config';
@@ -39,6 +39,7 @@ export function toUser(r: UserRow): User {
     avatarUrl: avatarPath(r.avatarId),
     admin: r.admin,
     emailVerified: !!r.emailVerifiedAt,
+    workHours: workHoursOf(r.workHours),
     createdAt: r.createdAt.toISOString(),
   };
 }
@@ -231,7 +232,7 @@ export class AuthService {
 
   async updateMe(
     userId: string,
-    patch: { name?: string; timezone?: string; defaultWorkspaceId?: string; homeLayout?: HomeLayout | null },
+    patch: { name?: string; timezone?: string; defaultWorkspaceId?: string; homeLayout?: HomeLayout | null; workHours?: WorkHours },
   ) {
     if (patch.defaultWorkspaceId) {
       const member = await this.db.query.workspaceMembers.findFirst({

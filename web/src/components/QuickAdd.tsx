@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  formatDurationKo,
   formatRelativeKo,
   formatShortKo,
   formatTimeKo,
@@ -9,6 +10,8 @@ import {
   parseQuickAdd,
   PRIORITY_LABEL_KO,
   JEV_CONFIDENT,
+  percentKo,
+  type CommitResponse,
   type ISODate,
   type Priority,
   type QuickAddKind,
@@ -19,8 +22,11 @@ import { useClock } from '@/lib/clock';
 import { cx } from '@/lib/format';
 import { fetchTriage, useJev } from '@/lib/jev';
 import { canWriteProject, createProject, createTask, useApp } from '@/lib/store';
+import { peekCommit } from '@/lib/timeplan';
 import { toast } from '@/lib/toast';
+import { setUi } from '@/lib/ui-state';
 import { Icon } from './Icon';
+import { oddsTone } from './TimeTracking';
 import { tip, ui, type BadgeTone } from './primitives';
 import s from './QuickAdd.module.css';
 
@@ -81,6 +87,14 @@ function SyntaxHelp({ onClose }: { onClose?: () => void }) {
           </dt>
           <dd>
             <code>!높음</code> <code>!보통</code> <code>!낮음</code>
+          </dd>
+        </div>
+        <div className={s.helpRow}>
+          <dt>
+            <Icon name="timer" size={13} /> 예상 시간
+          </dt>
+          <dd>
+            <code>~30분</code> <code>~1h30m</code> <code>~2시간</code> <span className={s.helpNote}>하루 계획과 완료 확률에 써요</span>
           </dd>
         </div>
         <div className={s.helpRow}>
@@ -228,6 +242,7 @@ export const QuickAdd = forwardRef<
       dueTime: parsed.dueDate ? parsed.dueTime : null,
       priority,
       fixed: fixed || undefined,
+      ...(parsed.estimateMinutes ? { estimateMinutes: parsed.estimateMinutes } : {}),
       ...(defaultAssigneeId ? { assigneeId: defaultAssigneeId } : {}),
     });
     setBusy(false);
@@ -278,8 +293,35 @@ export const QuickAdd = forwardRef<
         tone: (p === 3 ? 'danger' : p === 2 ? 'warn' : 'secondary') as BadgeTone,
       };
     }
+    if (t.kind === 'estimate') return { kind: t.kind, icon: 'timer' as const, text: `${formatDurationKo(Number(t.value))} 걸림`, tone: 'secondary' as BadgeTone };
     return { kind: t.kind, icon: 'pin' as const, text: '고정 일정', tone: 'outline' as BadgeTone };
   });
+
+  // ── Can this date be kept? Asked quietly once the line has a title and a due date.
+  const oddsTarget = parsed.title.trim().length >= 2 && due && !parsed.fixed && !(parsed.startTime && parsed.dueTime) ? due : null;
+  const oddsKey = oddsTarget ? JSON.stringify([parsed.title.trim(), parsed.estimateMinutes, oddsTarget, projectId ?? matched?.id ?? null]) : '';
+  const [oddsHint, setOddsHint] = useState<{ key: string; r: CommitResponse } | null>(null);
+  useEffect(() => {
+    if (!oddsKey) return;
+    if (oddsHint?.key === oddsKey) return;
+    let live = true;
+    const timer = window.setTimeout(async () => {
+      const r = await peekCommit({ title: parsed.title.trim(), estimateMinutes: parsed.estimateMinutes, projectId: projectId ?? matched?.id ?? null, date: oddsTarget! });
+      if (live && r) setOddsHint({ key: oddsKey, r });
+    }, 650);
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oddsKey]);
+  const oddsNow = oddsHint?.key === oddsKey ? oddsHint.r : null;
+  const proposedOdds = oddsNow?.report.proposed ?? null;
+  const openCommit = () =>
+    setUi({
+      commit: { title: parsed.title.trim(), estimateMinutes: parsed.estimateMinutes, projectId: projectId ?? matched?.id ?? null, date: oddsTarget },
+      quickAdd: false,
+    });
   const showDefaultDate = !parsed.dueDate && !parsed.startDate && defaultDueDate && value.trim();
   const typing = !!value.trim();
   const isModal = variant === 'modal';
@@ -360,7 +402,7 @@ export const QuickAdd = forwardRef<
           )
         )}
       </div>
-      {(chips.length > 0 || showDefaultDate) && (
+      {(chips.length > 0 || showDefaultDate || proposedOdds) && (
         <div className={s.chips}>
           {chips.map((c, i) => (
             <button
@@ -389,6 +431,25 @@ export const QuickAdd = forwardRef<
               {formatRelativeKo(defaultDueDate!, today)}
               <span className={s.chipNote}>기본</span>
             </span>
+          )}
+          {proposedOdds && (
+            <button
+              type="button"
+              className={cx(ui.badge, s.chip, s.oddsChip)}
+              data-odds={oddsTone(proposedOdds.probability)}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={openCommit}
+              {...tip(
+                proposedOdds.harmed.length
+                  ? `다른 작업 ${proposedOdds.harmed.length}개가 위험해져요 · 눌러서 가능한 날짜 보기`
+                  : `${oddsNow!.estimated ? '' : '예상 시간이 없어 평소 길이로 계산 · '}눌러서 가능한 날짜 보기`,
+                { side: 'bottom' },
+              )}
+            >
+              <Icon name="target" size={12} />
+              제때 {percentKo(proposedOdds.probability)}
+              {proposedOdds.harmed.length > 0 && <span className={s.chipNote}>밀리는 일 {proposedOdds.harmed.length}</span>}
+            </button>
           )}
         </div>
       )}
